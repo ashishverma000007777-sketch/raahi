@@ -1,0 +1,4 @@
+# Production profile settings - strictly enforces security and disables development-only paths
+raahi:
+  auth:
+    dev-mock-enabled: false   # Production profile hard-disables dev-mock tokens

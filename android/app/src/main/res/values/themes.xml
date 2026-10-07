@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Light cream window theme matching the new UI design reference -->
+    <style name="Theme.Raahi" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/raahi_navy_background</item>
+        <item name="android:statusBarColor">@color/raahi_navy_background</item>
+        <item name="android:navigationBarColor">@color/raahi_navy_background</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:colorAccent">@color/raahi_orange_accent</item>
+    </style>
+
+    <!-- Theme of the starting window (Splash) -->
+    <style name="Theme.Raahi.Splash" parent="Theme.Raahi">
+        <item name="android:windowBackground">@color/raahi_splash_background</item>
+        <item name="android:statusBarColor">@color/raahi_splash_background</item>
+        <item name="android:navigationBarColor">@color/raahi_splash_background</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+</resources>

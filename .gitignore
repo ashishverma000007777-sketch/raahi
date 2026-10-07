@@ -1,0 +1,21 @@
+# Android / Gradle
+.gradle/
+build/
+**/build/
+local.properties
+
+# Secrets / credentials
+.env
+.env.*
+*.keystore
+*.jks
+service-account*.json
+firebase-service-account*.json
+
+# IDE
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
