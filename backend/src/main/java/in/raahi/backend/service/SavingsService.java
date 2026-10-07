@@ -127,8 +127,8 @@ public class SavingsService {
             vehicle = vehicleRepository.findByUserId(userId).orElse(null);
         }
 
-        double totalMaintenance = 0.0;
-        double currentYearMaintenance = 0.0;
+        BigDecimal totalMaintenance = BigDecimal.ZERO;
+        BigDecimal currentYearMaintenance = BigDecimal.ZERO;
         int serviceRecordsCount = 0;
 
         if (serviceRecordRepository != null && vehicle != null) {
@@ -136,9 +136,9 @@ public class SavingsService {
             serviceRecordsCount = records.size();
             for (VehicleServiceRecord r : records) {
                 if (r.getCost() != null) {
-                    totalMaintenance += r.getCost();
+                    totalMaintenance = totalMaintenance.add(r.getCost());
                     if (r.getServiceDate() != null && r.getServiceDate().getYear() == today.getYear()) {
-                        currentYearMaintenance += r.getCost();
+                        currentYearMaintenance = currentYearMaintenance.add(r.getCost());
                     }
                 }
             }

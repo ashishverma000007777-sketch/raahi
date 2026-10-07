@@ -1,4 +1,5 @@
 package in.raahi.backend.entity;
+import java.math.BigDecimal;
 
 import jakarta.persistence.*;
 import java.time.Instant;
@@ -36,7 +37,7 @@ public class VehicleServiceRecord {
     @Column(columnDefinition = "TEXT")
     private String notes;
 
-    private Double cost;
+    private BigDecimal cost;
 
     @Column(name = "workshop_name")
     private String workshopName;
@@ -58,8 +59,8 @@ public class VehicleServiceRecord {
     public void setServiceType(String v) { this.serviceType = v; }
     public String getNotes() { return notes; }
     public void setNotes(String v) { this.notes = v; }
-    public Double getCost() { return cost; }
-    public void setCost(Double v) { this.cost = v; }
+    public BigDecimal getCost() { return cost; }
+    public void setCost(BigDecimal v) { this.cost = v; }
     public String getWorkshopName() { return workshopName; }
     public void setWorkshopName(String v) { this.workshopName = v; }
     public String getPartsReplaced() { return partsReplaced; }

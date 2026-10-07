@@ -1,4 +1,5 @@
 package in.raahi.backend.dto;
+import java.math.BigDecimal;
 
 import java.util.List;
 
@@ -21,8 +22,8 @@ public class SavingsDtos {
         public String mileageTrendText;
 
         // Maintenance Spending
-        public Double totalMaintenanceSpend;
-        public Double currentYearMaintenanceSpend;
+        public BigDecimal totalMaintenanceSpend;
+        public BigDecimal currentYearMaintenanceSpend;
         public int maintenanceRecordsCount;
 
         // Result-based Mileage & Care Streaks

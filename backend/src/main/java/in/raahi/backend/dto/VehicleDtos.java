@@ -1,4 +1,5 @@
 package in.raahi.backend.dto;
+import java.math.BigDecimal;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -183,7 +184,7 @@ public class VehicleDtos {
         public Integer odometerKm;
         public String serviceType;
         public String notes;
-        public Double cost;
+        public BigDecimal cost;
         public String workshopName;
         public String partsReplaced;
         public String createdAt;
@@ -208,7 +209,7 @@ public class VehicleDtos {
 
         @PositiveOrZero(message = "cost cannot be negative")
         @Max(value = 1000000, message = "cost exceeds limit")
-        public Double cost;
+        public BigDecimal cost;
 
         @Size(max = 100, message = "workshopName exceeds 100 characters")
         public String workshopName;
