@@ -20,8 +20,7 @@ public class VerificationDocument {
     @Column(name = "doc_type", nullable = false)
     private DocType docType;
 
-    @Lob
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "BYTEA")
     private byte[] content;
 
     @Column(name = "content_type", nullable = false)
