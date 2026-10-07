@@ -18,6 +18,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import `in`.raahi.app.data.HomeRepository
+import `in`.raahi.app.data.AuthRepository
 import `in`.raahi.app.network.CreateFuelLogRequest
 import `in`.raahi.app.network.toUserFriendlyMessage
 import `in`.raahi.app.ui.theme.*
@@ -35,7 +36,9 @@ sealed class AddFuelState {
 }
 
 @HiltViewModel
-class AddFuelViewModel @Inject constructor(private val repository: HomeRepository) : ViewModel() {
+class AddFuelViewModel @Inject constructor(private val repository: HomeRepository,
+    private val authRepository: AuthRepository,
+) : ViewModel() {
     private val _state = MutableStateFlow<AddFuelState>(AddFuelState.Idle)
     val state: StateFlow<AddFuelState> = _state.asStateFlow()
 

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import `in`.raahi.app.data.SavingsRepository
+import `in`.raahi.app.data.AuthRepository
 import `in`.raahi.app.network.SavingsSummaryDto
 import `in`.raahi.app.network.toUserFriendlyMessage
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,6 +22,7 @@ sealed class SavingsUiState {
 @HiltViewModel
 class SavingsViewModel @Inject constructor(
     private val repository: SavingsRepository,
+    private val authRepository: AuthRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<SavingsUiState>(SavingsUiState.Loading)
@@ -31,6 +33,10 @@ class SavingsViewModel @Inject constructor(
     }
 
     fun load() {
+        if (!authRepository.hasAuthToken()) {
+            _state.value = SavingsUiState.Error("Sign in to view savings")
+            return
+        }
         _state.value = SavingsUiState.Loading
         viewModelScope.launch {
             runCatching {

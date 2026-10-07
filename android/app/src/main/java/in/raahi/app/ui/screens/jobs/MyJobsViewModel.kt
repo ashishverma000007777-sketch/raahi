@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import `in`.raahi.app.data.JobsRepository
+import `in`.raahi.app.data.AuthRepository
 import `in`.raahi.app.network.JobDto
 import `in`.raahi.app.network.toUserFriendlyMessage
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,7 +20,10 @@ sealed class MyJobsUiState {
 }
 
 @HiltViewModel
-class MyJobsViewModel @Inject constructor(private val jobsRepository: JobsRepository) : ViewModel() {
+class MyJobsViewModel @Inject constructor(
+    private val jobsRepository: JobsRepository,
+    private val authRepository: AuthRepository,
+) : ViewModel() {
 
     private val _state = MutableStateFlow<MyJobsUiState>(MyJobsUiState.Loading)
     val state: StateFlow<MyJobsUiState> = _state.asStateFlow()
@@ -27,6 +31,10 @@ class MyJobsViewModel @Inject constructor(private val jobsRepository: JobsReposi
     init { refresh() }
 
     fun refresh() {
+        if (!authRepository.hasAuthToken()) {
+            _state.value = MyJobsUiState.Loaded(emptyList())
+            return
+        }
         _state.value = MyJobsUiState.Loading
         viewModelScope.launch {
             runCatching { jobsRepository.myJobs() }

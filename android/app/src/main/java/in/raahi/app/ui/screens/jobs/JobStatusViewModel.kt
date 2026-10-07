@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import androidx.lifecycle.SavedStateHandle
 import `in`.raahi.app.data.JobsRepository
+import `in`.raahi.app.data.AuthRepository
 import `in`.raahi.app.data.LocationProvider
 import `in`.raahi.app.network.JobDto
 import `in`.raahi.app.network.toUserFriendlyMessage
@@ -38,6 +39,7 @@ private const val LOCATION_SHARE_INTERVAL_MS = 8_000L
 @HiltViewModel
 class JobStatusViewModel @Inject constructor(
     private val jobsRepository: JobsRepository,
+    private val authRepository: AuthRepository,
     private val webSocketClient: RaahiWebSocketClient,
     private val locationProvider: LocationProvider,
     savedStateHandle: SavedStateHandle,
@@ -51,9 +53,13 @@ class JobStatusViewModel @Inject constructor(
     val wsConnectionState = webSocketClient.connectionState
 
     init {
-        startPolling()
-        listenForLiveUpdates()
-        startLocationSharingIfHelper()
+        if (authRepository.hasAuthToken()) {
+            startPolling()
+            listenForLiveUpdates()
+            startLocationSharingIfHelper()
+        } else {
+            _state.value = JobStatusUiState.Error("Sign in to view this request")
+        }
     }
 
     private fun startPolling() {
@@ -100,6 +106,7 @@ class JobStatusViewModel @Inject constructor(
     }
 
     fun refresh() {
+        if (!authRepository.hasAuthToken()) return
         viewModelScope.launch {
             runCatching { jobsRepository.getJob(jobId) }
                 .onSuccess { job ->
@@ -137,6 +144,7 @@ class JobStatusViewModel @Inject constructor(
     fun workDone(finalAmount: Double?, paymentMode: String) = act { jobsRepository.workDone(jobId, finalAmount, paymentMode) }
 
     private fun act(block: suspend () -> JobDto) {
+        if (!authRepository.hasAuthToken()) return
         val current = _state.value as? JobStatusUiState.Loaded ?: return
         _state.value = current.copy(acting = true, actionError = null)
         viewModelScope.launch {

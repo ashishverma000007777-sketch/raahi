@@ -157,6 +157,9 @@ class AuthRepository @Inject constructor(
         return SignInResult(data.token, data.isNewUser, data.user)
     }
 
+    /** Returns true only when a real backend JWT is stored. */
+    fun hasAuthToken(): Boolean = !tokenManager.getCachedToken().isNullOrBlank()
+
     /** GET /auth/me — used by Home to load the signed-in user's real profile (name, vehicle, role, rating). */
     suspend fun currentUser(): UserDto = apiCall { api.me() }
 

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import `in`.raahi.app.data.LatLng
+import `in`.raahi.app.data.AuthRepository
 import `in`.raahi.app.data.LocationProvider
 import `in`.raahi.app.data.MechanicsRepository
 import `in`.raahi.app.network.MechanicDto
@@ -30,6 +31,7 @@ sealed class MechanicsMapUiState {
 class MechanicsMapViewModel @Inject constructor(
     private val locationProvider: LocationProvider,
     private val mechanicsRepository: MechanicsRepository,
+    private val authRepository: AuthRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<MechanicsMapUiState>(MechanicsMapUiState.Loading)
@@ -39,6 +41,7 @@ class MechanicsMapViewModel @Inject constructor(
 
     /** Called once location permission is confirmed granted, by the screen. */
     fun start() {
+        if (!authRepository.hasAuthToken()) return
         val current = _state.value as? MechanicsMapUiState.Loaded
         if (current == null) {
             _state.value = MechanicsMapUiState.Loading

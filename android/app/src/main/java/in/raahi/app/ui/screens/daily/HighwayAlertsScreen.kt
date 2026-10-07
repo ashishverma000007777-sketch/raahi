@@ -23,6 +23,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import `in`.raahi.app.data.DailyRepository
+import `in`.raahi.app.data.AuthRepository
 import `in`.raahi.app.network.AlertDto
 import `in`.raahi.app.network.toUserFriendlyMessage
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -42,7 +43,9 @@ sealed class AlertsUiState {
 }
 
 @HiltViewModel
-class HighwayAlertsViewModel @Inject constructor(private val repository: DailyRepository) : ViewModel() {
+class HighwayAlertsViewModel @Inject constructor(private val repository: DailyRepository,
+    private val authRepository: AuthRepository,
+) : ViewModel() {
     private val _state = MutableStateFlow<AlertsUiState>(AlertsUiState.Loading)
     val state: StateFlow<AlertsUiState> = _state.asStateFlow()
 
@@ -58,6 +61,7 @@ class HighwayAlertsViewModel @Inject constructor(private val repository: DailyRe
     }
 
     fun vote(alertId: String, vote: String) {
+        if (!authRepository.hasAuthToken()) return
         viewModelScope.launch {
             runCatching { repository.vote(alertId, vote) }
                 .onSuccess { updated ->
@@ -70,6 +74,7 @@ class HighwayAlertsViewModel @Inject constructor(private val repository: DailyRe
     }
 
     fun createAlert(type: String, message: String) {
+        if (!authRepository.hasAuthToken()) return
         viewModelScope.launch {
             runCatching { repository.createAlert(type, message, null, null, null) }
                 .onSuccess { refresh() }

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import `in`.raahi.app.data.TripRepository
+import `in`.raahi.app.data.AuthRepository
 import `in`.raahi.app.network.TripDto
 import `in`.raahi.app.network.toUserFriendlyMessage
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,6 +22,7 @@ sealed interface TripHistoryUiState {
 @HiltViewModel
 class TripHistoryViewModel @Inject constructor(
     private val tripRepository: TripRepository,
+    private val authRepository: AuthRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<TripHistoryUiState>(TripHistoryUiState.Loading)
@@ -31,6 +33,10 @@ class TripHistoryViewModel @Inject constructor(
     }
 
     fun loadHistory() {
+        if (!authRepository.hasAuthToken()) {
+            _state.value = TripHistoryUiState.Success(emptyList())
+            return
+        }
         viewModelScope.launch {
             _state.value = TripHistoryUiState.Loading
             try {

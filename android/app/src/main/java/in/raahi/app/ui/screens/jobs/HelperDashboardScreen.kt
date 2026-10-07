@@ -198,7 +198,7 @@ private fun ActiveTab(jobs: List<JobDto>, onOpen: (String) -> Unit) {
             Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(PROBLEM_TYPES.firstOrNull { it.id == job.problemType }?.label ?: job.problemType, color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                    Text(job.requesterName, color = RaahiTextDim, fontSize = 12.sp)
+                    Text(job.requesterName ?: "Requester", color = RaahiTextDim, fontSize = 12.sp)
                 }
                 RaahiStatusPill(job.status.replace("_", " "), RaahiOrange)
             }

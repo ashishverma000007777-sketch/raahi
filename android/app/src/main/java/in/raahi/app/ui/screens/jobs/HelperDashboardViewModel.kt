@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import `in`.raahi.app.data.HelperRepository
+import `in`.raahi.app.data.AuthRepository
 import `in`.raahi.app.data.JobsRepository
 import `in`.raahi.app.data.LocationProvider
 import `in`.raahi.app.network.HelperCommissionDto
@@ -47,6 +48,7 @@ data class HelperDashUiState(
 @HiltViewModel
 class HelperDashboardViewModel @Inject constructor(
     private val jobsRepository: JobsRepository,
+    private val authRepository: AuthRepository,
     private val helperRepository: HelperRepository,
     private val locationProvider: LocationProvider,
 ) : ViewModel() {
@@ -57,6 +59,10 @@ class HelperDashboardViewModel @Inject constructor(
     init { load() }
 
     fun load() {
+        if (!authRepository.hasAuthToken()) {
+            _state.update { it.copy(loading = false) }
+            return
+        }
         _state.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
             try {
@@ -75,6 +81,7 @@ class HelperDashboardViewModel @Inject constructor(
     }
 
     fun refreshTab() {
+        if (!authRepository.hasAuthToken()) return
         val s = _state.value
         if (s.status?.applicationStatus != "APPROVED") return
         _state.update { it.copy(tabLoading = true) }
@@ -109,6 +116,7 @@ class HelperDashboardViewModel @Inject constructor(
 
     /** Server decides: only APPROVED + ACTIVE helpers can go online. */
     fun setOnline(online: Boolean) {
+        if (!authRepository.hasAuthToken()) return
         _state.update { it.copy(togglingOnline = true, error = null) }
         viewModelScope.launch {
             try {
@@ -132,6 +140,7 @@ class HelperDashboardViewModel @Inject constructor(
     }
 
     fun accept(jobId: String) {
+        if (!authRepository.hasAuthToken()) return
         _state.update { it.copy(acceptingId = jobId, error = null) }
         viewModelScope.launch {
             try {

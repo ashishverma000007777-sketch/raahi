@@ -20,6 +20,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import `in`.raahi.app.data.DailyRepository
+import `in`.raahi.app.data.AuthRepository
 import `in`.raahi.app.network.StreakDto
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -33,13 +34,16 @@ import javax.inject.Inject
 data class StreakUiState(val loading: Boolean = true, val streak: StreakDto? = null, val checkingIn: Boolean = false, val error: String? = null, val reward: String? = null)
 
 @HiltViewModel
-class StreakViewModel @Inject constructor(private val repository: DailyRepository) : ViewModel() {
+class StreakViewModel @Inject constructor(private val repository: DailyRepository,
+    private val authRepository: AuthRepository,
+) : ViewModel() {
     private val _state = MutableStateFlow(StreakUiState())
     val state: StateFlow<StreakUiState> = _state.asStateFlow()
 
     init { refresh() }
 
     fun refresh() {
+        if (!authRepository.hasAuthToken()) return
         _state.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
             runCatching { repository.streak() }

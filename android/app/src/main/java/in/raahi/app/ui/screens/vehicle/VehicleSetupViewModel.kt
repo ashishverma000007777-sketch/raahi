@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import `in`.raahi.app.data.VehicleRepository
+import `in`.raahi.app.data.AuthRepository
 import `in`.raahi.app.network.UpsertVehicleRequest
 import `in`.raahi.app.network.VehicleDto
 import `in`.raahi.app.network.toUserFriendlyMessage
@@ -23,6 +24,7 @@ sealed class VehicleSetupState {
 @HiltViewModel
 class VehicleSetupViewModel @Inject constructor(
     private val repository: VehicleRepository,
+    private val authRepository: AuthRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<VehicleSetupState>(VehicleSetupState.Editing)
@@ -35,12 +37,14 @@ class VehicleSetupViewModel @Inject constructor(
     val prefill: StateFlow<VehicleDto?> = _prefill.asStateFlow()
 
     fun loadForEdit() {
+        if (!authRepository.hasAuthToken()) return
         viewModelScope.launch {
             runCatching { repository.myVehicle() }.onSuccess { _prefill.value = it }
         }
     }
 
     fun save(req: UpsertVehicleRequest) {
+        if (!authRepository.hasAuthToken()) return
         _state.value = VehicleSetupState.Saving
         viewModelScope.launch {
             runCatching { repository.upsertVehicle(req) }

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import `in`.raahi.app.data.AiMechanicRepository
+import `in`.raahi.app.data.AuthRepository
 import `in`.raahi.app.network.AiMessageDto
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,6 +26,7 @@ data class AiChatUiState(
 @HiltViewModel
 class AiMechanicViewModel @Inject constructor(
     private val repository: AiMechanicRepository,
+    private val authRepository: AuthRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(AiChatUiState())
@@ -35,6 +37,18 @@ class AiMechanicViewModel @Inject constructor(
     fun start() {
         _state.update { it.copy(loading = it.sessionId == null && it.messages.isEmpty(), error = null) }
         viewModelScope.launch {
+            if (!authRepository.hasAuthToken()) {
+                _state.update {
+                    it.copy(
+                        loading = false,
+                        sessionId = null,
+                        messages = emptyList(),
+                        error = null,
+                    )
+                }
+                return@launch
+            }
+
             runCatching {
                 // Reuse the most recent session if one exists, otherwise start a fresh one —
                 // matches a normal "continue where you left off" chat experience.
@@ -52,7 +66,7 @@ class AiMechanicViewModel @Inject constructor(
     }
 
     fun send(text: String) {
-        if (text.isBlank()) return
+        if (text.isBlank() || !authRepository.hasAuthToken()) return
         val currentSessionId = _state.value.sessionId
 
         val optimisticUserMessage = AiMessageDto(

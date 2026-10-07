@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import `in`.raahi.app.data.JobsRepository
+import `in`.raahi.app.data.AuthRepository
 import `in`.raahi.app.data.LatLng
 import `in`.raahi.app.data.LocationProvider
 import `in`.raahi.app.network.toUserFriendlyMessage
@@ -39,6 +40,7 @@ data class RequestHelpFormState(
 @HiltViewModel
 class RequestHelpViewModel @Inject constructor(
     private val jobsRepository: JobsRepository,
+    private val authRepository: AuthRepository,
     private val locationProvider: LocationProvider,
 ) : ViewModel() {
 
@@ -68,6 +70,7 @@ class RequestHelpViewModel @Inject constructor(
     }
 
     fun submit() {
+        if (!authRepository.hasAuthToken()) return
         val s = _state.value
         val problem = s.selectedProblem
         val loc = (s.location as? LocationFixState.Ready)?.location

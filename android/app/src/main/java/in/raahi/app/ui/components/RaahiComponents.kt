@@ -16,6 +16,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.outlined.AutoAwesome
@@ -467,7 +468,7 @@ fun RaahiScreenHeader(title: String, onBack: (() -> Unit)?, subtitle: String? = 
     ) {
         if (onBack != null) {
             androidx.compose.material3.IconButton(onClick = onBack) {
-                Icon(androidx.compose.material.icons.Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back", tint = RaahiText)
+                Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back", tint = RaahiText)
             }
         } else {
             Spacer(Modifier.width(8.dp))

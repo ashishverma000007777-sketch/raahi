@@ -1,5 +1,6 @@
 package `in`.raahi.app.ui.screens.commerce
 
+import `in`.raahi.app.data.AuthRepository
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -36,13 +37,17 @@ sealed class FuelUiState {
 }
 
 @HiltViewModel
-class FuelRatesViewModel @Inject constructor(private val repository: CommerceRepository) : ViewModel() {
+class FuelRatesViewModel @Inject constructor(
+    private val repository: CommerceRepository,
+    private val authRepository: AuthRepository,
+) : ViewModel() {
     private val _state = MutableStateFlow<FuelUiState>(FuelUiState.Loading)
     val state: StateFlow<FuelUiState> = _state.asStateFlow()
 
     init { refresh() }
 
     fun refresh() {
+        if (!authRepository.hasAuthToken()) return
         _state.value = FuelUiState.Loading
         viewModelScope.launch {
             runCatching { repository.fuelRates() }

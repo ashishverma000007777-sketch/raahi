@@ -30,6 +30,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import `in`.raahi.app.data.DailyRepository
+import `in`.raahi.app.data.AuthRepository
 import `in`.raahi.app.network.TipDto
 import `in`.raahi.app.network.toUserFriendlyMessage
 import `in`.raahi.app.ui.theme.*
@@ -40,7 +41,9 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
-class DailyTipViewModel @Inject constructor(private val repository: DailyRepository) : ViewModel() {
+class DailyTipViewModel @Inject constructor(private val repository: DailyRepository,
+    private val authRepository: AuthRepository,
+) : ViewModel() {
     private val _tip = MutableStateFlow<TipDto?>(null)
     val tip: StateFlow<TipDto?> = _tip.asStateFlow()
 

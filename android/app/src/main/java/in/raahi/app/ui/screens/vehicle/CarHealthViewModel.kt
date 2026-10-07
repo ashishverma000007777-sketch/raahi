@@ -3,6 +3,7 @@ package `in`.raahi.app.ui.screens.vehicle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import `in`.raahi.app.data.AuthRepository
 import `in`.raahi.app.data.VehicleRepository
 import `in`.raahi.app.network.CarHealthDto
 import `in`.raahi.app.network.VehicleDto
@@ -24,6 +25,7 @@ sealed class CarHealthUiState {
 @HiltViewModel
 class CarHealthViewModel @Inject constructor(
     private val repository: VehicleRepository,
+    private val authRepository: AuthRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<CarHealthUiState>(CarHealthUiState.Loading)
@@ -37,6 +39,14 @@ class CarHealthViewModel @Inject constructor(
     fun load() {
         _state.value = CarHealthUiState.Loading
         viewModelScope.launch {
+            if (!authRepository.hasAuthToken()) {
+                _state.value = CarHealthUiState.Loaded(
+                    vehicle = null,
+                    health = null,
+                )
+                return@launch
+            }
+
             runCatching {
                 val vehicle = repository.myVehicle()
                 val health = if (vehicle != null) repository.carHealth() else null

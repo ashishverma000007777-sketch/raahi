@@ -1,5 +1,6 @@
 package `in`.raahi.app.ui.screens.commerce
 
+import `in`.raahi.app.data.AuthRepository
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,15 +39,22 @@ data class SubscriptionUiState(
 )
 
 @HiltViewModel
-class SubscriptionViewModel @Inject constructor(private val repository: CommerceRepository) : ViewModel() {
+class SubscriptionViewModel @Inject constructor(
+    private val repository: CommerceRepository,
+    private val authRepository: AuthRepository,
+) : ViewModel() {
     private val _state = MutableStateFlow(SubscriptionUiState())
     val state: StateFlow<SubscriptionUiState> = _state.asStateFlow()
 
     init {
-        viewModelScope.launch {
-            val plans = runCatching { repository.subscriptionPlans() }.getOrDefault(emptyList())
-            val status = runCatching { repository.mySubscription() }.getOrNull()
-            _state.update { it.copy(loading = false, plans = plans, currentTier = status?.tier) }
+        if (authRepository.hasAuthToken()) {
+            viewModelScope.launch {
+                val plans = runCatching { repository.subscriptionPlans() }.getOrDefault(emptyList())
+                val status = runCatching { repository.mySubscription() }.getOrNull()
+                _state.update { it.copy(loading = false, plans = plans, currentTier = status?.tier) }
+            }
+        } else {
+            _state.update { it.copy(loading = false) }
         }
     }
 

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import `in`.raahi.app.data.LocationProvider
+import `in`.raahi.app.data.AuthRepository
 import `in`.raahi.app.data.TripRepository
 import `in`.raahi.app.data.VehicleRepository
 import `in`.raahi.app.network.CreateTripRequest
@@ -44,6 +45,7 @@ sealed interface TripPlanEvent {
 @HiltViewModel
 class TripPlanViewModel @Inject constructor(
     private val tripRepository: TripRepository,
+    private val authRepository: AuthRepository,
     private val vehicleRepository: VehicleRepository,
     private val locationProvider: LocationProvider,
 ) : ViewModel() {
@@ -59,6 +61,7 @@ class TripPlanViewModel @Inject constructor(
     }
 
     private fun loadPreTripData() {
+        if (!authRepository.hasAuthToken()) return
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true) }
             try {
@@ -127,6 +130,7 @@ class TripPlanViewModel @Inject constructor(
     }
 
     fun createTrip() {
+        if (!authRepository.hasAuthToken()) return
         val current = _state.value
         if (current.destLocationName.isBlank()) {
             _state.update { it.copy(error = "Please enter your destination") }

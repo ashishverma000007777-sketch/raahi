@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import `in`.raahi.app.data.TripRepository
+import `in`.raahi.app.data.AuthRepository
 import `in`.raahi.app.network.TripDto
 import `in`.raahi.app.network.toUserFriendlyMessage
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -31,6 +32,7 @@ sealed interface TripOverviewEvent {
 class TripOverviewViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val tripRepository: TripRepository,
+    private val authRepository: AuthRepository,
 ) : ViewModel() {
 
     val tripId: String = checkNotNull(savedStateHandle["tripId"])
@@ -49,6 +51,7 @@ class TripOverviewViewModel @Inject constructor(
     }
 
     fun loadTrip() {
+        if (!authRepository.hasAuthToken()) return
         viewModelScope.launch {
             _state.value = TripOverviewUiState.Loading
             try {
@@ -61,6 +64,7 @@ class TripOverviewViewModel @Inject constructor(
     }
 
     fun startTrip() {
+        if (!authRepository.hasAuthToken()) return
         viewModelScope.launch {
             _isStarting.value = true
             try {

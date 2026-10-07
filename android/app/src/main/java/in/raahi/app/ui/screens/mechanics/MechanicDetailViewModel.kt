@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import androidx.lifecycle.SavedStateHandle
 import `in`.raahi.app.data.MechanicsRepository
+import `in`.raahi.app.data.AuthRepository
 import `in`.raahi.app.network.MechanicDto
 import `in`.raahi.app.network.toUserFriendlyMessage
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,6 +23,7 @@ sealed class MechanicDetailUiState {
 @HiltViewModel
 class MechanicDetailViewModel @Inject constructor(
     private val mechanicsRepository: MechanicsRepository,
+    private val authRepository: AuthRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -33,6 +35,7 @@ class MechanicDetailViewModel @Inject constructor(
     init { load() }
 
     fun load() {
+        if (!authRepository.hasAuthToken()) return
         _state.value = MechanicDetailUiState.Loading
         viewModelScope.launch {
             runCatching { mechanicsRepository.get(userId) }

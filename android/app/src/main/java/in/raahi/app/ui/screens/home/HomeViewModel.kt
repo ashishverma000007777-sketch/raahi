@@ -172,6 +172,19 @@ class HomeViewModel @Inject constructor(
             _state.value = HomeUiState.Loading
         }
         viewModelScope.launch {
+            if (!authRepository.hasAuthToken()) {
+                _state.value = HomeUiState.Loaded(
+                    user = null,
+                    activeJob = null,
+                    activeTrip = null,
+                    vehicle = null,
+                    carHealth = null,
+                    offlineError = null,
+                    isRetrying = false,
+                )
+                return@launch
+            }
+
             val userResult = runCatching { authRepository.currentUser() }
             val user = userResult.getOrNull()
             val activeJob = runCatching { jobsRepository.myJobs() }
@@ -203,6 +216,7 @@ class HomeViewModel @Inject constructor(
      * Add Fuel / Vehicle setup / Notifications shows fresh numbers.
      */
     fun refreshMetrics(hasLocationPermission: Boolean) {
+        if (!authRepository.hasAuthToken()) return
         viewModelScope.launch { runLoad({ homeRepository.summary() }) { r -> _metrics.update { it.copy(summary = r) } } }
         viewModelScope.launch { runLoad({ homeRepository.fuelSummary() }) { r -> _metrics.update { it.copy(fuel = r) } } }
         viewModelScope.launch { runLoad({ homeRepository.aiStatus() }) { r -> _metrics.update { it.copy(ai = r) } } }

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import `in`.raahi.app.data.EmergencyContact
+import `in`.raahi.app.data.AuthRepository
 import `in`.raahi.app.data.EmergencyContactsManager
 import `in`.raahi.app.data.LocationProvider
 import `in`.raahi.app.data.SosRepository
@@ -29,6 +30,7 @@ data class SosUiState(
 @HiltViewModel
 class SosViewModel @Inject constructor(
     private val sosRepository: SosRepository,
+    private val authRepository: AuthRepository,
     private val locationProvider: LocationProvider,
     private val emergencyContactsManager: EmergencyContactsManager,
 ) : ViewModel() {
@@ -42,6 +44,10 @@ class SosViewModel @Inject constructor(
     init { refresh() }
 
     fun refresh() {
+        if (!authRepository.hasAuthToken()) {
+            _state.update { it.copy(loading = false, activeSos = null) }
+            return
+        }
         _state.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
             runCatching { sosRepository.mine() }
@@ -54,6 +60,7 @@ class SosViewModel @Inject constructor(
     }
 
     fun trigger() {
+        if (!authRepository.hasAuthToken()) return
         _state.update { it.copy(triggering = true, error = null) }
         viewModelScope.launch {
             val fix = runCatching { locationProvider.getCurrentLocation() }.getOrNull()
@@ -72,6 +79,7 @@ class SosViewModel @Inject constructor(
     }
 
     fun resolve() {
+        if (!authRepository.hasAuthToken()) return
         val id = _state.value.activeSos?.id ?: return
         viewModelScope.launch {
             runCatching { sosRepository.resolve(id) }

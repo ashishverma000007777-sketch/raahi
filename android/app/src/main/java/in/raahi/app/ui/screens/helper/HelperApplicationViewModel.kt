@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import `in`.raahi.app.data.HelperApplicationForm
 import `in`.raahi.app.data.HelperRepository
+import `in`.raahi.app.data.AuthRepository
 import `in`.raahi.app.network.HelperStatusDto
 import `in`.raahi.app.network.toUserFriendlyMessage
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,6 +38,7 @@ data class HelperApplicationUiState(
 @HiltViewModel
 class HelperApplicationViewModel @Inject constructor(
     private val helperRepository: HelperRepository,
+    private val authRepository: AuthRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HelperApplicationUiState())
@@ -45,6 +47,7 @@ class HelperApplicationViewModel @Inject constructor(
     init { refresh() }
 
     fun refresh() {
+        if (!authRepository.hasAuthToken()) return
         _state.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
             try {
@@ -79,6 +82,7 @@ class HelperApplicationViewModel @Inject constructor(
     }
 
     fun submit() {
+        if (!authRepository.hasAuthToken()) return
         val s = _state.value
         WizardStep.entries.dropLast(1).forEach { step ->
             validate(step, s.form)?.let { msg -> _state.update { it.copy(step = step, error = msg) }; return }

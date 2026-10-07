@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import `in`.raahi.app.data.VehicleRepository
+import `in`.raahi.app.data.AuthRepository
 import `in`.raahi.app.network.CreateServiceRecordRequest
 import `in`.raahi.app.network.ServiceRecordDto
 import `in`.raahi.app.network.toUserFriendlyMessage
@@ -22,6 +23,7 @@ sealed class ServiceHistoryUiState {
 @HiltViewModel
 class ServiceHistoryViewModel @Inject constructor(
     private val repository: VehicleRepository,
+    private val authRepository: AuthRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<ServiceHistoryUiState>(ServiceHistoryUiState.Loading)
@@ -36,6 +38,10 @@ class ServiceHistoryViewModel @Inject constructor(
     init { load() }
 
     fun load() {
+        if (!authRepository.hasAuthToken()) {
+            _state.value = ServiceHistoryUiState.Loaded(emptyList())
+            return
+        }
         _state.value = ServiceHistoryUiState.Loading
         viewModelScope.launch {
             runCatching { repository.serviceRecords() }
@@ -45,6 +51,7 @@ class ServiceHistoryViewModel @Inject constructor(
     }
 
     fun addRecord(req: CreateServiceRecordRequest, onSuccess: () -> Unit) {
+        if (!authRepository.hasAuthToken()) return
         _addError.value = null
         _adding.value = true
         viewModelScope.launch {

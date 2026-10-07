@@ -35,12 +35,14 @@ class ProfileSetupViewModel @Inject constructor(
     val prefill: StateFlow<UserDto?> = _prefill.asStateFlow()
 
     fun loadForEdit() {
+        if (!authRepository.hasAuthToken()) return
         viewModelScope.launch {
             runCatching { authRepository.currentUser() }.onSuccess { _prefill.value = it }
         }
     }
 
     fun save(name: String, vehicleType: String, vehicleReg: String) {
+        if (!authRepository.hasAuthToken()) return
         if (name.isBlank()) {
             _state.value = ProfileSetupState.Error("Naam daalo")
             return

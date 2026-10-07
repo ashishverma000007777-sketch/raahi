@@ -34,6 +34,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import `in`.raahi.app.data.DailyRepository
+import `in`.raahi.app.data.AuthRepository
 import `in`.raahi.app.data.LocationProvider
 import `in`.raahi.app.network.PlaceDto
 import `in`.raahi.app.network.toUserFriendlyMessage
@@ -63,6 +64,7 @@ sealed class PlacesUiState {
 @HiltViewModel
 class NearbyPlacesViewModel @Inject constructor(
     private val repository: DailyRepository,
+    private val authRepository: AuthRepository,
     private val locationProvider: LocationProvider,
 ) : ViewModel() {
     private val _state = MutableStateFlow<PlacesUiState>(PlacesUiState.Loading)

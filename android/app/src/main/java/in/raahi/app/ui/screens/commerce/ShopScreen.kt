@@ -1,5 +1,6 @@
 package `in`.raahi.app.ui.screens.commerce
 
+import `in`.raahi.app.data.AuthRepository
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
@@ -51,7 +52,10 @@ sealed class ShopUiState {
 private val FIXED_CATEGORIES = listOf("Car Cleaning", "Accessories")
 
 @HiltViewModel
-class ShopViewModel @Inject constructor(private val repository: CommerceRepository) : ViewModel() {
+class ShopViewModel @Inject constructor(
+    private val repository: CommerceRepository,
+    private val authRepository: AuthRepository,
+) : ViewModel() {
     private val _state = MutableStateFlow<ShopUiState>(ShopUiState.Loading)
     val state: StateFlow<ShopUiState> = _state.asStateFlow()
     private var currentCategory: String? = null

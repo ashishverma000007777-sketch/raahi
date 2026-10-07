@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import `in`.raahi.app.data.LocationProvider
+import `in`.raahi.app.data.AuthRepository
 import `in`.raahi.app.data.TripRepository
 import `in`.raahi.app.network.CompleteTripRequest
 import `in`.raahi.app.network.TripDto
@@ -41,6 +42,7 @@ sealed interface TripActiveEvent {
 class TripActiveViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val tripRepository: TripRepository,
+    private val authRepository: AuthRepository,
     private val locationProvider: LocationProvider,
 ) : ViewModel() {
 
@@ -60,6 +62,7 @@ class TripActiveViewModel @Inject constructor(
     }
 
     fun loadActiveTrip() {
+        if (!authRepository.hasAuthToken()) return
         viewModelScope.launch {
             _state.value = TripActiveUiState.Loading
             try {
@@ -112,6 +115,7 @@ class TripActiveViewModel @Inject constructor(
     }
 
     fun completeTrip(endOdo: Int?, fuelCost: Double?, fuelLitres: Double?) {
+        if (!authRepository.hasAuthToken()) return
         viewModelScope.launch {
             _isCompleting.value = true
             try {

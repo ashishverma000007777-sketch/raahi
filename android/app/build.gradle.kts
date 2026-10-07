@@ -21,7 +21,14 @@ android {
         versionName = "2.0.0" // v2 = native Kotlin rewrite; Flutter app was 1.x
 
         // BASE_URL is per-environment, never hardcoded — set via gradle.properties / CI secrets
-        buildConfigField("String", "BASE_URL", "\"${project.findProperty("BASE_URL") ?: "https://api.raahi.in/api/v1/"}\"")
+        val rawBaseUrl = (project.findProperty("BASE_URL") as? String)?.trim() ?: "https://raahi-fdw0.onrender.com/api/v1/"
+        val normalizedBaseUrl = when {
+            rawBaseUrl.endsWith("/api/v1/") -> rawBaseUrl
+            rawBaseUrl.endsWith("/api/v1") -> "$rawBaseUrl/"
+            rawBaseUrl.endsWith("/") -> "${rawBaseUrl}api/v1/"
+            else -> "$rawBaseUrl/api/v1/"
+        }
+        buildConfigField("String", "BASE_URL", "\"$normalizedBaseUrl\"")
     }
 
     buildTypes {

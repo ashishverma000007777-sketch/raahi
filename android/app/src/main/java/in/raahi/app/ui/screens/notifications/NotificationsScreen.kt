@@ -19,6 +19,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import `in`.raahi.app.data.HomeRepository
+import `in`.raahi.app.data.AuthRepository
 import `in`.raahi.app.network.NotificationDto
 import `in`.raahi.app.network.toUserFriendlyMessage
 import `in`.raahi.app.ui.theme.*
@@ -38,13 +39,17 @@ sealed class NotificationsState {
 }
 
 @HiltViewModel
-class NotificationsViewModel @Inject constructor(private val repository: HomeRepository) : ViewModel() {
+class NotificationsViewModel @Inject constructor(
+    private val repository: HomeRepository,
+    private val authRepository: AuthRepository,
+) : ViewModel() {
     private val _state = MutableStateFlow<NotificationsState>(NotificationsState.Loading)
     val state: StateFlow<NotificationsState> = _state.asStateFlow()
 
     init { load() }
 
     fun load() {
+        if (!authRepository.hasAuthToken()) return
         _state.value = NotificationsState.Loading
         viewModelScope.launch {
             runCatching { repository.notifications() }

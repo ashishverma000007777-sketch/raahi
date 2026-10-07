@@ -49,6 +49,15 @@ class ProfileViewModel @Inject constructor(
             _state.value = ProfileUiState.Loading
         }
         viewModelScope.launch {
+            if (!authRepository.hasAuthToken()) {
+                _state.value = ProfileUiState.Loaded(
+                    user = null,
+                    errorMessage = null,
+                    isRefreshing = false,
+                )
+                return@launch
+            }
+
             runCatching { authRepository.currentUser() }
                 .onSuccess { user -> _state.value = ProfileUiState.Loaded(user, errorMessage = null, isRefreshing = false) }
                 .onFailure { e ->
