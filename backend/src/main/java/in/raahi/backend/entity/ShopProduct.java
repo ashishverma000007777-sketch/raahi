@@ -26,7 +26,7 @@ public class ShopProduct {
     @Column(name = "review_count")
     private Integer reviewCount;
 
-    @Lob
+    @Column(columnDefinition = "TEXT")
     private String description;
 
     private boolean active = true;
