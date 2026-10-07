@@ -11,7 +11,7 @@ public class DailyTip {
 
     private String title;
 
-    @Lob
+    @Column(columnDefinition = "TEXT")
     private String body;
 
     public Integer getId() { return id; }
