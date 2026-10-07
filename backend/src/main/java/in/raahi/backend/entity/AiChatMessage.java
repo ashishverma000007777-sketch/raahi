@@ -20,9 +20,8 @@ public class AiChatMessage {
     @Column(nullable = false)
     private Role role;
 
-    @Lob
-    @Column(nullable = false)
-    private String content;
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String content; 
 
     @Column(name = "created_at")
     private Instant createdAt = Instant.now();
