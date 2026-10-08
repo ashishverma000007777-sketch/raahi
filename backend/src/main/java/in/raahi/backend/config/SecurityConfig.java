@@ -25,7 +25,7 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable()) // stateless JWT API, no cookies/sessions involved
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/v1/auth/verify", "/api/v1/health", "/actuator/health", "/api/v1/auth/dev/**").permitAll()
+                .requestMatchers("/api/v1/auth/verify", "/api/v1/health", "/actuator/health", "/api/v1/auth/dev/**", "/api/v1/admin-auth/login", "/admin", "/admin/**").permitAll()
                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated()
             )

@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Raahi Admin</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,-apple-system,sans-serif;background:#f5f6f8;color:#15171a}
+button,input,select{font:inherit}button{cursor:pointer;border:0}.hidden{display:none!important}
+.login{min-height:100vh;display:grid;place-items:center;padding:20px;background:#111315}
+.login-card{width:min(420px,100%);background:#fff;border-radius:20px;padding:32px;box-shadow:0 20px 60px #0005}
+.logo{font-size:28px;font-weight:800;letter-spacing:-1px}.muted{color:#727780}
+.field{margin-top:18px}.field label{display:block;font-size:13px;font-weight:700;margin-bottom:7px}
+.field input{width:100%;padding:13px 14px;border:1px solid #d9dce1;border-radius:10px;outline:0}
+.field input:focus{border-color:#111}
+.primary{width:100%;margin-top:22px;background:#111;color:#fff;padding:13px;border-radius:10px;font-weight:700}
+.error{color:#c62828;font-size:13px;margin-top:12px}
+.app{min-height:100vh;display:flex}.side{width:235px;background:#111315;color:#fff;padding:22px 14px;position:fixed;inset:0 auto 0 0}
+.side .brand{font-size:24px;font-weight:800;padding:8px 12px 25px}.nav{display:grid;gap:4px}
+.nav button{background:transparent;color:#aeb3ba;text-align:left;padding:11px 12px;border-radius:9px}
+.nav button:hover,.nav button.active{background:#24272b;color:#fff}
+.main{margin-left:235px;width:calc(100% - 235px);padding:24px}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:22px}.top h1{margin:0;font-size:25px}
+.logout{background:#fff;border:1px solid #ddd;padding:8px 13px;border-radius:8px}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:18px}.card .label{font-size:13px;color:#70757d}.card .value{font-size:28px;font-weight:800;margin-top:8px}
+.panel{background:#fff;border:1px solid #e5e7eb;border-radius:14px;margin-top:18px;overflow:hidden}.panel-head{padding:17px 18px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center}.panel-head h2{font-size:16px;margin:0}
+.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:700px}th,td{text-align:left;padding:12px 16px;border-bottom:1px solid #eee;font-size:13px}th{background:#fafafa;color:#666;font-size:12px}
+.badge{display:inline-block;padding:4px 8px;border-radius:20px;background:#eef0f2;font-size:11px;font-weight:700}.badge.pending{background:#fff4d6;color:#8a6100}.badge.approved{background:#dff7e8;color:#146b35}.badge.rejected{background:#ffe1e1;color:#a52020}
+.action{padding:7px 10px;border-radius:7px;background:#111;color:#fff;font-size:12px}.action.danger{background:#b42318}.action.light{background:#eee;color:#222}
+.toolbar{display:flex;gap:8px}.toolbar input,.toolbar select{padding:9px 10px;border:1px solid #ddd;border-radius:8px}
+.empty{padding:30px;text-align:center;color:#777}
+.toast{position:fixed;right:20px;bottom:20px;background:#111;color:#fff;padding:12px 16px;border-radius:10px;display:none}
+@media(max-width:900px){.side{width:70px}.side .brand{font-size:0}.side .brand:after{content:"R";font-size:24px}.nav button{font-size:0;text-align:center}.nav button:before{content:"•";font-size:22px}.main{margin-left:70px;width:calc(100% - 70px);padding:16px}.cards{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:520px){.cards{grid-template-columns:1fr 1fr}.top h1{font-size:20px}.toolbar{flex-wrap:wrap}}
+</style>
+</head>
+<body>
+
+<section id="login" class="login">
+  <div class="login-card">
+    <div class="logo">RAAHI</div>
+    <p class="muted">Admin Control Center</p>
+    <form id="loginForm">
+      <div class="field"><label>Username</label><input id="username" autocomplete="username" required></div>
+      <div class="field"><label>Password</label><input id="password" type="password" autocomplete="current-password" required></div>
+      <button class="primary">Sign in</button>
+      <div id="loginError" class="error"></div>
+    </form>
+  </div>
+</section>
+
+<section id="app" class="app hidden">
+  <aside class="side">
+    <div class="brand">RAAHI</div>
+    <nav class="nav">
+      <button data-page="overview" class="active">Dashboard</button>
+      <button data-page="applications">Applications</button>
+      <button data-page="helpers">Helpers</button>
+      <button data-page="users">Users</button>
+      <button data-page="jobs">Jobs</button>
+      <button data-page="reports">Reports</button>
+      <button data-page="cancellations">Cancellations</button>
+      <button data-page="audit">Audit Logs</button>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <header class="top">
+      <h1 id="title">Dashboard</h1>
+      <button class="logout" onclick="logout()">Logout</button>
+    </header>
+    <div id="content"></div>
+  </main>
+</section>
+
+<div id="toast" class="toast"></div>
+
+<script>
+const API="/api/v1";
+let token=localStorage.getItem("raahi_admin_token");
+
+const $=id=>document.getElementById(id);
+const esc=v=>String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
+const badge=s=>`<span class="badge ${(s||"").toLowerCase()}">${esc(s||"-")}</span>`;
+
+async function api(path,opt={}){
+  const headers={"Content-Type":"application/json",...(opt.headers||{})};
+  if(token) headers.Authorization="Bearer "+token;
+  const r=await fetch(API+path,{...opt,headers});
+  if(r.status===401||r.status===403){logout();throw Error("Session expired");}
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok) throw Error(j?.error?.message||j?.message||"Request failed");
+  return j.data;
+}
+
+$("loginForm").onsubmit=async e=>{
+  e.preventDefault(); $("loginError").textContent="";
+  try{
+    const d=await fetch(API+"/admin-auth/login",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({username:$("username").value,password:$("password").value})});
+    const j=await d.json();
+    if(!d.ok) throw Error(j?.error?.message||"Invalid credentials");
+    token=j.data.token; localStorage.setItem("raahi_admin_token",token);
+    showApp(); load("overview");
+  }catch(x){$("loginError").textContent=x.message}
+};
+
+function showApp(){ $("login").classList.add("hidden");$("app").classList.remove("hidden"); }
+function logout(){localStorage.removeItem("raahi_admin_token");token=null;$("app").classList.add("hidden");$("login").classList.remove("hidden");}
+function toast(s){$("toast").textContent=s;$("toast").style.display="block";setTimeout(()=>$("toast").style.display="none",2500)}
+
+document.querySelectorAll(".nav button").forEach(b=>b.onclick=()=>{document.querySelectorAll(".nav button").forEach(x=>x.classList.remove("active"));b.classList.add("active");load(b.dataset.page)});
+
+async function load(page){
+ $("title").textContent=page[0].toUpperCase()+page.slice(1);
+ try{
+  if(page==="overview") return overview();
+  if(page==="applications") return applications();
+  if(page==="helpers") return helpers();
+  if(page==="users") return users();
+  if(page==="jobs") return jobs();
+  if(page==="reports") return reports();
+  if(page==="cancellations") return cancellations();
+  if(page==="audit") return audit();
+ }catch(e){$("content").innerHTML=`<div class="panel empty">${esc(e.message)}</div>`}
+}
+
+async function overview(){
+ const d=await api("/admin/overview");
+ const items=[["Pending KYC",d.pendingKyc],["Approved Helpers",d.approvedHelpers],["Suspended Helpers",d.suspendedHelpers],["Active Jobs",d.activeJobs],["Open Reports",d.openReports],["Abusive Cancellations",d.abusiveCancellations30d],["Commission Owing",d.helpersOwingCommission]];
+ $("content").innerHTML=`<div class="cards">${items.map(x=>`<div class="card"><div class="label">${x[0]}</div><div class="value">${x[1]??0}</div></div>`).join("")}</div>
+ <div class="panel"><div class="panel-head"><h2>Admin Control Center</h2><button class="action" onclick="load('applications')">Review Applications</button></div><div class="empty">Use the sidebar to manage Raahi operations.</div></div>`;
+}
+
+async function applications(){
+ const d=await api("/admin/helper-applications");
+ $("content").innerHTML=`<div class="panel"><div class="panel-head"><h2>Pending Helper Applications</h2><button class="action light" onclick="load('applications')">Refresh</button></div>
+ <div class="table-wrap"><table><thead><tr><th>Applicant</th><th>Phone</th><th>Area</th><th>Services</th><th>Vehicle</th><th>Submitted</th><th>Action</th></tr></thead><tbody>
+ ${d.length?d.map(a=>`<tr><td><b>${esc(a.applicantName)}</b></td><td>${esc(a.applicantPhone)}</td><td>${esc(a.serviceArea)}</td><td>${esc(a.services)}</td><td>${esc(a.vehicleBrand)} ${esc(a.vehicleModel)}</td><td>${esc(a.submittedAt)}</td><td><button class="action" onclick="approve('${a.id}')">Approve</button> <button class="action danger" onclick="reject('${a.id}')">Reject</button></td></tr>`).join(""):`<tr><td colspan="7" class="empty">No pending applications</td></tr>`}
+ </tbody></table></div></div>`;
+}
+
+async function approve(id){if(!confirm("Approve this helper application?"))return;await api("/admin/helper-applications/"+id+"/approve",{method:"POST"});toast("Helper approved");load("applications")}
+async function reject(id){const reason=prompt("Rejection reason:");if(!reason)return;await api("/admin/helper-applications/"+id+"/reject",{method:"POST",body:JSON.stringify({reason})});toast("Application rejected");load("applications")}
+
+async function helpers(){
+ const d=await api("/admin/helpers");
+ $("content").innerHTML=table("Helpers",["Name","Phone","Status","Area","Services","Submitted"],d.map(x=>[x.name,x.phone,badge(x.status),x.service_area,x.services,x.submitted_at]));
+}
+
+async function users(){
+ const d=await api("/admin/users");
+ $("content").innerHTML=table("Users",["Name","Phone","Role","Status","Rating","Helps","Created"],d.map(x=>[x.name,x.phone,badge(x.role),badge(x.status),x.rating_avg,x.total_helps,x.created_at]));
+}
+
+async function jobs(){
+ const d=await api("/admin/jobs");
+ $("content").innerHTML=table("Jobs",["Problem","Requester","Helper","Status","Amount","Created"],d.map(x=>[x.problemType,x.requester,x.helper||"-",badge(x.status),x.amount,x.createdAt]));
+}
+
+async function reports(){
+ const d=await api("/admin/reports");
+ $("content").innerHTML=table("Open Reports",["Reporter","Kind","Message","Status","Created"],d.map(x=>[x.reporter_name,x.kind,x.message,badge(x.status),x.created_at]));
+}
+
+async function cancellations(){
+ const d=await api("/admin/cancellations");
+ $("content").innerHTML=table("Abusive Cancellations",["User","Phone","Job","Actor","Stage","Abusive","Created"],d.map(x=>[x.name,x.phone,x.job_id,x.actor_role,x.stage,String(x.abusive),x.created_at]));
+}
+
+async function audit(){
+ const d=await api("/admin/audit-logs");
+ $("content").innerHTML=table("Audit Logs",["Action","Target","Admin","Created"],d.map(x=>[x.action,x.target_type||"",x.admin_id||"",x.created_at||""]));
+}
+
+function table(title,heads,rows){
+ return `<div class="panel"><div class="panel-head"><h2>${title}</h2><button class="action light" onclick="location.reload()">Refresh</button></div><div class="table-wrap"><table><thead><tr>${heads.map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.length?rows.map(r=>`<tr>${r.map(c=>`<td>${c??"-"}</td>`).join("")}</tr>`).join(""):`<tr><td colspan="${heads.length}" class="empty">No records</td></tr>`}</tbody></table></div></div>`;
+}
+
+if(token){showApp();load("overview")}
+</script>
+</body>
+</html>
