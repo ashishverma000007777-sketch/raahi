@@ -2,6 +2,8 @@ package in.raahi.backend.ai;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -15,6 +17,7 @@ import java.util.Map;
 
 @Component
 public class GeminiAiMechanicProvider implements AiMechanicProvider {
+    private static final Logger log = LoggerFactory.getLogger(GeminiAiMechanicProvider.class);
 
     // Raahi's AI Mechanic system prompt: general roadside guidance only, never a confident
     // diagnosis, always defers to a real mechanic for anything beyond basic troubleshooting.
@@ -94,6 +97,7 @@ public class GeminiAiMechanicProvider implements AiMechanicProvider {
         } catch (Exception e) {
             // Network failure, non-2xx, unexpected response shape, etc. — surfaced honestly
             // rather than falling back to a fabricated reply.
+            log.error("Gemini request failed: {}: {}", e.getClass().getSimpleName(), e.getMessage());
             throw new AiUnavailableException("Could not reach AI Mechanic right now.", e);
         }
     }
