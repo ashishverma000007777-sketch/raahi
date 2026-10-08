@@ -1,4 +1,5 @@
 package `in`.raahi.app.ui.screens.mechanics
+import android.util.Log
 
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -54,7 +55,7 @@ fun MechanicsMapView(
     onMapReady: (MapLibreMap) -> Unit = {},
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
-    var mapView by remember { mutableStateOf<MapView?>(null) }
+    val mapViewRef = remember { arrayOfNulls<MapView>(1) }
     // Keep the latest list for the click listener (the listener is registered once).
     val latestMechanics by rememberUpdatedState(mechanics)
 
@@ -67,8 +68,22 @@ fun MechanicsMapView(
           try {
             MapLibre.getInstance(context.applicationContext)
             MapView(context).also { mv ->
-                mapView = mv
+                mapViewRef[0] = mv
                 mv.onCreate(null)
+                Log.d("RAAHI_MAP_DEBUG", "MapView onCreate")
+                var frameCount = 0
+                mv.addOnWillStartLoadingMapListener { Log.d("RAAHI_MAP_DEBUG", "WILL_START_LOADING_MAP") }
+                mv.addOnDidFinishLoadingMapListener { Log.d("RAAHI_MAP_DEBUG", "DID_FINISH_LOADING_MAP") }
+                mv.addOnDidFailLoadingMapListener { error -> Log.e("RAAHI_MAP_DEBUG", "DID_FAIL_LOADING_MAP: $error") }
+                mv.addOnDidFinishLoadingStyleListener { Log.d("RAAHI_MAP_DEBUG", "DID_FINISH_LOADING_STYLE") }
+                mv.addOnSourceChangedListener { source -> Log.d("RAAHI_MAP_DEBUG", "SOURCE_CHANGED: $source") }
+                mv.addOnTileActionListener { a, b, c, d, e, f, g -> Log.d("RAAHI_MAP_DEBUG", "TILE_ACTION: $a $b $c $d $e $f $g") }
+                mv.addOnShaderCompileFailedListener { a, b, c -> Log.e("RAAHI_MAP_DEBUG", "SHADER_COMPILE_FAILED: $a $b $c") }
+                mv.addOnDidFinishRenderingFrameListener { a, b, c ->
+                    frameCount++
+                    if (frameCount <= 3 || frameCount % 60 == 0) Log.d("RAAHI_MAP_DEBUG", "RENDER_FRAME #$frameCount fully=$a p1=$b p2=$c")
+                }
+                Log.d("RAAHI_MAP_DEBUG", "MapView listeners registered")
                 mv.getMapAsync { map ->
                     map.setStyle(emptyStyleBuilder()) { style ->
                         addOsmRasterLayer(style)
@@ -109,11 +124,12 @@ fun MechanicsMapView(
         },
     )
 
-    DisposableEffect(lifecycleOwner, mapView) {
-        val mv = mapView ?: return@DisposableEffect onDispose {}
+    DisposableEffect(lifecycleOwner) {
+        val mv = mapViewRef[0] ?: return@DisposableEffect onDispose {}
         var destroyed = false
         val observer = LifecycleEventObserver { _, event ->
             if (destroyed) return@LifecycleEventObserver
+        Log.d("RAAHI_MAP_DEBUG", "LIFECYCLE_EVENT: $event")
             runCatching {
                 when (event) {
                     Lifecycle.Event.ON_START -> mv.onStart()
