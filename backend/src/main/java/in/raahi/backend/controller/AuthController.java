@@ -134,7 +134,15 @@ public class AuthController {
             throw ApiException.forbidden("FORBIDDEN", "Invalid bootstrap secret");
         }
 
+        String normalizedPhone = phone == null ? "" : phone.replaceAll("\\D", "");
+        String last10 = normalizedPhone.length() > 10
+                ? normalizedPhone.substring(normalizedPhone.length() - 10)
+                : normalizedPhone;
+
         User user = userRepository.findByPhone(phone)
+                .or(() -> userRepository.findByPhone(normalizedPhone))
+                .or(() -> userRepository.findByPhone("+" + normalizedPhone))
+                .or(() -> userRepository.findByPhoneEndingWith(last10))
                 .orElseThrow(() -> ApiException.notFound("USER_NOT_FOUND", "User not found"));
 
         user.setRole(User.Role.ADMIN);
