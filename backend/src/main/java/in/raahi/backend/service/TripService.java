@@ -132,7 +132,7 @@ public class TripService {
         // Generate stops: Fuel stops, Pit stops (Dhaba/Parking/Toilet), Mechanics along route
         List<TripStop> stops = generateStops(savedTrip, req.startLat, req.startLng, req.destLat, req.destLng, roadDistanceKm, pricePerLitre);
         tripStopRepository.saveAll(stops);
-        savedTrip.setStops(stops);
+        savedTrip.getStops().addAll(stops);
 
         return toDto(savedTrip);
     }
