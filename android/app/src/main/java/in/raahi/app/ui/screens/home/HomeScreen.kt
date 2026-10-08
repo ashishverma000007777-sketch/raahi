@@ -730,7 +730,7 @@ private fun VehicleHeroCard(vehicle: VehicleDto?, carHealth: CarHealthDto?, onSe
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         onClick = onCarHealth,
     ) {
-        Box(Modifier.padding(16.dp)) {
+        Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f)) {
                     Text(
@@ -774,8 +774,9 @@ private fun HeroStat(label: String, value: String, modifier: Modifier = Modifier
             .border(1.dp, RaahiBorderSoft, RaahiShapeSmall)
             .padding(horizontal = 9.dp, vertical = 8.dp)
     ) {
-        Text(label, color = RaahiTextFaint, fontSize = 8.5.sp, fontWeight = FontWeight.Bold)
-        Text(value, color = valueColor, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = RaahiDisplayFont)
+        Text(label, color = RaahiTextFaint, fontSize = 8.5.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        Spacer(Modifier.height(2.dp))
+        Text(value, color = valueColor, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = RaahiDisplayFont, maxLines = 1)
     }
 }
 

@@ -172,6 +172,7 @@ fun PhoneLoginScreen(
             is AuthUiState.OtpSent -> {
                 errorText = null
                 onOtpSent(s.verificationId, s.phone)
+                viewModel.resetToEnteringPhone()
             }
             is AuthUiState.SignedIn -> {
                 errorText = null

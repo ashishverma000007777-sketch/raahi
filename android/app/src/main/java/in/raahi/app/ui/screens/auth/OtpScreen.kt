@@ -3,6 +3,7 @@ package `in`.raahi.app.ui.screens.auth
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -104,6 +105,11 @@ fun OtpScreen(
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusRequester = remember { FocusRequester() }
     val scrollState = rememberScrollState()
+
+    BackHandler {
+        viewModel.resetToEnteringPhone()
+        onBack()
+    }
 
     var errorText by remember { mutableStateOf<String?>(null) }
     var resendSeconds by remember { mutableIntStateOf(60) }
@@ -306,6 +312,35 @@ fun OtpScreen(
                         contentDescription = "Edit phone",
                         tint = RaahiOrange,
                         modifier = Modifier.size(14.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable {
+                            viewModel.resetToEnteringPhone()
+                            onBack()
+                        }
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Wrong number? ",
+                        style = TextStyle(
+                            fontSize = 12.5.sp,
+                            color = RaahiTextDim
+                        )
+                    )
+                    Text(
+                        text = "Change number",
+                        style = TextStyle(
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = RaahiOrange
+                        )
                     )
                 }
 

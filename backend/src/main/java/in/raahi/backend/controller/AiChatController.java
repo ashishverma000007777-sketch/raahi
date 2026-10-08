@@ -58,7 +58,7 @@ public class AiChatController {
         dto.available = aiMechanicProvider.isConfigured();
         dto.state = dto.available ? "AVAILABLE" : "UNAVAILABLE";
         dto.provider = aiMechanicProvider.providerName();
-        dto.message = dto.available ? null : "AI Mechanic is temporarily unavailable";
+        dto.message = dto.available ? null : "AI Mechanic is temporarily busy. Please try again in a moment, or use Roadside Help / Nearby Mechanics.";
         return ApiResponse.ok(dto);
     }
 
@@ -166,8 +166,10 @@ public class AiChatController {
         } catch (AiMechanicProvider.AiUnavailableException e) {
             // Honest unavailable notice, saved into the transcript as-is — never a fabricated
             // diagnosis standing in for a real answer.
-            assistantMessage.setContent("AI Mechanic is currently unavailable. " + e.getMessage()
-                    + " Please try Roadside Help or Nearby Mechanics instead.");
+            String unavailableMsg = (e.getMessage() != null && !e.getMessage().isBlank())
+                    ? e.getMessage()
+                    : "AI Mechanic is temporarily busy. Please try again in a moment, or use Roadside Help / Nearby Mechanics.";
+            assistantMessage.setContent(unavailableMsg);
             unavailable = true;
         }
         messageRepository.save(assistantMessage);

@@ -2,15 +2,18 @@ package `in`.raahi.app.ui.theme
 
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Typography
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.googlefonts.Font
 import androidx.compose.ui.text.googlefonts.GoogleFont
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import `in`.raahi.app.R
 
 // ---------------------------------------------------------------------------------------
@@ -75,7 +78,7 @@ val RaahiShapeMedium = RoundedCornerShape(RaahiRadiusMedium)
 val RaahiShapeLarge = RoundedCornerShape(RaahiRadiusLarge)
 val RaahiShapePill = RoundedCornerShape(50)
 
-// --- Typography -----------------------------------------------------------------------
+// --- Typography: Unified Noto Sans with complete English + Hindi/Devanagari glyphs ---
 private val fontProvider = GoogleFont.Provider(
     providerAuthority = "com.google.android.gms.fonts",
     providerPackage = "com.google.android.gms",
@@ -85,19 +88,127 @@ private val fontProvider = GoogleFont.Provider(
 private fun googleFontFamily(name: String): FontFamily {
     val font = GoogleFont(name)
     return FontFamily(
+        Font(googleFont = font, fontProvider = fontProvider, weight = FontWeight.Normal),
         Font(googleFont = font, fontProvider = fontProvider, weight = FontWeight.Medium),
         Font(googleFont = font, fontProvider = fontProvider, weight = FontWeight.SemiBold),
         Font(googleFont = font, fontProvider = fontProvider, weight = FontWeight.Bold),
     )
 }
 
-/** Headlines, numbers, step badges — Space Grotesk. */
-val RaahiDisplayFont: FontFamily = runCatching { googleFontFamily("Space Grotesk") }
+/** Global Noto Sans font — unified across English and Devanagari */
+val RaahiGlobalFont: FontFamily = runCatching { googleFontFamily("Noto Sans") }
     .getOrDefault(FontFamily.Default)
 
-/** Body text everywhere else — Plus Jakarta Sans. */
-val RaahiBodyFont: FontFamily = runCatching { googleFontFamily("Plus Jakarta Sans") }
-    .getOrDefault(FontFamily.Default)
+val RaahiDisplayFont: FontFamily = RaahiGlobalFont
+val RaahiBodyFont: FontFamily = RaahiGlobalFont
+
+val RaahiTypography = Typography(
+    displayLarge = TextStyle(
+        fontFamily = RaahiDisplayFont,
+        fontWeight = FontWeight.Bold,
+        fontSize = 30.sp,
+        lineHeight = 36.sp,
+        color = RaahiText,
+    ),
+    displayMedium = TextStyle(
+        fontFamily = RaahiDisplayFont,
+        fontWeight = FontWeight.Bold,
+        fontSize = 26.sp,
+        lineHeight = 32.sp,
+        color = RaahiText,
+    ),
+    displaySmall = TextStyle(
+        fontFamily = RaahiDisplayFont,
+        fontWeight = FontWeight.Bold,
+        fontSize = 22.sp,
+        lineHeight = 28.sp,
+        color = RaahiText,
+    ),
+    headlineLarge = TextStyle(
+        fontFamily = RaahiDisplayFont,
+        fontWeight = FontWeight.Bold,
+        fontSize = 20.sp,
+        lineHeight = 26.sp,
+        color = RaahiText,
+    ),
+    headlineMedium = TextStyle(
+        fontFamily = RaahiDisplayFont,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 18.sp,
+        lineHeight = 24.sp,
+        color = RaahiText,
+    ),
+    headlineSmall = TextStyle(
+        fontFamily = RaahiDisplayFont,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 16.sp,
+        lineHeight = 22.sp,
+        color = RaahiText,
+    ),
+    titleLarge = TextStyle(
+        fontFamily = RaahiGlobalFont,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 16.sp,
+        lineHeight = 22.sp,
+        color = RaahiText,
+    ),
+    titleMedium = TextStyle(
+        fontFamily = RaahiGlobalFont,
+        fontWeight = FontWeight.Medium,
+        fontSize = 15.sp,
+        lineHeight = 20.sp,
+        color = RaahiText,
+    ),
+    titleSmall = TextStyle(
+        fontFamily = RaahiGlobalFont,
+        fontWeight = FontWeight.Medium,
+        fontSize = 14.sp,
+        lineHeight = 18.sp,
+        color = RaahiText,
+    ),
+    bodyLarge = TextStyle(
+        fontFamily = RaahiGlobalFont,
+        fontWeight = FontWeight.Normal,
+        fontSize = 15.sp,
+        lineHeight = 22.sp,
+        color = RaahiText,
+    ),
+    bodyMedium = TextStyle(
+        fontFamily = RaahiGlobalFont,
+        fontWeight = FontWeight.Normal,
+        fontSize = 13.5.sp,
+        lineHeight = 19.sp,
+        color = RaahiTextDim,
+    ),
+    bodySmall = TextStyle(
+        fontFamily = RaahiGlobalFont,
+        fontWeight = FontWeight.Normal,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+        color = RaahiTextFaint,
+    ),
+    labelLarge = TextStyle(
+        fontFamily = RaahiGlobalFont,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 14.sp,
+        lineHeight = 18.sp,
+        color = RaahiText,
+    ),
+    labelMedium = TextStyle(
+        fontFamily = RaahiGlobalFont,
+        fontWeight = FontWeight.Medium,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+        color = RaahiTextDim,
+    ),
+    labelSmall = TextStyle(
+        fontFamily = RaahiGlobalFont,
+        fontWeight = FontWeight.Medium,
+        fontSize = 10.sp,
+        lineHeight = 14.sp,
+        color = RaahiTextFaint,
+    ),
+)
 
 private val RaahiLightColors = lightColorScheme(
     background = RaahiBg,
@@ -114,7 +225,7 @@ private val RaahiLightColors = lightColorScheme(
 fun RaahiTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = RaahiLightColors,
-        typography = MaterialTheme.typography,
+        typography = RaahiTypography,
         content = content
     )
 }

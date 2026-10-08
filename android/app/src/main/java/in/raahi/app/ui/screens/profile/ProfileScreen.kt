@@ -54,6 +54,9 @@ fun ProfileScreen(
     onBack: () -> Unit, onEditProfile: () -> Unit, onSignedOut: () -> Unit, onHelper: () -> Unit = {},
     onSetupVehicle: () -> Unit, onEditVehicle: () -> Unit, onServiceHistory: () -> Unit,
     onNavigateTab: (RaahiTab) -> Unit,
+    onNotifications: () -> Unit = {},
+    onPayments: () -> Unit = {},
+    onEarnWithRaahi: () -> Unit = onHelper,
     viewModel: ProfileViewModel = hiltViewModel(),
     carHealthViewModel: CarHealthViewModel = hiltViewModel(),
 ) {
@@ -88,7 +91,16 @@ fun ProfileScreen(
                                 odometerError = odometerError, onClearOdometerError = carHealthViewModel::clearOdometerError,
                                 onRetry = carHealthViewModel::load
                             )
-                            ProfileSubTab.PROFILE -> ProfileTab(null, onEditProfile, onSignOut = viewModel::signOut, onHelper = onHelper)
+                            ProfileSubTab.PROFILE -> ProfileTab(
+                                user = null,
+                                onEditProfile = onEditProfile,
+                                onEditVehicle = onEditVehicle,
+                                onSignOut = viewModel::signOut,
+                                onHelper = onHelper,
+                                onEarnWithRaahi = onEarnWithRaahi,
+                                onNotifications = onNotifications,
+                                onPayments = onPayments,
+                            )
                         }
                         Spacer(Modifier.height(24.dp))
                     }
@@ -111,7 +123,16 @@ fun ProfileScreen(
                                 odometerError = odometerError, onClearOdometerError = carHealthViewModel::clearOdometerError,
                                 onRetry = carHealthViewModel::load
                             )
-                            ProfileSubTab.PROFILE -> ProfileTab(s.user, onEditProfile, onSignOut = viewModel::signOut, onHelper = onHelper)
+                            ProfileSubTab.PROFILE -> ProfileTab(
+                                user = s.user,
+                                onEditProfile = onEditProfile,
+                                onEditVehicle = onEditVehicle,
+                                onSignOut = viewModel::signOut,
+                                onHelper = onHelper,
+                                onEarnWithRaahi = onEarnWithRaahi,
+                                onNotifications = onNotifications,
+                                onPayments = onPayments,
+                            )
                         }
                         Spacer(Modifier.height(24.dp))
                     }
@@ -155,6 +176,11 @@ private fun ProfileHeader(onBack: () -> Unit, user: UserDto?, onEdit: () -> Unit
                 } else {
                     Text("+91 98765 43210", color = RaahiTextDim, fontSize = 12.sp)
                 }
+                Text(
+                    "ID: ${user?.id ?: "N/A"}",
+                    color = RaahiTextFaint,
+                    fontSize = 9.sp
+                )
             }
             Icon(Icons.AutoMirrored.Outlined.ArrowForward, contentDescription = null, tint = RaahiTextFaint, modifier = Modifier.size(16.dp))
         }
@@ -460,7 +486,16 @@ private fun InfoCard(message: String, title: String? = null) {
 }
 
 @Composable
-private fun ProfileTab(user: UserDto?, onEditProfile: () -> Unit, onSignOut: () -> Unit, onHelper: () -> Unit) {
+private fun ProfileTab(
+    user: UserDto?,
+    onEditProfile: () -> Unit,
+    onEditVehicle: () -> Unit,
+    onSignOut: () -> Unit,
+    onHelper: () -> Unit,
+    onEarnWithRaahi: () -> Unit,
+    onNotifications: () -> Unit,
+    onPayments: () -> Unit,
+) {
     Column {
         Box(Modifier.padding(horizontal = 16.dp)) { SectionLabel("Account") }
         InfoRow(Icons.Outlined.Speed, "Role", user?.role?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Driver")
@@ -476,17 +511,18 @@ private fun ProfileTab(user: UserDto?, onEditProfile: () -> Unit, onSignOut: () 
 
         Spacer(Modifier.height(18.dp))
         Box(Modifier.padding(horizontal = 16.dp)) { SectionLabel("Quick Access") }
-        ProfileMenuItem(Icons.Outlined.DirectionsCar, "My Cars", onClick = onEditProfile)
+        ProfileMenuItem(Icons.Outlined.DirectionsCar, "My Cars", onClick = onEditVehicle)
         Spacer(Modifier.height(8.dp))
+        val isHelperOrMechanic = user?.role == "HELPER" || user?.role == "MECHANIC"
         ProfileMenuItem(
             Icons.Outlined.Payment,
-            if (user?.role == "HELPER" || user?.role == "MECHANIC") "Helper Dashboard" else "Earn with Raahi",
-            onClick = onHelper,
+            if (isHelperOrMechanic) "Helper Dashboard" else "Earn with Raahi",
+            onClick = if (isHelperOrMechanic) onHelper else onEarnWithRaahi,
         )
         Spacer(Modifier.height(8.dp))
-        ProfileMenuItem(Icons.Outlined.Payment, "Payments & Wallet")
+        ProfileMenuItem(Icons.Outlined.Payment, "Payments & Wallet", onClick = onPayments)
         Spacer(Modifier.height(8.dp))
-        ProfileMenuItem(Icons.Outlined.Notifications, "Notifications")
+        ProfileMenuItem(Icons.Outlined.Notifications, "Notifications", onClick = onNotifications)
         Spacer(Modifier.height(8.dp))
         ProfileMenuItem(Icons.Outlined.Settings, "Settings", onClick = onEditProfile)
         Spacer(Modifier.height(8.dp))

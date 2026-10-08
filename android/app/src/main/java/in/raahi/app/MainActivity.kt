@@ -251,13 +251,21 @@ fun RaahiNavHost(
             ProfileSetupScreen(
                 isEditing = true,
                 onDone = { navController.popBackStack() },
+                onBack = { navController.popBackStack() },
             )
         }
 
         composable(Routes.VEHICLE_SETUP) {
             VehicleSetupScreen(
+                onBack = {
+                    if (!navController.popBackStack()) {
+                        navController.navigate(Routes.HOME) { popUpTo(0) { inclusive = true } }
+                    }
+                },
                 onDone = {
-                    navController.navigate(Routes.HOME) { popUpTo(0) { inclusive = true } }
+                    if (!navController.popBackStack()) {
+                        navController.navigate(Routes.HOME) { popUpTo(0) { inclusive = true } }
+                    }
                 },
             )
         }
@@ -318,11 +326,14 @@ fun RaahiNavHost(
                 onSignedOut = {
                     navController.navigate(Routes.PHONE_LOGIN) { popUpTo(0) { inclusive = true } }
                 },
-                onSetupVehicle = { navController.navigate(Routes.VEHICLE_SETUP) },
-                onEditVehicle = { navController.navigate(Routes.VEHICLE_EDIT) },
+                onSetupVehicle = { navController.navigate(Routes.VEHICLE_SETUP) { launchSingleTop = true } },
+                onEditVehicle = { navController.navigate(Routes.VEHICLE_EDIT) { launchSingleTop = true } },
                 onServiceHistory = { navController.navigate(Routes.SERVICE_HISTORY) },
                 onNavigateTab = navigateToTab,
-                onHelper = { navController.navigate(Routes.HELPER_DASHBOARD) },
+                onHelper = { navController.navigate(Routes.HELPER_DASHBOARD) { launchSingleTop = true } },
+                onEarnWithRaahi = { navController.navigate(Routes.HELPER_APPLICATION) { launchSingleTop = true } },
+                onNotifications = { navController.navigate(Routes.NOTIFICATIONS) },
+                onPayments = { navController.navigate(Routes.SUBSCRIPTION) },
             )
         }
 
@@ -336,7 +347,12 @@ fun RaahiNavHost(
         }
 
         composable(Routes.AI_MECHANIC) {
-            AiMechanicScreen(onBack = { navController.popBackStack() }, onNavigateTab = navigateToTab)
+            AiMechanicScreen(
+                onBack = { navController.popBackStack() },
+                onNavigateTab = navigateToTab,
+                onRequestHelp = { navController.navigate(Routes.REQUEST_HELP) },
+                onNearbyMechanics = { navController.navigate(Routes.MECHANICS_MAP) }
+            )
         }
 
         composable(Routes.STREAK) { StreakScreen(onBack = { navController.popBackStack() }) }

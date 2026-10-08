@@ -142,8 +142,13 @@ fun MechanicsMapView(
 }
 
 private fun addOsmRasterLayer(style: Style) {
-    val tileSet = TileSet("2.1.0", "https://tile.openstreetmap.org/{z}/{x}/{y}.png")
-    tileSet.attribution = "© OpenStreetMap contributors"
+    val tileSet = TileSet(
+        "2.1.0",
+        "https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
+        "https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
+        "https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
+    )
+    tileSet.attribution = "© OpenStreetMap contributors, © CARTO"
     style.addSource(RasterSource(OSM_SOURCE_ID, tileSet, 256))
     style.addLayer(RasterLayer(OSM_LAYER_ID, OSM_SOURCE_ID))
 }

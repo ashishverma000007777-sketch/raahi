@@ -1,5 +1,6 @@
 package `in`.raahi.app.ui.screens.vehicle
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -11,7 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.Badge
@@ -92,6 +93,7 @@ fun VehicleSetupScreen(
         }
     }
     LaunchedEffect(state) { if (state is VehicleSetupState.Saved) onDone() }
+    BackHandler(enabled = onBack != null) { onBack?.invoke() }
 
     fun validOptionalDate(s: String) = s.isBlank() || DATE_REGEX.matches(s)
 
@@ -146,7 +148,7 @@ fun VehicleSetupScreen(
             ) {
                 if (onBack != null) {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = RaahiText)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = RaahiText)
                     }
                 }
             }

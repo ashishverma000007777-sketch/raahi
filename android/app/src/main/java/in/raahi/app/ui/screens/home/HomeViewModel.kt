@@ -24,6 +24,7 @@ import `in`.raahi.app.network.UserDto
 import `in`.raahi.app.network.VehicleDto
 import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -149,7 +150,9 @@ class HomeViewModel @Inject constructor(
         // where the app-wide WebSocket connection starts; RaahiWebSocketClient is a Hilt
         // singleton, so it stays connected across every other screen for the process
         // lifetime — no per-screen connect/disconnect needed elsewhere.
-        webSocketClient.connect(BuildConfig.BASE_URL)
+        viewModelScope.launch {
+            runCatching { webSocketClient.connect(BuildConfig.BASE_URL) }
+        }
         registerFcmToken()
     }
 
@@ -185,13 +188,19 @@ class HomeViewModel @Inject constructor(
                 return@launch
             }
 
-            val userResult = runCatching { authRepository.currentUser() }
+            // Safe parallel fetching of independent startup resources
+            val userDeferred = async { runCatching { authRepository.currentUser() } }
+            val jobsDeferred = async { runCatching { jobsRepository.myJobs() } }
+            val tripDeferred = async { runCatching { tripRepository.getActiveTrip() } }
+            val vehicleDeferred = async { runCatching { vehicleRepository.myVehicle() } }
+
+            val userResult = userDeferred.await()
             val user = userResult.getOrNull()
-            val activeJob = runCatching { jobsRepository.myJobs() }
+            val activeJob = jobsDeferred.await()
                 .getOrDefault(emptyList())
                 .firstOrNull { it.status in ACTIVE_JOB_STATUSES }
-            val activeTrip = runCatching { tripRepository.getActiveTrip() }.getOrNull()
-            val vehicle = runCatching { vehicleRepository.myVehicle() }.getOrNull()
+            val activeTrip = tripDeferred.await().getOrNull()
+            val vehicle = vehicleDeferred.await().getOrNull()
             val carHealth = if (vehicle != null) runCatching { vehicleRepository.carHealth() }.getOrNull() else null
 
             val offlineError = if (user == null) {

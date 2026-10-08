@@ -9,6 +9,8 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpStatusCodeException;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
@@ -21,8 +23,6 @@ public class GeminiAiMechanicProvider implements AiMechanicProvider {
 
     // Raahi's AI Mechanic system prompt: general roadside guidance only, never a confident
     // diagnosis, always defers to a real mechanic for anything beyond basic troubleshooting.
-    // Enforced here via the system instruction sent to the model — the model can still, in
-    // principle, ignore it, so this is a mitigation, not a hard guarantee.
     private static final String SYSTEM_PROMPT = """
         You are Raahi's AI Mechanic assistant, helping Indian drivers with roadside vehicle
         problems over chat. Give general, practical guidance for common issues (flat tyre,
@@ -34,10 +34,15 @@ public class GeminiAiMechanicProvider implements AiMechanicProvider {
         short and practical, in simple English (or Hindi if the user writes in Hindi).
         """;
 
+    public static final String FRIENDLY_UNAVAILABLE_MESSAGE =
+            "AI Mechanic is temporarily busy. Please try again in a moment, or use Roadside Help / Nearby Mechanics.";
+
+    private static final int MAX_ATTEMPTS = 3;
+    private static final long INITIAL_BACKOFF_MS = 600;
+
     private final String apiKey;
     private final String model;
     private final RestTemplate restTemplate;
-    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public GeminiAiMechanicProvider(
             @Value("${raahi.ai.gemini-api-key:}") String apiKey,
@@ -61,8 +66,7 @@ public class GeminiAiMechanicProvider implements AiMechanicProvider {
     @Override
     public String complete(List<ChatTurn> history) throws AiUnavailableException {
         if (apiKey == null || apiKey.isBlank()) {
-            throw new AiUnavailableException(
-                "AI Mechanic is not configured on this server yet — no GEMINI_API_KEY set.");
+            throw new AiUnavailableException(FRIENDLY_UNAVAILABLE_MESSAGE);
         }
 
         String url = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent";
@@ -82,23 +86,62 @@ public class GeminiAiMechanicProvider implements AiMechanicProvider {
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set("x-goog-api-key", apiKey);
 
+        long backoffMs = INITIAL_BACKOFF_MS;
+        Throwable lastTransientError = null;
+
+        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            try {
+                JsonNode response = restTemplate.postForObject(url, new HttpEntity<>(body, headers), JsonNode.class);
+                if (response == null) {
+                    throw new AiUnavailableException(FRIENDLY_UNAVAILABLE_MESSAGE);
+                }
+                JsonNode textNode = response.path("candidates").path(0).path("content").path("parts").path(0).path("text");
+                if (textNode.isMissingNode() || textNode.asText().isBlank()) {
+                    throw new AiUnavailableException(FRIENDLY_UNAVAILABLE_MESSAGE);
+                }
+                return textNode.asText();
+            } catch (AiUnavailableException e) {
+                throw e;
+            } catch (HttpStatusCodeException e) {
+                int status = e.getStatusCode().value();
+                boolean isTransient = (status == 429 || status == 500 || status == 502 || status == 503 || status == 504);
+                if (isTransient && attempt < MAX_ATTEMPTS) {
+                    log.warn("Gemini attempt {}/{} failed with transient HTTP status {}. Retrying in {}ms...",
+                            attempt, MAX_ATTEMPTS, status, backoffMs);
+                    lastTransientError = e;
+                    sleepQuietly(backoffMs);
+                    backoffMs *= 2;
+                    continue;
+                }
+                // Never log the Gemini API key or raw sensitive error payload
+                log.error("Gemini request failed: HTTP {}: {}", status, e.getStatusText());
+                throw new AiUnavailableException(FRIENDLY_UNAVAILABLE_MESSAGE, e);
+            } catch (ResourceAccessException e) {
+                // Network timeout or transient connection drop
+                if (attempt < MAX_ATTEMPTS) {
+                    log.warn("Gemini attempt {}/{} failed with network timeout. Retrying in {}ms...",
+                            attempt, MAX_ATTEMPTS, backoffMs);
+                    lastTransientError = e;
+                    sleepQuietly(backoffMs);
+                    backoffMs *= 2;
+                    continue;
+                }
+                log.error("Gemini network timeout: {}", e.getMessage());
+                throw new AiUnavailableException(FRIENDLY_UNAVAILABLE_MESSAGE, e);
+            } catch (Exception e) {
+                log.error("Gemini request failed: {}: {}", e.getClass().getSimpleName(), e.getMessage());
+                throw new AiUnavailableException(FRIENDLY_UNAVAILABLE_MESSAGE, e);
+            }
+        }
+
+        throw new AiUnavailableException(FRIENDLY_UNAVAILABLE_MESSAGE, lastTransientError);
+    }
+
+    private static void sleepQuietly(long millis) {
         try {
-            JsonNode response = restTemplate.postForObject(url, new HttpEntity<>(body, headers), JsonNode.class);
-            if (response == null) {
-                throw new AiUnavailableException("AI Mechanic returned no response.");
-            }
-            JsonNode textNode = response.path("candidates").path(0).path("content").path("parts").path(0).path("text");
-            if (textNode.isMissingNode() || textNode.asText().isBlank()) {
-                throw new AiUnavailableException("AI Mechanic returned an empty response.");
-            }
-            return textNode.asText();
-        } catch (AiUnavailableException e) {
-            throw e;
-        } catch (Exception e) {
-            // Network failure, non-2xx, unexpected response shape, etc. — surfaced honestly
-            // rather than falling back to a fabricated reply.
-            log.error("Gemini request failed: {}: {}", e.getClass().getSimpleName(), e.getMessage());
-            throw new AiUnavailableException("Could not reach AI Mechanic right now.", e);
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 }

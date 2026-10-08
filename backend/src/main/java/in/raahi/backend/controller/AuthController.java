@@ -162,10 +162,15 @@ public class AuthController {
     @GetMapping("/dev/helper-applications")
     @Transactional(readOnly = true)
     public ApiResponse<List<HelperApplicationDto>> devHelperApplications(
-            @RequestHeader("X-Admin-Bootstrap-Secret") String secret) {
+            @RequestHeader(value = "X-Admin-Bootstrap-Secret", required = false) String secret) {
+
+        String devAuth = System.getenv("RAAHI_DEV_AUTH_ENABLED");
+        if (!"true".equalsIgnoreCase(devAuth)) {
+            throw ApiException.notFound("NOT_FOUND", "Not found");
+        }
 
         String expected = System.getenv("RAAHI_ADMIN_BOOTSTRAP_SECRET");
-        if (expected == null || secret == null ||
+        if (expected == null || expected.isBlank() || secret == null ||
                 !java.security.MessageDigest.isEqual(
                         expected.getBytes(java.nio.charset.StandardCharsets.UTF_8),
                         secret.getBytes(java.nio.charset.StandardCharsets.UTF_8))) {

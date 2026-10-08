@@ -14,6 +14,7 @@ import `in`.raahi.app.network.HelperRatingDto
 import `in`.raahi.app.network.HelperStatusDto
 import `in`.raahi.app.network.RaahiApi
 import `in`.raahi.app.network.apiCall
+import `in`.raahi.app.network.apiCallOrNullOn404
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
@@ -78,14 +79,11 @@ class HelperRepository @Inject constructor(
 
     suspend fun myApplication(): HelperApplicationDto? {
         return try {
-            apiCall { api.myHelperApplication() }
+            apiCallOrNullOn404 { api.myHelperApplication() }
         } catch (e: Exception) {
-            // NO_APPLICATION is an expected 404 (never applied yet), not a real error.
-            val httpEx = e.cause as? HttpException
-            val code = httpEx?.let { runCatching {
-                Gson().fromJson(it.response()?.errorBody()?.string(), ApiEnvelope::class.java)?.error?.code
-            }.getOrNull() }
-            if (code == "NO_APPLICATION") null else throw e
+            val isNotFound = (e as? `in`.raahi.app.network.NetworkError.ClientError)?.statusCode == 404 ||
+                (e.cause as? HttpException)?.code() == 404
+            if (isNotFound) null else throw e
         }
     }
 

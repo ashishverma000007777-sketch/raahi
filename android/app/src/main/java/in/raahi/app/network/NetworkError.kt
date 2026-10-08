@@ -131,18 +131,28 @@ fun Throwable.toNetworkError(defaultMessage: String = "Service temporarily unava
                 }
             }
             is HttpException -> {
-                val code = current.code()
+                val httpEx = current
+                val code = httpEx.code()
+                val bodyMessage = runCatching {
+                    val raw = httpEx.response()?.errorBody()?.string()
+                    if (!raw.isNullOrBlank()) {
+                        val obj = org.json.JSONObject(raw)
+                        obj.optJSONObject("error")?.optString("message")?.takeIf { it.isNotBlank() }
+                            ?: obj.optString("message").takeIf { it.isNotBlank() }
+                    } else null
+                }.getOrNull()
+
                 return when (code) {
                     in 500..599 -> NetworkError.ServerUnavailable(
                         statusCode = code,
-                        msg = "Server is temporarily unavailable. Please try again later.",
+                        msg = bodyMessage ?: "Server is temporarily unavailable. Please try again later.",
                         cause = this
                     )
-                    401 -> NetworkError.ClientError(code, "Session expired or authentication required.", this)
-                    403 -> NetworkError.ClientError(code, "Access not permitted.", this)
-                    404 -> NetworkError.ClientError(code, "Requested item was not found.", this)
-                    429 -> NetworkError.ClientError(code, "Too many requests. Please wait a moment and try again.", this)
-                    else -> NetworkError.ClientError(code, "Request could not be completed (${code}).", this)
+                    401 -> NetworkError.ClientError(code, bodyMessage ?: "Session expired or authentication required.", this)
+                    403 -> NetworkError.ClientError(code, bodyMessage ?: "Access not permitted.", this)
+                    404 -> NetworkError.ClientError(code, bodyMessage ?: "Requested item was not found.", this)
+                    429 -> NetworkError.ClientError(code, bodyMessage ?: "Too many requests. Please wait a moment and try again.", this)
+                    else -> NetworkError.ClientError(code, bodyMessage ?: "Request could not be completed (${code}).", this)
                 }
             }
         }

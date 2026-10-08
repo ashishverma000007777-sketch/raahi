@@ -41,7 +41,9 @@ fun HelperApplicationScreen(
     viewModel: HelperApplicationViewModel = hiltViewModel(),
 ) {
     val s by viewModel.state.collectAsState()
-    BackHandler(enabled = s.applying && s.step != WizardStep.BASICS) { viewModel.back() }
+    BackHandler(enabled = true) {
+        if (!viewModel.back()) onBack()
+    }
 
     Surface(Modifier.fillMaxSize(), color = RaahiBg) {
         Column(Modifier.fillMaxSize()) {
@@ -201,10 +203,24 @@ private fun UploadRow(label: String, uri: Uri?, onPicked: (Uri) -> Unit) {
 @Composable
 private fun VehicleStep(f: HelperApplicationForm, vm: HelperApplicationViewModel) {
     var picker by remember { mutableStateOf<String?>(null) }
+    val currentCategory = `in`.raahi.app.data.VehicleCategory.fromId(f.vehicleType)
     StepTitle("Your service vehicle", "The vehicle you use to reach customers.")
     FieldLabel("Type")
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        VEHICLE_TYPES.forEach { (label, id) -> RaahiChip(label, active = f.vehicleType == id) { vm.update { it.copy(vehicleType = id) } } }
+        VEHICLE_TYPES.forEach { (label, id) ->
+            RaahiChip(label, active = f.vehicleType == id) {
+                if (f.vehicleType != id) {
+                    vm.update {
+                        it.copy(
+                            vehicleType = id,
+                            vehicleBrand = "",
+                            vehicleModel = "",
+                            vehicleVariant = ""
+                        )
+                    }
+                }
+            }
+        }
     }
     FieldLabel("Brand")
     PickerField(f.vehicleBrand, "Select brand") { picker = "brand" }
@@ -218,15 +234,27 @@ private fun VehicleStep(f: HelperApplicationForm, vm: HelperApplicationViewModel
     RaahiTextField(f.radiusKm, { v -> vm.update { it.copy(radiusKm = v.filter(Char::isDigit).take(3)) } }, "15", keyboardType = KeyboardType.Number)
 
     when (picker) {
-        "brand" -> VehiclePickerDialog("Select Vehicle Brand", VehicleCatalogue.BRANDS.map { it.name }, f.vehicleBrand,
+        "brand" -> VehiclePickerDialog(
+            title = "Select ${currentCategory.label} Brand",
+            items = VehicleCatalogue.brandsFor(currentCategory).map { it.name },
+            selectedItem = f.vehicleBrand,
             onSelect = { b -> vm.update { it.copy(vehicleBrand = b, vehicleModel = "", vehicleVariant = "") }; picker = "model" },
-            onDismiss = { picker = null })
-        "model" -> VehiclePickerDialog("Select ${f.vehicleBrand} Model", VehicleCatalogue.findModels(f.vehicleBrand).map { it.name }, f.vehicleModel,
+            onDismiss = { picker = null }
+        )
+        "model" -> VehiclePickerDialog(
+            title = "Select ${f.vehicleBrand} Model",
+            items = VehicleCatalogue.modelsFor(currentCategory, f.vehicleBrand).map { it.name },
+            selectedItem = f.vehicleModel,
             onSelect = { m -> vm.update { it.copy(vehicleModel = m, vehicleVariant = "") }; picker = null },
-            onDismiss = { picker = null })
-        "variant" -> VehiclePickerDialog("Select ${f.vehicleModel} Variant", VehicleCatalogue.findVariants(f.vehicleBrand, f.vehicleModel), f.vehicleVariant,
+            onDismiss = { picker = null }
+        )
+        "variant" -> VehiclePickerDialog(
+            title = "Select ${f.vehicleModel} Variant",
+            items = VehicleCatalogue.variantsFor(currentCategory, f.vehicleBrand, f.vehicleModel),
+            selectedItem = f.vehicleVariant,
             onSelect = { v -> vm.update { it.copy(vehicleVariant = v) }; picker = null },
-            onDismiss = { picker = null })
+            onDismiss = { picker = null }
+        )
     }
 }
 

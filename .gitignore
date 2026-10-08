@@ -4,6 +4,10 @@ build/
 **/build/
 local.properties
 
+# Backend / Maven
+target/
+**/target/
+
 # Secrets / credentials
 .env
 .env.*

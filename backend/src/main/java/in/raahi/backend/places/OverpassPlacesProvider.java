@@ -15,7 +15,11 @@ import java.util.*;
 @Component
 public class OverpassPlacesProvider implements PlacesProvider {
 
-    private static final String OVERPASS_URL = "https://overpass-api.de/api/interpreter";
+    private static final List<String> OVERPASS_ENDPOINTS = List.of(
+            "https://overpass.private.coffee/api/interpreter",
+            "https://overpass-api.de/api/interpreter",
+            "https://overpass.kumi.systems/api/interpreter"
+    );
     private static final long CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
     private static final Map<String, String[]> TAG_BY_TYPE = Map.of(
@@ -65,43 +69,49 @@ public class OverpassPlacesProvider implements PlacesProvider {
         int radiusMeters = (int) (radiusKm * 1000);
 
         String overpassQuery = String.format(Locale.ROOT,
-                "[out:json][timeout:15];(node[\"%s\"=\"%s\"](around:%d,%f,%f)[name];);out body 20;",
+                "[out:json][timeout:15];(node[\"%s\"=\"%s\"](around:%d,%f,%f)[name];way[\"%s\"=\"%s\"](around:%d,%f,%f)[name];);out center 20;",
+                tag[0], tag[1], radiusMeters, lat, lng,
                 tag[0], tag[1], radiusMeters, lat, lng
         );
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+        headers.set(HttpHeaders.USER_AGENT, "RaahiApp/2.0 (contact@raahi.in)");
+        headers.set(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE);
         String body = "data=" + URLEncoder.encode(overpassQuery, StandardCharsets.UTF_8);
 
-        try {
-            JsonNode response = restTemplate.postForObject(OVERPASS_URL, new HttpEntity<>(body, headers), JsonNode.class);
-            if (response == null) throw new PlacesUnavailableException("No response from places provider", null);
+        Exception lastException = null;
+        for (String endpoint : OVERPASS_ENDPOINTS) {
+            try {
+                JsonNode response = restTemplate.postForObject(endpoint, new HttpEntity<>(body, headers), JsonNode.class);
+                if (response == null || !response.has("elements")) continue;
 
-            List<Place> places = new ArrayList<>();
-            for (JsonNode element : response.path("elements")) {
-                double elLat = element.path("lat").asDouble();
-                double elLng = element.path("lon").asDouble();
-                String name = element.path("tags").path("name").asText(null);
-                if (name == null) continue;
-                places.add(new Place(element.path("id").asText(), name, elLat, elLng, haversineKm(lat, lng, elLat, elLng)));
-            }
-            places.sort(Comparator.comparingDouble(p -> p.distanceKm() == null ? Double.MAX_VALUE : p.distanceKm()));
+                List<Place> places = new ArrayList<>();
+                for (JsonNode element : response.path("elements")) {
+                    double elLat = element.has("lat") ? element.path("lat").asDouble() : element.path("center").path("lat").asDouble();
+                    double elLng = element.has("lon") ? element.path("lon").asDouble() : element.path("center").path("lon").asDouble();
+                    String name = element.path("tags").path("name").asText(null);
+                    if (name == null || (elLat == 0.0 && elLng == 0.0)) continue;
+                    places.add(new Place(element.path("id").asText(), name, elLat, elLng, haversineKm(lat, lng, elLat, elLng)));
+                }
+                places.sort(Comparator.comparingDouble(p -> p.distanceKm() == null ? Double.MAX_VALUE : p.distanceKm()));
 
-            if (cache.size() > 500) {
-                cache.entrySet().removeIf(e -> e.getValue().isExpired());
-            }
-            List<Place> unmodifiable = Collections.unmodifiableList(places);
-            cache.put(cacheKey, new CacheEntry(unmodifiable));
+                if (cache.size() > 500) {
+                    cache.entrySet().removeIf(e -> e.getValue().isExpired());
+                }
+                List<Place> unmodifiable = Collections.unmodifiableList(places);
+                cache.put(cacheKey, new CacheEntry(unmodifiable));
 
-            return unmodifiable;
-        } catch (PlacesUnavailableException e) {
-            throw e;
-        } catch (Exception e) {
-            if (cached != null) {
-                return cached.places;
+                return unmodifiable;
+            } catch (Exception e) {
+                lastException = e;
             }
-            throw new PlacesUnavailableException("Could not reach the places provider right now", e);
         }
+
+        if (cached != null) {
+            return cached.places;
+        }
+        throw new PlacesUnavailableException("Could not reach the places provider right now", lastException);
     }
 
     private double haversineKm(double lat1, double lng1, double lat2, double lng2) {
