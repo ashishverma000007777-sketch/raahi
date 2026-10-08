@@ -1,20 +1,25 @@
 package in.raahi.backend.controller;
 
 import java.util.Optional;
+import java.util.List;
 
 import com.google.firebase.auth.FirebaseToken;
 import in.raahi.backend.dto.ApiResponse;
 import in.raahi.backend.dto.AuthDtos.*;
+import in.raahi.backend.dto.HelperDtos.HelperApplicationDto;
 import in.raahi.backend.entity.Subscription;
 import in.raahi.backend.entity.User;
 import in.raahi.backend.exception.ApiException;
 import in.raahi.backend.repository.SubscriptionRepository;
+import in.raahi.backend.repository.HelperApplicationRepository;
+import in.raahi.backend.entity.HelperApplication;
 import in.raahi.backend.repository.UserRepository;
 import in.raahi.backend.security.AuthenticatedUser;
 import in.raahi.backend.security.FirebaseVerifier;
 import in.raahi.backend.security.JwtService;
 import in.raahi.backend.security.RateLimiter;
 import jakarta.validation.Valid;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -29,17 +34,19 @@ public class AuthController {
     private final FirebaseVerifier firebaseVerifier;
     private final UserRepository userRepository;
     private final SubscriptionRepository subscriptionRepository;
+    private final HelperApplicationRepository helperApplicationRepository;
     private final JwtService jwtService;
     private final in.raahi.backend.websocket.WebSocketSessionRegistry sessionRegistry;
     private final RateLimiter rateLimiter;
 
     public AuthController(FirebaseVerifier firebaseVerifier, UserRepository userRepository,
-                           SubscriptionRepository subscriptionRepository, JwtService jwtService,
+                           SubscriptionRepository subscriptionRepository, HelperApplicationRepository helperApplicationRepository, JwtService jwtService,
                            in.raahi.backend.websocket.WebSocketSessionRegistry sessionRegistry,
                            RateLimiter rateLimiter) {
         this.firebaseVerifier = firebaseVerifier;
         this.userRepository = userRepository;
         this.subscriptionRepository = subscriptionRepository;
+        this.helperApplicationRepository = helperApplicationRepository;
         this.jwtService = jwtService;
         this.sessionRegistry = sessionRegistry;
         this.rateLimiter = rateLimiter;
@@ -150,6 +157,42 @@ public class AuthController {
         userRepository.save(user);
 
         return ApiResponse.ok(toDto(user));
+    }
+
+    @GetMapping("/dev/helper-applications")
+    @Transactional(readOnly = true)
+    public ApiResponse<List<HelperApplicationDto>> devHelperApplications(
+            @RequestHeader("X-Admin-Bootstrap-Secret") String secret) {
+
+        String expected = System.getenv("RAAHI_ADMIN_BOOTSTRAP_SECRET");
+        if (expected == null || secret == null ||
+                !java.security.MessageDigest.isEqual(
+                        expected.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                        secret.getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
+            throw ApiException.forbidden("FORBIDDEN", "Invalid dev admin secret");
+        }
+
+        var pending = helperApplicationRepository
+                .findByStatusOrderBySubmittedAtAsc(HelperApplication.Status.PENDING);
+
+        return ApiResponse.ok(pending.stream()
+                .map(a -> {
+                    HelperApplicationDto dto = new HelperApplicationDto();
+                    dto.id = a.getId().toString();
+                    dto.status = a.getStatus().name();
+                    dto.userId = a.getUser().getId().toString();
+                    dto.applicantName = a.getUser().getName();
+                    dto.applicantPhone = a.getUser().getPhone();
+                    dto.serviceArea = a.getServiceArea();
+                    dto.services = a.getServices();
+                    dto.vehicleType = a.getVehicleType();
+                    dto.vehicleBrand = a.getVehicleBrand();
+                    dto.vehicleModel = a.getVehicleModel();
+                    dto.vehicleReg = a.getVehicleReg();
+                    dto.submittedAt = a.getSubmittedAt() != null ? a.getSubmittedAt().toString() : null;
+                    return dto;
+                })
+                .toList());
     }
 
     @GetMapping("/me")
