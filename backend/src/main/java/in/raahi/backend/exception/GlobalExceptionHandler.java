@@ -29,7 +29,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Object>> handleUnknown(Exception ex) {
-        log.error("Unhandled exception caught by GlobalExceptionHandler: ", ex);
+        log.error("Unhandled exception: {}: {}", ex.getClass().getName(), ex.getMessage(), ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiResponse.fail("INTERNAL_ERROR", "Something went wrong. Please try again."));
     }
