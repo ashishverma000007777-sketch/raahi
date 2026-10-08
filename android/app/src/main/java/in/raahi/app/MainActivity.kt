@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -117,8 +118,14 @@ private object Routes {
 }
 
 @HiltViewModel
-class AuthGateViewModel @Inject constructor(private val tokens: TokenManager) : ViewModel() {
+class AuthGateViewModel @Inject constructor(
+    private val tokens: TokenManager,
+    private val authRepository: `in`.raahi.app.data.AuthRepository,
+) : ViewModel() {
+
     fun isAuthenticated(): Boolean = !tokens.getCachedToken().isNullOrBlank()
+
+    suspend fun ensureDebugAuth(): Boolean = isAuthenticated()
 }
 
 @AndroidEntryPoint
@@ -177,11 +184,21 @@ fun RaahiNavHost(
         }
     }
 
-    // Splash -> auth state -> Home (authenticated) or Phone Login (unauthenticated).
-    // The Splash->Home bypass exists ONLY in debug builds.
-    val startDestination = remember {
-        if (BuildConfig.DEBUG || gate.isAuthenticated()) Routes.HOME else Routes.PHONE_LOGIN
+    // Splash -> real auth state -> Home or Phone Login.
+    var authReady by remember { mutableStateOf(false) }
+    var authenticated by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        authenticated = gate.isAuthenticated()
+        authReady = true
     }
+
+    if (!authReady) {
+        return
+    }
+
+    val startDestination = if (authenticated) Routes.HOME else Routes.PHONE_LOGIN
+
     NavHost(navController = navController, startDestination = startDestination) {
 
         composable(Routes.PHONE_LOGIN) {

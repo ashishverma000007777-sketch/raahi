@@ -102,6 +102,45 @@ public class AuthController {
         return ApiResponse.ok(res);
     }
 
+    /**
+     * DEV-ONLY admin bootstrap.
+     * Requires RAAHI_ADMIN_BOOTSTRAP_SECRET and is intended only for local/staging testing.
+     */
+    @PostMapping("/dev/bootstrap-admin")
+    public ApiResponse<UserDto> bootstrapAdmin(
+            @RequestHeader(value = "X-Admin-Bootstrap-Secret", required = false) String secret,
+            @RequestParam String userId) {
+
+        String devAuth = System.getenv("RAAHI_DEV_AUTH_ENABLED");
+        if (!"true".equalsIgnoreCase(devAuth)) {
+            throw ApiException.notFound("NOT_FOUND", "Not found");
+        }
+
+        String expected = System.getenv("RAAHI_ADMIN_BOOTSTRAP_SECRET");
+        if (expected == null || expected.isBlank()
+                || secret == null || !java.security.MessageDigest.isEqual(
+                    expected.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                    secret.getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
+            throw ApiException.forbidden("FORBIDDEN", "Invalid bootstrap secret");
+        }
+
+        java.util.UUID targetId;
+        try {
+            targetId = java.util.UUID.fromString(userId);
+        } catch (IllegalArgumentException e) {
+            throw ApiException.badRequest("INVALID_USER_ID", "Invalid userId");
+        }
+
+        User user = userRepository.findById(targetId)
+                .orElseThrow(() -> ApiException.notFound("USER_NOT_FOUND", "User not found"));
+
+        user.setRole(User.Role.ADMIN);
+        user.setStatus(User.Status.ACTIVE);
+        userRepository.save(user);
+
+        return ApiResponse.ok(toDto(user));
+    }
+
     @GetMapping("/me")
     public ApiResponse<UserDto> me(@AuthenticationPrincipal AuthenticatedUser principal) {
         User user = userRepository.findById(principal.userId())

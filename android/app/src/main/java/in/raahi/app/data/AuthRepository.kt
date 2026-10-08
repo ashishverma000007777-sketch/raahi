@@ -104,8 +104,7 @@ class AuthRepository @Inject constructor(
                     e.message?.contains("quota", ignoreCase = true) == true ||
                     e.message?.contains("too many", ignoreCase = true) == true ->
                         "Too many OTP attempts. Please try again later."
-                    else ->
-                        DEFAULT_UNAVAILABLE_MSG
+                    else -> "Firebase error: ${e.javaClass.simpleName}: ${e.message ?: "unknown"}"
                 }
                 trySend(PhoneAuthEvent.Failed(userMsg))
             }
