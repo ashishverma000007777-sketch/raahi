@@ -127,7 +127,7 @@ public class JobController {
         job.setRewardAmount(req.rewardAmount == null ? 0.0 : req.rewardAmount);
         job.setHelperOtp(randomOtp());
         job.setExpiresAt(Instant.now().plus(30, ChronoUnit.MINUTES));
-        job = jobRepository.save(job);
+        job = jobRepository.saveAndFlush(job);
 
         history.record(job, null, Job.Status.PENDING, requester.getId(), "REQUESTER", null, req.lat, req.lng, "request created");
         return ApiResponse.ok(toDto(job, principal.userId(), null, null));
@@ -475,7 +475,7 @@ public class JobController {
         JobStateMachine.require(from, to);
         job.setStatus(to);
         job.setUpdatedAt(Instant.now());
-        job = jobRepository.save(job);
+        job = jobRepository.saveAndFlush(job);
         history.record(job, from, to, actorId, actorRole, method, lat, lng, note);
         return job;
     }
