@@ -1,5 +1,7 @@
 package in.raahi.backend.controller;
 
+import java.util.Optional;
+
 import com.google.firebase.auth.FirebaseToken;
 import in.raahi.backend.dto.ApiResponse;
 import in.raahi.backend.dto.AuthDtos.*;
@@ -64,9 +66,17 @@ public class AuthController {
 
         FirebaseToken decoded = firebaseVerifier.verify(req.idToken);
 
-        boolean isNewUser = userRepository.findByFirebaseUid(decoded.getUid()).isEmpty();
+        Optional<User> existingUser = userRepository.findByFirebaseUid(decoded.getUid());
 
-        User user = userRepository.findByFirebaseUid(decoded.getUid()).orElseGet(() -> {
+        boolean isNewUser = existingUser.isEmpty()
+                || existingUser.get().getName() == null
+                || existingUser.get().getName().isBlank()
+                || existingUser.get().getVehicleType() == null
+                || existingUser.get().getVehicleType().isBlank()
+                || existingUser.get().getVehicleReg() == null
+                || existingUser.get().getVehicleReg().isBlank();
+
+        User user = existingUser.orElseGet(() -> {
             User u = new User();
             u.setFirebaseUid(decoded.getUid());
             u.setPhone(decoded.getClaims().get("phone_number") != null
@@ -109,7 +119,7 @@ public class AuthController {
     @PostMapping("/dev/bootstrap-admin")
     public ApiResponse<UserDto> bootstrapAdmin(
             @RequestHeader(value = "X-Admin-Bootstrap-Secret", required = false) String secret,
-            @RequestParam String userId) {
+            @RequestParam String phone) {
 
         String devAuth = System.getenv("RAAHI_DEV_AUTH_ENABLED");
         if (!"true".equalsIgnoreCase(devAuth)) {
@@ -124,14 +134,7 @@ public class AuthController {
             throw ApiException.forbidden("FORBIDDEN", "Invalid bootstrap secret");
         }
 
-        java.util.UUID targetId;
-        try {
-            targetId = java.util.UUID.fromString(userId);
-        } catch (IllegalArgumentException e) {
-            throw ApiException.badRequest("INVALID_USER_ID", "Invalid userId");
-        }
-
-        User user = userRepository.findById(targetId)
+        User user = userRepository.findByPhone(phone)
                 .orElseThrow(() -> ApiException.notFound("USER_NOT_FOUND", "User not found"));
 
         user.setRole(User.Role.ADMIN);
