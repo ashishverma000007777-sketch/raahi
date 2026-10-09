@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import `in`.raahi.app.network.MechanicDto
+import `in`.raahi.app.network.OsmMechanicShopDto
 import `in`.raahi.app.ui.components.*
 import `in`.raahi.app.ui.theme.*
 import org.maplibre.android.camera.CameraUpdateFactory
@@ -87,6 +88,7 @@ fun MechanicsMapScreen(
                             }
                             MechanicsBottomSheet(
                                 mechanics = emptyList(),
+                                shops = emptyList(),
                                 errorMessage = errorState.message,
                                 onRetry = viewModel::retry,
                                 onMechanicClick = { onMechanicClick(it.userId) },
@@ -110,6 +112,7 @@ fun MechanicsMapScreen(
                             }
                             MechanicsBottomSheet(
                                 mechanics = filtered,
+                                shops = loaded.shops,
                                 errorMessage = loaded.errorMessage,
                                 onRetry = viewModel::retry,
                                 onMechanicClick = { onMechanicClick(it.userId) },
@@ -183,6 +186,7 @@ private fun RoundIconButton(icon: androidx.compose.ui.graphics.vector.ImageVecto
 @Composable
 private fun MechanicsBottomSheet(
     mechanics: List<MechanicDto>,
+    shops: List<OsmMechanicShopDto> = emptyList(),
     errorMessage: String? = null,
     onRetry: (() -> Unit)? = null,
     onMechanicClick: (MechanicDto) -> Unit,
@@ -195,7 +199,8 @@ private fun MechanicsBottomSheet(
         Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             val title = when {
                 errorMessage != null -> "Nearby Mechanics"
-                mechanics.isEmpty() -> "No mechanics found"
+                mechanics.isEmpty() && shops.isEmpty() -> "No mechanics or shops found"
+                mechanics.isEmpty() -> "${shops.size} nearby repair shops"
                 else -> "${mechanics.size} mechanics nearby"
             }
             Text(title, color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 12.5.sp, modifier = Modifier.weight(1f))
@@ -212,9 +217,27 @@ private fun MechanicsBottomSheet(
         }
         when {
             errorMessage != null -> UnavailableMechanicsState(errorMessage, onRetry = onRetry ?: {}, modifier = Modifier.height(150.dp))
-            mechanics.isEmpty() -> EmptyMechanicsState(Modifier.height(140.dp))
-            else -> LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(mechanics, key = { it.userId }) { m -> MechanicRow(m) { onMechanicClick(m) } }
+            mechanics.isEmpty() && shops.isEmpty() -> EmptyMechanicsState(Modifier.height(140.dp))
+            else -> LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (mechanics.isNotEmpty()) {
+                    item { Text("Verified Raahi mechanics", color = RaahiTextDim, fontSize = 11.sp) }
+                    items(mechanics, key = { "verified-${it.userId}" }) { m -> MechanicRow(m) { onMechanicClick(m) } }
+                }
+                if (shops.isNotEmpty()) {
+                    item { Text("Nearby repair shops · OSM · Unverified", color = RaahiAmber, fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp)) }
+                    items(shops, key = { "osm-${it.id}" }) { shop ->
+                        RowCard(onClick = {}) {
+                            IconBadge(RaahiIcons.Wrench, RaahiAmber, 36.dp, CircleShape)
+                            Spacer(Modifier.width(10.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(shop.name, color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 12.5.sp, maxLines = 2)
+                                if (!shop.address.isNullOrBlank()) Text(shop.address, color = RaahiTextDim, fontSize = 10.5.sp, maxLines = 2)
+                                if (!shop.phone.isNullOrBlank()) Text(shop.phone, color = RaahiCyan, fontSize = 11.sp)
+                            }
+                            Text("${"%.1f".format(shop.distanceKm)} km", color = RaahiTextDim, fontSize = 10.5.sp)
+                        }
+                    }
+                }
             }
         }
     }

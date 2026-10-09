@@ -23,12 +23,15 @@ public class MechanicController {
     private final MechanicProfileRepository mechanicRepository;
     private final UserRepository userRepository;
     private final in.raahi.backend.security.RateLimiter rateLimiter;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     public MechanicController(MechanicProfileRepository mechanicRepository, UserRepository userRepository,
-                              in.raahi.backend.security.RateLimiter rateLimiter) {
+                              in.raahi.backend.security.RateLimiter rateLimiter,
+                              org.springframework.jdbc.core.JdbcTemplate jdbc) {
         this.mechanicRepository = mechanicRepository;
         this.userRepository = userRepository;
         this.rateLimiter = rateLimiter;
+        this.jdbc = jdbc;
     }
 
     // No fallback to fake/mock mechanics when this list is empty — the old Node backend did
@@ -58,6 +61,34 @@ public class MechanicController {
                 .map(p -> toDto(p, lat, lng))
                 .collect(Collectors.toList());
         return ApiResponse.ok(dtos);
+    }
+
+    @GetMapping("/nearby-shops")
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public ApiResponse<List<java.util.Map<String, Object>>> nearbyShops(
+            @RequestParam Double lat, @RequestParam Double lng,
+            @RequestParam(required = false, defaultValue = "20") Double radius) {
+        if (lat == null || lng == null || !Double.isFinite(lat) || !Double.isFinite(lng)
+                || lat < -90 || lat > 90 || lng < -180 || lng > 180)
+            throw ApiException.badRequest("INVALID_COORDS", "Valid lat/lng required");
+        double r = radius == null ? 20.0 : radius;
+        if (!Double.isFinite(r) || r <= 0 || r > 100)
+            throw ApiException.badRequest("INVALID_RADIUS", "Radius must be between 0 and 100 km");
+        return ApiResponse.ok(jdbc.queryForList("""
+            SELECT id::text AS id, shop_name AS name, phone, address,
+                   latitude AS lat, longitude AS lng, osm_url AS "osmUrl",
+                   status, distance_km AS "distanceKm"
+            FROM (
+              SELECT id, shop_name, phone, address, latitude, longitude, osm_url, status,
+                6371.0 * 2 * ASIN(SQRT(
+                  POWER(SIN(RADIANS(latitude - ?) / 2), 2) +
+                  COS(RADIANS(?)) * COS(RADIANS(latitude)) *
+                  POWER(SIN(RADIANS(longitude - ?) / 2), 2)
+                )) AS distance_km
+              FROM osm_mechanic_leads WHERE status <> 'REJECTED'
+            ) nearby
+            WHERE distance_km <= ? ORDER BY distance_km LIMIT 200
+            """, lat, lat, lng, r));
     }
 
     @GetMapping("/{userId}")

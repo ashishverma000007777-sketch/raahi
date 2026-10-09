@@ -80,6 +80,12 @@ data class HelperJobHistoryDto(
 )
 data class HelperRatingDto(val job_id: String?, val stars: Int, val comment: String?, val created_at: String?)
 
+data class OsmMechanicShopDto(
+    val id: String, val name: String, val phone: String?, val address: String?,
+    val lat: Double, val lng: Double, val osmUrl: String?, val status: String,
+    val distanceKm: Double
+)
+
 data class MechanicDto(
     val userId: String, val name: String?, val phone: String?, val shopName: String?,
     val specializations: String?, val isAvailable: Boolean,
@@ -442,6 +448,12 @@ interface RaahiApi {
 
     @POST("jobs/{id}/report")
     suspend fun reportJob(@Path("id") id: String, @Body req: ReportRequest): ApiEnvelope<Map<String, Boolean>>
+
+    @GET("mechanics/nearby-shops")
+    suspend fun nearbyMechanicShops(
+        @Query("lat") lat: Double, @Query("lng") lng: Double,
+        @Query("radius") radius: Double? = null
+    ): ApiEnvelope<List<OsmMechanicShopDto>>
 
     @GET("mechanics/nearby")
     suspend fun nearbyMechanics(

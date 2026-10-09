@@ -8,6 +8,7 @@ import `in`.raahi.app.data.AuthRepository
 import `in`.raahi.app.data.LocationProvider
 import `in`.raahi.app.data.MechanicsRepository
 import `in`.raahi.app.network.MechanicDto
+import `in`.raahi.app.network.OsmMechanicShopDto
 import `in`.raahi.app.network.toUserFriendlyMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,6 +24,7 @@ sealed class MechanicsMapUiState {
         val mechanics: List<MechanicDto>,
         val errorMessage: String? = null,
         val isRefreshing: Boolean = false,
+        val shops: List<OsmMechanicShopDto> = emptyList(),
     ) : MechanicsMapUiState()
     data class Error(val message: String) : MechanicsMapUiState()
 }
@@ -73,19 +75,18 @@ class MechanicsMapViewModel @Inject constructor(
             _state.value = MechanicsMapUiState.Loading
         }
         viewModelScope.launch {
-            runCatching { mechanicsRepository.nearby(location.lat, location.lng) }
-                .onSuccess { list ->
-                    _state.value = MechanicsMapUiState.Loaded(location, list, errorMessage = null, isRefreshing = false)
-                }
-                .onFailure { e ->
-                    val userFriendly = e.toUserFriendlyMessage("Nearby mechanics unavailable. Please check your connection.")
-                    _state.value = MechanicsMapUiState.Loaded(
-                        userLocation = location,
-                        mechanics = emptyList(),
-                        errorMessage = userFriendly,
-                        isRefreshing = false
-                    )
-                }
+            val mechanicsResult = runCatching { mechanicsRepository.nearby(location.lat, location.lng) }
+            val shopsResult = runCatching { mechanicsRepository.nearbyShops(location.lat, location.lng) }
+            val mechanics = mechanicsResult.getOrDefault(emptyList())
+            val shops = shopsResult.getOrDefault(emptyList())
+            val error = if (mechanicsResult.isFailure && shopsResult.isFailure)
+                mechanicsResult.exceptionOrNull()?.toUserFriendlyMessage(
+                    "Nearby mechanics unavailable. Please check your connection."
+                ) else null
+            _state.value = MechanicsMapUiState.Loaded(
+                userLocation = location, mechanics = mechanics, errorMessage = error,
+                isRefreshing = false, shops = shops
+            )
         }
     }
 }
