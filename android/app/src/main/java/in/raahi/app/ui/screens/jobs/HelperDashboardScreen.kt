@@ -38,6 +38,15 @@ fun HelperDashboardScreen(
     viewModel: HelperDashboardViewModel = hiltViewModel(),
 ) {
     val s by viewModel.state.collectAsState()
+    val locationPermission = rememberLocationPermissionState()
+    var pendingOnline by remember { mutableStateOf(false) }
+
+    LaunchedEffect(locationPermission.isGranted, pendingOnline) {
+        if (locationPermission.isGranted && pendingOnline) {
+            pendingOnline = false
+            viewModel.setOnline(true)
+        }
+    }
 
     LaunchedEffect(s.acceptedJobId) {
         s.acceptedJobId?.let { id -> viewModel.consumeAccepted(); onJobAccepted(id) }
@@ -60,7 +69,14 @@ fun HelperDashboardScreen(
                 st.applicationStatus != "APPROVED" -> NotApprovedBlock(st.applicationStatus, onApplyOrReview)
                 else -> Column(Modifier.fillMaxSize()) {
                     Column(Modifier.padding(horizontal = 16.dp)) {
-                        OnlineCard(online = st.online, canGoOnline = st.accountActive && st.blockedUntil == null, busy = s.togglingOnline, onToggle = viewModel::setOnline)
+                        OnlineCard(online = st.online, canGoOnline = st.accountActive && st.blockedUntil == null, busy = s.togglingOnline, onToggle = { enabled ->
+                            if (enabled && !locationPermission.isGranted) {
+                                pendingOnline = true
+                                locationPermission.request()
+                            } else {
+                                viewModel.setOnline(enabled)
+                            }
+                        })
                         if (st.blockedUntil != null) {
                             Spacer(Modifier.height(10.dp))
                             Text("Your account is blocked until ${st.blockedUntil.take(10)}${st.blockReason?.let { " — $it" } ?: ""}.", color = RaahiRed, fontSize = 12.5.sp, fontWeight = FontWeight.Medium)

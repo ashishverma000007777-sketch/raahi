@@ -106,7 +106,13 @@ fun MechanicsMapView(
                 }
             }
           } catch (t: Throwable) {
-            android.view.View(context)
+            Log.e("RAAHI_MAP_DEBUG", "MAP_INIT_FAILED: ${t.javaClass.name}: ${t.message}", t)
+            android.widget.TextView(context).apply {
+                text = "Map failed to initialize: ${t.javaClass.simpleName}\n${t.message ?: "No details"}"
+                setTextColor(android.graphics.Color.RED)
+                textSize = 13f
+                setPadding(16, 16, 16, 16)
+            }
           }
         },
         update = { view ->
