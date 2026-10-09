@@ -85,7 +85,7 @@ private fun JobStatusBody(s: Loaded, vm: JobStatusViewModel, onDone: () -> Unit)
     val isRequester = job.viewerRole == "REQUESTER"
     var dialog by remember { mutableStateOf<JobDialog?>(null) }
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 32.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp).padding(bottom = 36.dp)) {
         if (job.viewerRole == null && job.status == "PENDING") {
             // Helper cancelled before arrival: the request is open again for other helpers.
             InfoCard("You are no longer assigned to this request.", RaahiAmber)
@@ -238,12 +238,12 @@ private fun StepperCard(job: JobDto) {
     }
     val current = STEPS.indexOf(job.status).coerceAtLeast(0)
     GlassCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.padding(20.dp)) {
             STEPS.forEachIndexed { i, step ->
                 val done = i < current || (job.status == "COMPLETED")
                 val active = i == current && job.status != "COMPLETED"
                 val tint = when { done -> RaahiGreen; active -> RaahiOrange; else -> RaahiTextFaint }
-                Row(Modifier.padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(12.dp).background(tint, CircleShape))
                     Spacer(Modifier.width(12.dp))
                     Text(
@@ -264,7 +264,7 @@ private fun StepperCard(job: JobDto) {
 @Composable
 private fun JobDetailsCard(job: JobDto) {
     GlassCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.padding(18.dp)) {
             DetailRow("Problem", PROBLEM_TYPES.firstOrNull { it.id == job.problemType }?.label ?: job.problemType)
             if (!job.problemDesc.isNullOrBlank()) DetailRow("Description", job.problemDesc)
             DetailRow("Offer", "₹${job.rewardAmount.toInt()} cash to helper")
@@ -287,12 +287,12 @@ private fun DetailRow(label: String, value: String) {
 private fun OtherPartyCard(name: String, phone: String?, rating: Double?, helps: Int?, label: String) {
     val context = LocalContext.current
     GlassCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.padding(18.dp)) {
             Text(label, color = RaahiTextFaint, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(46.dp).background(RaahiOrange, CircleShape), contentAlignment = Alignment.Center) {
-                    Text(name.firstOrNull()?.uppercaseChar()?.toString() ?: "?", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Box(Modifier.size(50.dp).background(RaahiSelectionBg, CircleShape), contentAlignment = Alignment.Center) {
+                    Text(name.firstOrNull()?.uppercaseChar()?.toString() ?: "?", color = RaahiOrange, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
@@ -332,7 +332,7 @@ private fun InfoCard(text: String, tint: Color) {
 @Composable
 private fun CodeCard(label: String, code: String?) {
     GlassCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.fillMaxWidth().padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(label, color = RaahiTextDim, fontSize = 12.sp)
             Spacer(Modifier.height(10.dp))
             Text(code ?: "------", color = RaahiOrange, fontSize = 32.sp, fontWeight = FontWeight.Bold, letterSpacing = 8.sp, fontFamily = RaahiDisplayFont)
@@ -344,7 +344,7 @@ private fun CodeCard(label: String, code: String?) {
 private fun ArrivalCard(acting: Boolean, onArrive: (String?) -> Unit) {
     var otp by remember { mutableStateOf("") }
     GlassCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.padding(20.dp)) {
             Text("Arrived at the location?", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 14.sp)
             Spacer(Modifier.height(4.dp))
             Text(
@@ -366,7 +366,7 @@ private fun ArrivalCard(acting: Boolean, onArrive: (String?) -> Unit) {
 private fun ConfirmCompletionCard(job: JobDto, acting: Boolean, onConfirm: (String) -> Unit) {
     var otp by remember { mutableStateOf("") }
     GlassCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.padding(20.dp)) {
             Text("Confirm the work is done", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 15.sp)
             Spacer(Modifier.height(4.dp))
             Text(
@@ -393,7 +393,7 @@ private fun RatingCard(acting: Boolean, onSubmit: (Int, String?) -> Unit) {
     var stars by remember { mutableIntStateOf(0) }
     var comment by remember { mutableStateOf("") }
     GlassCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text("Rate your helper", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 16.sp)
             Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {

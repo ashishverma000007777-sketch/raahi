@@ -33,14 +33,14 @@ fun MechanicDetailScreen(
 ) {
     val state by viewModel.state.collectAsState()
 
-    Surface(modifier = Modifier.fillMaxSize(), color = RaahiNavyBackground) {
+    Surface(modifier = Modifier.fillMaxSize(), color = RaahiBg) {
         Column(Modifier.fillMaxSize()) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = RaahiTextPrimary) }
-                Text("Mechanic", color = RaahiTextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Text("Mechanic", color = RaahiText, fontSize = 21.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
             }
 
             when (val s = state) {
@@ -63,14 +63,15 @@ fun MechanicDetailScreen(
 @Composable
 private fun DetailBody(m: MechanicDto, onRequestHelp: () -> Unit) {
     val context = LocalContext.current
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
+    Column(Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 16.dp)) {
+        Column(Modifier.fillMaxWidth().background(Color.White, RaahiShapeLarge).padding(18.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(56.dp).background(RaahiOrangeAccent, CircleShape), contentAlignment = Alignment.Center) {
-                Text((m.shopName ?: m.name ?: "?").firstOrNull()?.uppercaseChar()?.toString() ?: "?", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 22.sp)
+            Box(Modifier.size(60.dp).background(RaahiSelectionBg, CircleShape), contentAlignment = Alignment.Center) {
+                Text((m.shopName ?: m.name ?: "?").firstOrNull()?.uppercaseChar()?.toString() ?: "?", color = RaahiOrange, fontWeight = FontWeight.Bold, fontSize = 22.sp)
             }
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
-                Text(m.shopName ?: m.name ?: "Mechanic", color = RaahiTextPrimary, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Text(m.shopName ?: m.name ?: "Mechanic", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 19.sp)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Filled.Star, contentDescription = null, tint = RaahiYellow, modifier = Modifier.size(14.dp))
                     Text(" ${"%.1f".format(m.ratingAvg)}", color = RaahiTextSecondary, fontSize = 13.sp)
@@ -88,10 +89,11 @@ private fun DetailBody(m: MechanicDto, onRequestHelp: () -> Unit) {
                 )
             }
         }
+        }
 
         if (!m.specializations.isNullOrBlank()) {
             Spacer(Modifier.height(16.dp))
-            Text("SERVICES", color = RaahiTextMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Text("SERVICES", color = RaahiTextDim, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(6.dp))
             Text(m.specializations, color = RaahiTextSecondary, fontSize = 13.sp)
         }
@@ -116,7 +118,7 @@ private fun DetailBody(m: MechanicDto, onRequestHelp: () -> Unit) {
                         context.startActivity(Intent(Intent.ACTION_VIEW, uri))
                     },
                     modifier = Modifier.weight(1f).height(48.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = RaahiCyan),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = RaahiOrange),
                 ) {
                     Icon(Icons.Filled.Directions, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
@@ -133,8 +135,8 @@ private fun DetailBody(m: MechanicDto, onRequestHelp: () -> Unit) {
         // Help flow, honestly, rather than faking a targeted request that doesn't exist.
         Button(
             onClick = onRequestHelp,
-            modifier = Modifier.fillMaxWidth().height(52.dp),
-            shape = RoundedCornerShape(14.dp),
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            shape = RoundedCornerShape(18.dp),
             colors = ButtonDefaults.buttonColors(containerColor = RaahiOrangeAccent),
         ) {
             Text("Post a Roadside Help Request", color = Color.White, fontWeight = FontWeight.Bold)

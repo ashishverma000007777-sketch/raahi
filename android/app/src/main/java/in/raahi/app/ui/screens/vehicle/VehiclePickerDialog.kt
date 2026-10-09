@@ -63,11 +63,11 @@ fun VehiclePickerDialog(
         Box(
             modifier = Modifier
                 .fillMaxWidth(0.92f)
-                .heightIn(max = 440.dp)
+                .heightIn(max = 480.dp)
                 .shadow(elevation = 16.dp, shape = RoundedCornerShape(20.dp), spotColor = Color(0x22000000))
                 .background(Color.White, RoundedCornerShape(20.dp))
                 .border(1.dp, Color(0xFFEDE8E1), RoundedCornerShape(20.dp))
-                .padding(16.dp)
+                .padding(18.dp)
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
                 // Header: Title & Close
@@ -102,8 +102,8 @@ fun VehiclePickerDialog(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(40.dp)
-                        .background(Color(0xFFF7F4EE), RoundedCornerShape(10.dp))
+                        .height(44.dp)
+                        .background(Color(0xFFFAF7F2), RoundedCornerShape(10.dp))
                         .border(1.dp, Color(0xFFE8E2D8), RoundedCornerShape(10.dp))
                         .padding(horizontal = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -155,7 +155,7 @@ fun VehiclePickerDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f, fill = false),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     items(filteredItems) { item ->
                         val isSelected = item.equals(selectedItem, ignoreCase = true)
@@ -173,14 +173,14 @@ fun VehiclePickerDialog(
                                     onSelect(item)
                                     onDismiss()
                                 }
-                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                                .padding(horizontal = 12.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Box(
                                 modifier = Modifier
                                     .size(28.dp)
                                     .background(
-                                        if (isSelected) Color(0xFFFF4B3A).copy(alpha = 0.15f) else Color(0xFFF1EBE4),
+                                        if (isSelected) Color(0xFFFF4B3A).copy(alpha = 0.15f) else Color(0xFFFFF0E8),
                                         CircleShape
                                     ),
                                 contentAlignment = Alignment.Center

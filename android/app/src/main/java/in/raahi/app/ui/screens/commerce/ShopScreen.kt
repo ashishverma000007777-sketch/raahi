@@ -109,7 +109,7 @@ fun ShopScreen(onBack: () -> Unit, onNavigateTab: (RaahiTab) -> Unit, viewModel:
                                     else s.products.filter { it.name.contains(query, ignoreCase = true) || it.brand?.contains(query, ignoreCase = true) == true }
                                 }
                                 if (filtered.isEmpty()) EmptyProductsState()
-                                else LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                else LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                     items(filtered, key = { it.id }) { product ->
                                         ProductCard(product) { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(product.affiliateUrl))) }
                                     }
@@ -147,9 +147,9 @@ private fun UnavailableProductsState(message: String, onRetry: () -> Unit) {
 
 @Composable
 private fun ShopHeader() {
-    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 18.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
-            Text("Raahi Shop", color = RaahiText, fontSize = 19.sp, fontWeight = FontWeight.SemiBold, fontFamily = RaahiDisplayFont)
+            Text("Raahi Shop", color = RaahiText, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, fontFamily = RaahiDisplayFont)
             Text("Powered by Amazon", color = RaahiTextDim, fontSize = 10.5.sp)
         }
         Icon(Icons.Outlined.ShoppingCart, contentDescription = null, tint = RaahiTextDim, modifier = Modifier.size(21.dp))
@@ -167,8 +167,8 @@ private fun SearchBar(query: String, onQueryChange: (String) -> Unit) {
         keyboardOptions = KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
         colors = OutlinedTextFieldDefaults.colors(
             focusedTextColor = RaahiText, unfocusedTextColor = RaahiText,
-            focusedContainerColor = RaahiGlass, unfocusedContainerColor = RaahiGlass,
-            focusedBorderColor = RaahiBorder, unfocusedBorderColor = RaahiBorder, cursorColor = RaahiOrange,
+            focusedContainerColor = androidx.compose.ui.graphics.Color.White, unfocusedContainerColor = androidx.compose.ui.graphics.Color.White,
+            focusedBorderColor = RaahiOrange, unfocusedBorderColor = RaahiBorderSoft, cursorColor = RaahiOrange,
         ),
     )
 }

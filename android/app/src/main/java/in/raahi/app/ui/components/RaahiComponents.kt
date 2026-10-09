@@ -16,6 +16,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.WaterDrop
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.filled.Build
@@ -246,34 +247,121 @@ fun ScoreRing(score: Int, ringSize: Dp = 56.dp, big: Boolean = false) {
 
 @Composable
 fun Ticker(items: List<String>, modifier: Modifier = Modifier) {
+    if (items.isEmpty()) return
+
     val scrollState = rememberScrollState()
     LaunchedEffect(scrollState.maxValue) {
         if (scrollState.maxValue <= 0) return@LaunchedEffect
         while (true) {
             scrollState.animateScrollTo(
                 scrollState.maxValue,
-                animationSpec = tween((scrollState.maxValue * 14).coerceAtLeast(4000), easing = LinearEasing),
+                animationSpec = tween(
+                    (scrollState.maxValue * 18).coerceAtLeast(5000),
+                    easing = LinearEasing
+                )
             )
-            delay(400)
+            delay(700)
             scrollState.scrollTo(0)
-            delay(300)
+            delay(500)
         }
     }
-    Box(
-        modifier
+
+    Row(
+        modifier = modifier
             .fillMaxWidth()
-            .height(30.dp)
-            .shadow(elevation = 1.dp, shape = RaahiShapeSmall, spotColor = Color(0x0D000000))
-            .background(Color.White, RaahiShapeSmall)
-            .border(1.dp, RaahiBorderSoft, RaahiShapeSmall),
-        contentAlignment = Alignment.CenterStart,
+            .height(62.dp)
+            .shadow(3.dp, RaahiShapePill, spotColor = Color(0x120F1D35))
+            .clip(RaahiShapePill)
+            .background(Color.White)
+            .border(1.dp, Color(0xFFE9EDF3), RaahiShapePill),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Row(
-            modifier = Modifier.horizontalScroll(scrollState, enabled = false).padding(horizontal = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(22.dp),
+            modifier = Modifier
+                .widthIn(min = 104.dp)
+                .fillMaxHeight()
+                .background(Color(0xFFFFF3EB))
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items.forEach { text ->
-                Text(text, color = RaahiTextDim, fontSize = 11.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+            Box(
+                Modifier.size(34.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFFFE2D1)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Outlined.WaterDrop,
+                    contentDescription = "Fuel prices",
+                    tint = RaahiOrange,
+                    modifier = Modifier.size(19.dp)
+                )
+            }
+            Column {
+                Text(
+                    "Fuel Prices",
+                    color = RaahiText,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
+                )
+                Text(
+                    "Live rates",
+                    color = RaahiTextDim,
+                    fontSize = 9.sp,
+                    maxLines = 1
+                )
+            }
+        }
+
+        Box(
+            Modifier
+                .width(1.dp)
+                .height(34.dp)
+                .background(Color(0xFFE9EDF3))
+        )
+
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .horizontalScroll(scrollState, enabled = false)
+                .padding(horizontal = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            items.forEachIndexed { index, item ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(7.dp)
+                ) {
+                    Column {
+                        Text(
+                            item.substringBefore("₹").trim().ifBlank { item },
+                            color = RaahiTextDim,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1
+                        )
+                        if ("₹" in item) {
+                            Text(
+                                "₹" + item.substringAfter("₹").trim(),
+                                color = RaahiText,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
+                if (index < items.lastIndex) {
+                    Box(
+                        Modifier
+                            .width(1.dp)
+                            .height(28.dp)
+                            .background(Color(0xFFE9EDF3))
+                    )
+                }
             }
         }
     }
@@ -295,10 +383,10 @@ fun RaahiBottomNavBar(current: RaahiTab, onSelect: (RaahiTab) -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 10.dp)
-            .height(60.dp)
-            .shadow(elevation = 10.dp, shape = RoundedCornerShape(26.dp), spotColor = Color(0x18000000), ambientColor = Color(0x0A000000))
-            .background(Color.White, RoundedCornerShape(26.dp))
-            .border(1.dp, Color(0xFFEDE8E1), RoundedCornerShape(26.dp)),
+            .height(64.dp)
+            .shadow(elevation = 8.dp, shape = RoundedCornerShape(28.dp), spotColor = Color(0x18000000), ambientColor = Color(0x0A000000))
+            .background(Color.White, RoundedCornerShape(28.dp))
+            .border(1.dp, Color(0xFFEDE8E1), RoundedCornerShape(28.dp)),
     ) {
         Row(
             modifier = Modifier.fillMaxSize(),
@@ -391,9 +479,9 @@ fun RaahiPrimaryButton(
         enabled = enabled && !loading,
         modifier = modifier
             .fillMaxWidth()
-            .height(54.dp)
-            .then(if (enabled) Modifier.shadow(elevation = 6.dp, shape = RoundedCornerShape(16.dp), spotColor = container) else Modifier),
-        shape = RoundedCornerShape(16.dp),
+            .height(56.dp)
+            .then(if (enabled) Modifier.shadow(elevation = 4.dp, shape = RoundedCornerShape(18.dp), spotColor = container.copy(alpha = 0.45f)) else Modifier),
+        shape = RoundedCornerShape(18.dp),
         colors = androidx.compose.material3.ButtonDefaults.buttonColors(
             containerColor = container,
             disabledContainerColor = container.copy(alpha = 0.35f),
@@ -420,8 +508,8 @@ fun RaahiOutlineButton(
     androidx.compose.material3.OutlinedButton(
         onClick = onClick,
         enabled = enabled,
-        modifier = modifier.fillMaxWidth().height(50.dp),
-        shape = RoundedCornerShape(16.dp),
+        modifier = modifier.fillMaxWidth().height(52.dp),
+        shape = RoundedCornerShape(18.dp),
         border = androidx.compose.foundation.BorderStroke(1.dp, tint.copy(alpha = if (enabled) 0.6f else 0.25f)),
         colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(containerColor = Color.White, contentColor = tint),
     ) {
@@ -448,8 +536,8 @@ fun RaahiTextField(
         singleLine = singleLine,
         minLines = minLines,
         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = keyboardType),
-        modifier = modifier.fillMaxWidth().shadow(elevation = 1.dp, shape = RaahiShapeSmall, spotColor = Color(0x0C000000)),
-        shape = RaahiShapeSmall,
+        modifier = modifier.fillMaxWidth().shadow(elevation = 1.dp, shape = RoundedCornerShape(14.dp), spotColor = Color(0x0A000000)),
+        shape = RoundedCornerShape(14.dp),
         colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
             focusedTextColor = RaahiText, unfocusedTextColor = RaahiText,
             focusedBorderColor = RaahiOrange, unfocusedBorderColor = RaahiBorder,

@@ -71,20 +71,20 @@ class SubscriptionViewModel @Inject constructor(
 fun SubscriptionScreen(onBack: () -> Unit, viewModel: SubscriptionViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsState()
 
-    Surface(modifier = Modifier.fillMaxSize(), color = RaahiNavyBackground) {
+    Surface(modifier = Modifier.fillMaxSize(), color = RaahiBg) {
         Column(Modifier.fillMaxSize()) {
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = RaahiTextPrimary) }
-                Text("Raahi Plans", color = RaahiTextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = RaahiText) }
+                Text("Raahi Plans", color = RaahiText, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
             }
 
             if (state.loading) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = RaahiOrangeAccent) }
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = RaahiOrange) }
             } else {
                 Column(Modifier.fillMaxSize().padding(16.dp)) {
                     if (state.message != null) {
-                        Box(Modifier.fillMaxWidth().background(RaahiYellow.copy(alpha = 0.1f), RoundedCornerShape(12.dp)).padding(12.dp)) {
-                            Text(state.message!!, color = RaahiYellow, fontSize = 12.sp)
+                        Box(Modifier.fillMaxWidth().background(RaahiOrange.copy(alpha = 0.10f), RoundedCornerShape(12.dp)).padding(12.dp)) {
+                            Text(state.message!!, color = RaahiTextDim, fontSize = 12.sp)
                         }
                         Spacer(Modifier.height(12.dp))
                     }
@@ -105,9 +105,9 @@ fun SubscriptionScreen(onBack: () -> Unit, viewModel: SubscriptionViewModel = hi
 
 @Composable
 private fun PlanCard(plan: SubscriptionPlanDto, isCurrent: Boolean, isSubscribing: Boolean, onSubscribe: () -> Unit) {
-    Column(Modifier.fillMaxWidth().background(RaahiCardBg, RoundedCornerShape(16.dp)).padding(18.dp)) {
+    Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(22.dp)).padding(20.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(plan.name, color = RaahiTextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(plan.name, color = RaahiText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             if (isCurrent) {
                 Spacer(Modifier.width(8.dp))
                 Box(Modifier.background(RaahiGreen.copy(alpha = 0.14f), RoundedCornerShape(20.dp)).padding(horizontal = 8.dp, vertical = 3.dp)) {
@@ -116,13 +116,13 @@ private fun PlanCard(plan: SubscriptionPlanDto, isCurrent: Boolean, isSubscribin
             }
         }
         Spacer(Modifier.height(4.dp))
-        Text("₹${plan.priceMonthly.toInt()}/mo  ·  ₹${plan.priceYearly.toInt()}/yr", color = RaahiOrangeAccent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Text("₹${plan.priceMonthly.toInt()}/mo  ·  ₹${plan.priceYearly.toInt()}/yr", color = RaahiOrange, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(10.dp))
         plan.features.forEach { feature ->
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
                 Icon(Icons.Filled.Check, contentDescription = null, tint = RaahiGreen, modifier = Modifier.size(14.dp))
                 Spacer(Modifier.width(6.dp))
-                Text(feature, color = RaahiTextSecondary, fontSize = 12.sp)
+                Text(feature, color = RaahiTextDim, fontSize = 12.sp)
             }
         }
         Spacer(Modifier.height(14.dp))
@@ -131,7 +131,7 @@ private fun PlanCard(plan: SubscriptionPlanDto, isCurrent: Boolean, isSubscribin
             enabled = !isCurrent && !isSubscribing,
             modifier = Modifier.fillMaxWidth().height(46.dp),
             shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = RaahiOrangeAccent, disabledContainerColor = RaahiCardBorder),
+            colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange, disabledContainerColor = RaahiBorderSoft),
         ) {
             if (isSubscribing) CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
             else Text(if (isCurrent) "Current Plan" else "${plan.name} Plan Lo", fontWeight = FontWeight.Bold)

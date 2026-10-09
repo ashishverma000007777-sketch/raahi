@@ -66,11 +66,11 @@ fun RequestHelpScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(scrollState)
-                        .padding(horizontal = 16.dp)
-                        .padding(bottom = 32.dp)
+                        .padding(horizontal = 18.dp)
+                        .padding(bottom = 36.dp)
                 ) {
 
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(14.dp))
 
                 LocationCard(
                     state.location,
@@ -128,9 +128,9 @@ fun RequestHelpScreen(
                     enabled = state.submit !is SubmitState.Submitting,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(54.dp)
-                        .shadow(elevation = 6.dp, shape = RoundedCornerShape(16.dp), spotColor = RaahiOrange),
-                    shape = RoundedCornerShape(16.dp),
+                        .height(58.dp)
+                        .shadow(elevation = 4.dp, shape = RoundedCornerShape(18.dp), spotColor = RaahiOrange.copy(alpha = 0.25f)),
+                    shape = RoundedCornerShape(18.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange),
                 ) {
                     if (state.submit is SubmitState.Submitting) {
@@ -160,7 +160,7 @@ private fun TopHeader(onBack: () -> Unit) {
         }
         Spacer(Modifier.width(6.dp))
         Column(Modifier.weight(1f)) {
-            Text("Request Help", color = RaahiText, fontSize = 19.sp, fontWeight = FontWeight.Bold, fontFamily = RaahiDisplayFont)
+            Text("Request Help", color = RaahiText, fontSize = 22.sp, fontWeight = FontWeight.Bold, fontFamily = RaahiDisplayFont)
             Text("Tell us what's wrong. We'll find the nearest helpers for you.", color = RaahiTextDim, fontSize = 11.5.sp, maxLines = 1)
         }
     }
@@ -177,10 +177,10 @@ private fun LocationCard(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(elevation = 2.dp, shape = RoundedCornerShape(14.dp), spotColor = Color(0x10000000))
-            .background(Color.White, RoundedCornerShape(14.dp))
-            .border(1.dp, RaahiBorderSoft, RoundedCornerShape(14.dp))
-            .padding(14.dp),
+            .shadow(elevation = 2.dp, shape = RoundedCornerShape(18.dp), spotColor = Color(0x10000000))
+            .background(Color.White, RoundedCornerShape(18.dp))
+            .border(1.dp, RaahiBorderSoft, RoundedCornerShape(18.dp))
+            .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -250,7 +250,7 @@ private fun ProblemGrid(selected: String?, onSelect: (String) -> Unit) {
         columns = GridCells.Fixed(3),
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(max = 220.dp),
+            .heightIn(max = 240.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
         userScrollEnabled = false
@@ -260,20 +260,20 @@ private fun ProblemGrid(selected: String?, onSelect: (String) -> Unit) {
             Column(
                 modifier = Modifier
                     .then(
-                        if (isSelected) Modifier.shadow(elevation = 5.dp, shape = RoundedCornerShape(14.dp), spotColor = RaahiOrange)
-                        else Modifier.shadow(elevation = 1.dp, shape = RoundedCornerShape(14.dp), spotColor = Color(0x0C000000))
+                        if (isSelected) Modifier.shadow(elevation = 5.dp, shape = RoundedCornerShape(18.dp), spotColor = RaahiOrange)
+                        else Modifier.shadow(elevation = 1.dp, shape = RoundedCornerShape(18.dp), spotColor = Color(0x0C000000))
                     )
                     .background(
                         if (isSelected) Color(0xFFFFF0ED) else Color.White,
-                        RoundedCornerShape(14.dp)
+                        RoundedCornerShape(18.dp)
                     )
                     .border(
                         1.dp,
                         if (isSelected) RaahiOrange else RaahiBorderSoft,
-                        RoundedCornerShape(14.dp)
+                        RoundedCornerShape(18.dp)
                     )
                     .clickable { onSelect(p.id) }
-                    .padding(vertical = 14.dp, horizontal = 4.dp)
+                    .padding(vertical = 16.dp, horizontal = 4.dp)
                     .fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {

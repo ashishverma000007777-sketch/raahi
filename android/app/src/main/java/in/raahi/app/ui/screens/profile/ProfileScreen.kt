@@ -189,20 +189,31 @@ private fun ProfileHeader(onBack: () -> Unit, user: UserDto?, onEdit: () -> Unit
 
 @Composable
 private fun StatsRow(user: UserDto?) {
-    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 18.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-        StatItem(user?.let { "${it.totalHelps}" } ?: "–", "Helps", RaahiGreen)
-        StatItem("–", "Earned", RaahiCyan)
-        StatItem(user?.let { if (it.ratingAvg > 0) "%.1f".format(it.ratingAvg) else "–" } ?: "–", "Rating", RaahiAmber)
-        StatItem("–", "Trips", RaahiOrange)
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        StatItem(user?.let { "${it.totalHelps}" } ?: "–", "Helps", RaahiGreen, Modifier.weight(1f))
+        StatItem("–", "Earned", RaahiCyan, Modifier.weight(1f))
+        StatItem(user?.let { if (it.ratingAvg > 0) "%.1f".format(it.ratingAvg) else "–" } ?: "–", "Rating", RaahiAmber, Modifier.weight(1f))
+        StatItem("–", "Trips", RaahiOrange, Modifier.weight(1f))
     }
 }
 
 @Composable
-private fun StatItem(value: String, label: String, color: Color) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, color = color, fontWeight = FontWeight.Bold, fontSize = 15.sp, fontFamily = RaahiDisplayFont)
-        Spacer(Modifier.height(2.dp))
-        Text(label, color = RaahiTextFaint, fontSize = 9.5.sp)
+private fun StatItem(value: String, label: String, color: Color, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .background(Color.White, RoundedCornerShape(15.dp))
+            .border(1.dp, RaahiBorderSoft, RoundedCornerShape(15.dp))
+            .padding(horizontal = 3.dp, vertical = 13.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(value, color = color, fontWeight = FontWeight.Bold, fontSize = 15.sp, fontFamily = RaahiDisplayFont, maxLines = 1)
+        Spacer(Modifier.height(4.dp))
+        Text(label, color = RaahiTextDim, fontSize = 10.sp, maxLines = 1)
     }
 }
 

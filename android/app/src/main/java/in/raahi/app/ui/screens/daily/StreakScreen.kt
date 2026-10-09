@@ -171,7 +171,9 @@ fun StreakScreen(
                     // Streak Hero Card
                     GlassCard(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(24.dp)
+                        shape = RoundedCornerShape(26.dp),
+                        background = Color.White,
+                        borderColor = RaahiBorderSoft
                     ) {
                         Column(
                             modifier = Modifier
@@ -294,7 +296,9 @@ fun StreakScreen(
 
                     GlassCard(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(18.dp)
+                        shape = RoundedCornerShape(22.dp),
+                        background = Color.White,
+                        borderColor = RaahiBorderSoft
                     ) {
                         Column(
                             modifier = Modifier
@@ -330,7 +334,7 @@ fun StreakScreen(
                                                             .background(RaahiOrange.copy(alpha = 0.12f), CircleShape)
                                                             .border(1.5.dp, RaahiOrange, CircleShape)
                                                         else -> Modifier
-                                                            .background(Color(0xFFF1F5F9), CircleShape)
+                                                            .background(RaahiBg, CircleShape)
                                                     }
                                                 ),
                                             contentAlignment = Alignment.Center

@@ -2,6 +2,10 @@ package `in`.raahi.app.ui.screens.home
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -100,12 +104,86 @@ fun HomeScreen(
     val incomingRequest by viewModel.incomingRequest.collectAsState()
 
     val context = LocalContext.current
+    var showDrivingConfirmation by remember { mutableStateOf(false) }
+
+    // A driving-alert notification can launch or bring Raahi back to the foreground.
+    // Consume the intent extra once so rotation/recomposition does not reopen the dialog.
+    LaunchedEffect(context) {
+        val activity = context as? android.app.Activity
+        if (activity?.intent?.getBooleanExtra("show_driving_confirmation", false) == true) {
+            showDrivingConfirmation = true
+            activity.intent.removeExtra("show_driving_confirmation")
+        }
+    }
+
+    DisposableEffect(context) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == `in`.raahi.app.data.DrivingTrackingService.EVENT_DRIVING_DETECTED) {
+                    showDrivingConfirmation = true
+                }
+            }
+        }
+        val filter = IntentFilter(
+            `in`.raahi.app.data.DrivingTrackingService.EVENT_DRIVING_DETECTED
+        )
+        ContextCompat.registerReceiver(
+            context,
+            receiver,
+            filter,
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+        onDispose {
+            runCatching { context.unregisterReceiver(receiver) }
+        }
+    }
+
+    if (showDrivingConfirmation) {
+        AlertDialog(
+            onDismissRequest = {
+                showDrivingConfirmation = false
+                context.startService(
+                    Intent(context, `in`.raahi.app.data.DrivingTrackingService::class.java)
+                        .setAction(`in`.raahi.app.data.DrivingTrackingService.ACTION_DECLINE)
+                )
+            },
+            title = { Text("Are you driving your car?", fontWeight = FontWeight.Bold) },
+            text = {
+                Text("Raahi can track your GPS distance and help update your vehicle's odometer. Distance tracking starts only after you confirm.")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDrivingConfirmation = false
+                    context.startService(
+                        Intent(context, `in`.raahi.app.data.DrivingTrackingService::class.java)
+                            .setAction(`in`.raahi.app.data.DrivingTrackingService.ACTION_CONFIRM)
+                    )
+                }) { Text("Yes, I'm driving", color = RaahiOrange) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showDrivingConfirmation = false
+                    context.startService(
+                        Intent(context, `in`.raahi.app.data.DrivingTrackingService::class.java)
+                            .setAction(`in`.raahi.app.data.DrivingTrackingService.ACTION_DECLINE)
+                    )
+                }) { Text("No", color = RaahiTextDim) }
+            }
+        )
+    }
     val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 viewModel.refreshMetrics(hasLocationPermission(context))
                 viewModel.refreshHelperStatus()
+                if (hasLocationPermission(context)) {
+                    ContextCompat.startForegroundService(
+                        context,
+                        Intent(context, `in`.raahi.app.data.DrivingTrackingService::class.java)
+                            .setAction(`in`.raahi.app.data.DrivingTrackingService.ACTION_START)
+                    )
+                }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -190,6 +268,58 @@ private fun LoadingState() {
     }
 }
 
+
+@Composable
+private fun RaahiHomeActionGrid(
+    onRequestHelp: () -> Unit,
+    onFindMechanic: () -> Unit,
+    onMyJobs: () -> Unit,
+    onSos: () -> Unit,
+) {
+    val cards = listOf(
+        HomeActionItem("Request Help", Icons.Outlined.SupportAgent, Color(0xFFFF6B35), Color(0xFFFFF0E8), onRequestHelp),
+        HomeActionItem("Find Mechanic", RaahiIcons.Wrench, Color(0xFF4D9EFF), Color(0xFFEAF3FF), onFindMechanic),
+        HomeActionItem("My Jobs", Icons.Outlined.History, Color(0xFF22B573), Color(0xFFE8F8F0), onMyJobs),
+        HomeActionItem("SOS", Icons.Outlined.Warning, Color(0xFFE5484D), Color(0xFFFFECEC), onSos),
+    )
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        cards.forEach { item ->
+            Column(
+                Modifier.weight(1f).height(102.dp)
+                    .shadow(2.dp, RoundedCornerShape(19.dp), spotColor = Color(0x10000000))
+                    .background(Color.White, RoundedCornerShape(19.dp))
+                    .border(1.dp, Color(0xFFE7ECF3), RoundedCornerShape(19.dp))
+                    .clickable(onClick = item.onClick)
+                    .padding(horizontal = 2.dp, vertical = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Box(
+                    Modifier.size(38.dp).background(item.background, RoundedCornerShape(13.dp)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(item.icon, contentDescription = item.title, tint = item.tint, modifier = Modifier.size(21.dp))
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(item.title, color = Color(0xFF142039), fontSize = 10.sp,
+                    fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+            }
+        }
+    }
+}
+
+private data class HomeActionItem(
+    val title: String,
+    val icon: ImageVector,
+    val tint: Color,
+    val background: Color,
+    val onClick: () -> Unit,
+)
+
 @Composable
 private fun HomeContent(
     user: UserDto?, activeJob: JobDto?, activeTrip: `in`.raahi.app.network.TripDto? = null, vehicle: VehicleDto?, carHealth: CarHealthDto?,
@@ -224,9 +354,17 @@ private fun HomeContent(
             Modifier
                 .fillMaxSize()
                 .verticalScroll(scrollState)
-                .padding(bottom = 24.dp)
+                .padding(bottom = 30.dp)
         ) {
-            Spacer(Modifier.height(64.dp)) // Space for floating header
+            Spacer(Modifier.height(68.dp)) // Space for floating header
+
+            // 5. Real Ticker (if available)
+            val tickerItems = tickerItems(vehicle, carHealth, metrics)
+            if (tickerItems.isNotEmpty()) {
+                Ticker(items = tickerItems, modifier = Modifier.padding(horizontal = 18.dp))
+                Spacer(Modifier.height(14.dp))
+            }
+
 
             if (offlineError != null) {
                 OfflineStatusBanner(
@@ -242,31 +380,27 @@ private fun HomeContent(
                 Spacer(Modifier.height(10.dp))
             }
 
-            // 5. Real Ticker (if available)
-            val tickerItems = tickerItems(vehicle, carHealth, metrics)
-            if (tickerItems.isNotEmpty()) {
-                Ticker(items = tickerItems, modifier = Modifier.padding(horizontal = 16.dp))
-                Spacer(Modifier.height(14.dp))
-            }
+            
 
             // 1. Greeting hero
             GreetingHeroBanner(user)
             Spacer(Modifier.height(14.dp))
 
-            // 2. Primary Action Cards: Request Help & Find Mechanic (Screen 6 reference)
-            PrimaryActionCards(onRequestHelp, onNearbyMechanics)
-            Spacer(Modifier.height(12.dp))
+            // Four primary actions from the Home reference layout.
+            RaahiHomeActionGrid(
+                onRequestHelp = onRequestHelp,
+                onFindMechanic = onNearbyMechanics,
+                onMyJobs = onMyJobs,
+                onSos = onSos,
+            )
+            Spacer(Modifier.height(16.dp))
 
-            // 3. Secondary Actions Row: My Jobs, Car Health, SOS Emergency (Screen 6 reference)
-            SecondaryActionsRow(onMyJobs, onCarHealth, onSos)
-            Spacer(Modifier.height(14.dp))
-
-            // 4. AI Mechanic Card (Screen 6 reference)
-            AiMechanicCard(onClick = onAiMechanic)
-            Spacer(Modifier.height(14.dp))
-
-            // 6. Vehicle / Car Health Hero Card
+            // Vehicle status follows the primary actions.
             VehicleHeroCard(vehicle, carHealth, onSetupVehicle, onCarHealth)
+            Spacer(Modifier.height(14.dp))
+
+            // AI Mechanic remains prominent.
+            AiMechanicCard(onClick = onAiMechanic)
             Spacer(Modifier.height(14.dp))
 
             // 7. Plan Trip Card
@@ -287,12 +421,12 @@ private fun HomeContent(
 
             // 8. This week
             Spacer(Modifier.height(20.dp))
-            Box(Modifier.padding(horizontal = 16.dp)) { SectionLabel("This week") }
-            WeekStrip(metrics = metrics, onAddFuel = onAddFuel, modifier = Modifier.padding(horizontal = 16.dp))
+            Box(Modifier.padding(horizontal = 18.dp)) { SectionLabel("This week") }
+            WeekStrip(metrics = metrics, onAddFuel = onAddFuel, modifier = Modifier.padding(horizontal = 18.dp))
 
             // 9. More Section
             Spacer(Modifier.height(18.dp))
-            Box(Modifier.padding(horizontal = 16.dp)) { SectionLabel("More") }
+            Box(Modifier.padding(horizontal = 18.dp)) { SectionLabel("More") }
             DailyRow(onOpenDaily)
         }
 
@@ -324,7 +458,7 @@ private fun BoxScope.HeaderRow(
     val scrollFraction by androidx.compose.animation.core.animateFloatAsState(
         targetValue = if (scrolled) 1f else 0f, label = "headerBgFraction",
     )
-    val bg = androidx.compose.ui.graphics.lerp(Color.Transparent, Color(0xF2FAF7F2), scrollFraction)
+    val bg = androidx.compose.ui.graphics.lerp(Color.Transparent, Color(0xF2F5F8FC), scrollFraction)
     Row(
         modifier = Modifier
             .align(Alignment.TopCenter)
@@ -448,6 +582,13 @@ private fun BellWithBadge(unread: Int, onClick: () -> Unit) {
 @Composable
 private fun GreetingHeroBanner(user: UserDto?) {
     val name = user?.name?.trim()?.split(" ")?.firstOrNull() ?: ""
+    val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+    val greeting = when (hour) {
+        in 5..11 -> "Good Morning"
+        in 12..16 -> "Good Afternoon"
+        in 17..20 -> "Good Evening"
+        else -> "Good Night"
+    }
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -486,7 +627,7 @@ private fun GreetingHeroBanner(user: UserDto?) {
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = "Good Morning,\n$name",
+                text = "$greeting,\n$name",
                 color = RaahiText,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
@@ -834,71 +975,210 @@ private fun ActiveJobBanner(job: JobDto, onClick: () -> Unit) {
 }
 
 @Composable
-private fun VehicleHeroCard(vehicle: VehicleDto?, carHealth: CarHealthDto?, onSetupVehicle: () -> Unit, onCarHealth: () -> Unit) {
+private fun VehicleHeroCard(
+    vehicle: VehicleDto?,
+    carHealth: CarHealthDto?,
+    onSetupVehicle: () -> Unit,
+    onCarHealth: () -> Unit
+) {
     if (vehicle == null) {
-        RowCard(modifier = Modifier.padding(horizontal = 16.dp), onClick = onSetupVehicle) {
-            IconBadge(Icons.Outlined.DirectionsCar, RaahiOrange, 44.dp, RaahiShapeMedium)
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text("Set up your car", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                Text("So mechanics know what they're helping with", color = RaahiTextDim, fontSize = 11.sp)
+        GlassCard(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            onClick = onSetupVehicle
+        ) {
+            Row(
+                Modifier.fillMaxWidth().padding(18.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    Modifier.size(54.dp).clip(RoundedCornerShape(18.dp))
+                        .background(Color(0xFFFFEFE5)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Outlined.DirectionsCar, null, tint = RaahiOrange,
+                        modifier = Modifier.size(29.dp))
+                }
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("MY VEHICLE", color = RaahiTextDim, fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
+                    Spacer(Modifier.height(4.dp))
+                    Text("Add your vehicle", color = RaahiText,
+                        fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                    Text("Set up vehicle information", color = RaahiTextDim,
+                        fontSize = 12.sp)
+                }
+                Icon(Icons.AutoMirrored.Outlined.ArrowForward, null,
+                    tint = RaahiOrange, modifier = Modifier.size(21.dp))
             }
-            Icon(RaahiIcons.ArrowRight, contentDescription = null, tint = RaahiOrange, modifier = Modifier.size(16.dp))
         }
         return
     }
 
-    GlassCard(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        onClick = onCarHealth,
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+            .shadow(5.dp, RoundedCornerShape(28.dp), spotColor = Color(0x100F1D35))
+            .clip(RoundedCornerShape(28.dp))
+            .background(Color.White)
+            .border(1.dp, Color(0xFFE8EDF3), RoundedCornerShape(28.dp))
+            .padding(18.dp)
     ) {
-        Column(Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.Top) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        "${vehicle.brand.uppercase()} ${vehicle.model.uppercase()} · ${vehicle.registrationNumber}",
-                        color = RaahiTextDim, fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
-                    )
-                    Spacer(Modifier.height(3.dp))
-                    Text(
-                        heroTitle(carHealth),
-                        color = RaahiText, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, fontFamily = RaahiDisplayFont,
-                    )
-                    Text(
-                        heroSubtitle(carHealth),
-                        color = RaahiTextDim, fontSize = 11.sp,
-                    )
+        Row(verticalAlignment = Alignment.Top) {
+            Column(Modifier.weight(1f)) {
+                Text("MY VEHICLE", color = RaahiTextDim, fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                Spacer(Modifier.height(7.dp))
+                Text(
+                    "${vehicle.brand} ${vehicle.model}",
+                    color = RaahiText, fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold, fontFamily = RaahiDisplayFont,
+                    lineHeight = 25.sp
+                )
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.DirectionsCar, null,
+                        tint = RaahiTextDim, modifier = Modifier.size(17.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(vehicle.registrationNumber, color = RaahiTextDim,
+                        fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 }
-                if (carHealth?.score != null) ScoreRing(carHealth.score)
             }
-            Spacer(Modifier.height(14.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                HeroStat("ODOMETER", "${vehicle.odometerKm} km", Modifier.weight(1f))
-                HeroStat("FUEL", vehicle.fuelType.lowercase().replaceFirstChar { it.uppercase() }, Modifier.weight(1f))
-                val (serviceText, serviceTone) = serviceStat(carHealth)
-                val serviceColor = when (serviceTone) {
-                    ServiceTone.NO_DATA -> RaahiTextFaint
-                    ServiceTone.OK -> RaahiGreen
-                    ServiceTone.DUE_SOON -> RaahiAmber
-                    ServiceTone.OVERDUE -> RaahiRed
+            Box(
+                Modifier.size(62.dp).clip(RoundedCornerShape(22.dp))
+                    .background(Brush.linearGradient(
+                        listOf(Color(0xFFFFE8D8), Color(0xFFFFF5ED))
+                    )),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Outlined.DirectionsCar, null, tint = RaahiOrange,
+                    modifier = Modifier.size(36.dp))
+            }
+        }
+
+        Spacer(Modifier.height(18.dp))
+
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(9.dp)
+        ) {
+            VehicleInfoTile(
+                "ODOMETER", "${vehicle.odometerKm} km",
+                Color(0xFFF0F5FF), Color(0xFF2D62A8), Modifier.weight(1f)
+            )
+            VehicleInfoTile(
+                "FUEL TYPE",
+                vehicle.fuelType.lowercase().replaceFirstChar { it.uppercase() },
+                Color(0xFFFFF2E7), Color(0xFFE86E32), Modifier.weight(1f)
+            )
+            val (serviceText, serviceTone) = serviceStat(carHealth)
+            val serviceColor = when (serviceTone) {
+                ServiceTone.NO_DATA -> Color(0xFF667085)
+                ServiceTone.OK -> Color(0xFF16845B)
+                ServiceTone.DUE_SOON -> RaahiAmber
+                ServiceTone.OVERDUE -> RaahiRed
+            }
+            VehicleInfoTile(
+                "LAST SERVICE", serviceText,
+                Color(0xFFECF8F0), serviceColor, Modifier.weight(1f)
+            )
+        }
+
+        Spacer(Modifier.height(16.dp))
+        HorizontalDivider(color = Color(0xFFE9EDF3))
+        Spacer(Modifier.height(5.dp))
+
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                Modifier.weight(1f).clip(RoundedCornerShape(14.dp))
+                    .clickable(onClick = onSetupVehicle)
+                    .padding(vertical = 11.dp, horizontal = 3.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    Modifier.size(38.dp).clip(RoundedCornerShape(13.dp))
+                        .background(Color(0xFFFFEFE5)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Outlined.DirectionsCar, null, tint = RaahiOrange,
+                        modifier = Modifier.size(21.dp))
                 }
-                HeroStat("SERVICE", serviceText, Modifier.weight(1f), valueColor = serviceColor)
+                Spacer(Modifier.width(9.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("View & Edit", color = RaahiText, fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold, maxLines = 1)
+                    Text("Vehicle details", color = RaahiTextDim,
+                        fontSize = 10.sp, maxLines = 1)
+                }
+            }
+
+            Box(Modifier.width(1.dp).height(38.dp).background(Color(0xFFE9EDF3)))
+
+            Row(
+                Modifier.weight(1f).clip(RoundedCornerShape(14.dp))
+                    .clickable(onClick = onCarHealth)
+                    .padding(vertical = 11.dp, horizontal = 9.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    Modifier.size(38.dp).clip(RoundedCornerShape(13.dp))
+                        .background(Color(0xFFE8F7EF)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Outlined.Favorite, null, tint = Color(0xFF16845B),
+                        modifier = Modifier.size(21.dp))
+                }
+                Spacer(Modifier.width(9.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Car Health", color = RaahiText, fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold, maxLines = 1)
+                    Text(
+                        if (carHealth?.score != null) "Score: ${carHealth.score}"
+                        else "Add service data",
+                        color = RaahiTextDim, fontSize = 10.sp, maxLines = 1
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun HeroStat(label: String, value: String, modifier: Modifier = Modifier, valueColor: Color = RaahiText) {
+private fun VehicleInfoTile(
+    label: String,
+    value: String,
+    background: Color,
+    accent: Color,
+    modifier: Modifier
+) {
     Column(
-        modifier
-            .background(Color(0xFFF8F5EE), RaahiShapeSmall)
-            .border(1.dp, RaahiBorderSoft, RaahiShapeSmall)
-            .padding(horizontal = 9.dp, vertical = 8.dp)
+        modifier.clip(RoundedCornerShape(20.dp))
+            .background(background)
+            .padding(horizontal = 10.dp, vertical = 13.dp)
     ) {
-        Text(label, color = RaahiTextFaint, fontSize = 8.5.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-        Spacer(Modifier.height(2.dp))
-        Text(value, color = valueColor, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = RaahiDisplayFont, maxLines = 1)
+        Box(
+            Modifier.size(31.dp).clip(RoundedCornerShape(11.dp))
+                .background(accent.copy(alpha = 0.10f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                when (label) {
+                    "ODOMETER" -> Icons.Outlined.DirectionsCar
+                    "FUEL TYPE" -> Icons.Outlined.WaterDrop
+                    else -> Icons.Outlined.Favorite
+                },
+                contentDescription = null, tint = accent,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+        Text(label, color = RaahiTextDim, fontSize = 8.sp,
+            fontWeight = FontWeight.Bold, maxLines = 1)
+        Spacer(Modifier.height(4.dp))
+        Text(value, color = accent, fontSize = 11.sp,
+            fontWeight = FontWeight.Bold, maxLines = 2, lineHeight = 14.sp)
     }
 }
 
@@ -1025,7 +1305,7 @@ private fun DailyRow(onOpenDaily: (String) -> Unit) {
         Triple("places", "\uD83D\uDCCD", "Places"), Triple("tips", "\uD83D\uDCA1", "Tips"),
         Triple("fuel", "\u26FD", "Fuel"), Triple("shop", "\uD83D\uDED2", "Shop"), Triple("plans", "\u2B50", "Plans"),
     )
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(horizontal = 16.dp)) {
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(horizontal = 18.dp)) {
         items(items) { (key, emoji, label) ->
             Column(
                 modifier = Modifier
@@ -1034,7 +1314,7 @@ private fun DailyRow(onOpenDaily: (String) -> Unit) {
                     .background(Color.White, RaahiShapeMedium)
                     .border(1.dp, RaahiBorderSoft, RaahiShapeMedium)
                     .clickable { onOpenDaily(key) }
-                    .padding(vertical = 12.dp),
+                    .padding(vertical = 14.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(emoji, fontSize = 18.sp)

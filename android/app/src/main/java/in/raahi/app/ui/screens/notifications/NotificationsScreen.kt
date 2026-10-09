@@ -87,11 +87,42 @@ fun NotificationsScreen(onBack: () -> Unit, viewModel: NotificationsViewModel = 
                     } else LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                         items(s.items, key = { it.id }) { n ->
                             Column(
-                                Modifier.fillMaxWidth().background(RaahiGlass, RaahiShapeMedium).border(1.dp, RaahiBorderSoft, RaahiShapeMedium).padding(12.dp),
+                                Modifier
+                                    .fillMaxWidth()
+                                    .background(
+                                        if (n.read) androidx.compose.ui.graphics.Color.White
+                                        else androidx.compose.ui.graphics.Color(0xFFFFF5F0),
+                                        RaahiShapeMedium
+                                    )
+                                    .border(
+                                        1.dp,
+                                        if (n.read) RaahiBorderSoft
+                                        else RaahiSelectionBorder,
+                                        RaahiShapeMedium
+                                    )
+                                    .padding(horizontal = 15.dp, vertical = 14.dp),
                             ) {
-                                Text(n.title, color = RaahiText, fontWeight = if (n.read) FontWeight.Medium else FontWeight.Bold, fontSize = 13.sp)
-                                Text(n.body, color = RaahiTextDim, fontSize = 11.sp)
-                                Text(formatWhen(n.createdAt), color = RaahiTextFaint, fontSize = 9.sp)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        n.title,
+                                        modifier = Modifier.weight(1f),
+                                        color = RaahiText,
+                                        fontWeight = if (n.read) FontWeight.Medium else FontWeight.Bold,
+                                        fontSize = 14.sp
+                                    )
+                                    if (!n.read) {
+                                        Box(
+                                            Modifier
+                                                .padding(start = 8.dp)
+                                                .size(8.dp)
+                                                .background(RaahiOrange, androidx.compose.foundation.shape.CircleShape)
+                                        )
+                                    }
+                                }
+                                Spacer(Modifier.height(5.dp))
+                                Text(n.body, color = RaahiTextDim, fontSize = 12.sp, lineHeight = 18.sp)
+                                Spacer(Modifier.height(8.dp))
+                                Text(formatWhen(n.createdAt), color = RaahiTextFaint, fontSize = 10.sp)
                             }
                         }
                     }

@@ -115,7 +115,7 @@ fun DailyTipsScreen(onBack: () -> Unit, viewModel: DailyTipViewModel = hiltViewM
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp)
+                .padding(horizontal = 18.dp, vertical = 16.dp)
         ) {
 
             when {
@@ -147,7 +147,7 @@ private fun DailyTipDetailCard(tip: TipDto) {
             .shadow(2.dp, RoundedCornerShape(20.dp), spotColor = Color(0x10000000))
             .background(Color.White, RoundedCornerShape(20.dp))
             .border(1.dp, RaahiBorderSoft, RoundedCornerShape(20.dp))
-            .padding(22.dp)
+            .padding(24.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -188,9 +188,9 @@ private fun DailyTipDetailCard(tip: TipDto) {
         Text(
             text = tip.title,
             color = RaahiText,
-            fontSize = 18.sp,
+            fontSize = 21.sp,
             fontWeight = FontWeight.Bold,
-            lineHeight = 24.sp
+            lineHeight = 28.sp
         )
 
         Spacer(Modifier.height(10.dp))
@@ -207,8 +207,9 @@ private fun DailyTipDetailCard(tip: TipDto) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(RaahiSelectionBg, RoundedCornerShape(12.dp))
-                .padding(12.dp),
+                .background(RaahiOrange.copy(alpha = 0.08f), RoundedCornerShape(16.dp))
+                .border(1.dp, RaahiBorderSoft, RoundedCornerShape(16.dp))
+                .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(

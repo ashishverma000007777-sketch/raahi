@@ -69,16 +69,16 @@ fun TripSummaryScreen(
                         .fillMaxSize()
                         .padding(padding)
                         .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 10.dp)
+                        .padding(horizontal = 18.dp, vertical = 14.dp)
                 ) {
                     // Header celebration
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RaahiShapeMedium)
-                            .background(RaahiGreen.copy(alpha = 0.12f))
-                            .border(1.dp, RaahiGreen.copy(alpha = 0.3f), RaahiShapeMedium)
-                            .padding(14.dp),
+                            .background(RaahiGreen.copy(alpha = 0.08f))
+                            .border(1.dp, RaahiGreen.copy(alpha = 0.24f), RaahiShapeMedium)
+                            .padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
@@ -126,7 +126,7 @@ fun TripSummaryScreen(
                                             .background(RaahiBrandGradient)
                                     )
                                     Spacer(Modifier.width(8.dp))
-                                    Text("RAAHI ROAD TRIP", color = RaahiVioletAccent, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp)
+                                    Text("RAAHI ROAD TRIP", color = RaahiOrange, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp)
                                 }
                                 Text(sum.date, color = RaahiTextFaint, fontSize = 11.sp)
                             }
@@ -153,7 +153,7 @@ fun TripSummaryScreen(
                                 StoryPill(
                                     label = "Distance",
                                     value = "${sum.totalDistanceKm.toInt()} km",
-                                    tint = RaahiCyan,
+                                    tint = RaahiOrange,
                                     modifier = Modifier.weight(1f)
                                 )
                                 StoryPill(
@@ -202,12 +202,12 @@ fun TripSummaryScreen(
                             },
                             modifier = Modifier.fillMaxWidth().height(48.dp),
                             shape = RaahiShapeMedium,
-                            colors = ButtonDefaults.buttonColors(containerColor = RaahiVioletAccent.copy(alpha = 0.2f)),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, RaahiVioletAccent.copy(alpha = 0.5f))
+                            colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange.copy(alpha = 0.10f)),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, RaahiOrange.copy(alpha = 0.35f))
                         ) {
-                            Icon(Icons.Filled.Share, contentDescription = null, tint = RaahiVioletAccent, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Filled.Share, contentDescription = null, tint = RaahiOrange, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
-                            Text("Share Trip Story Card", color = RaahiVioletAccent, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Text("Share Trip Story Card", color = RaahiOrange, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                         }
                     }
 
@@ -218,7 +218,7 @@ fun TripSummaryScreen(
                     Spacer(Modifier.height(8.dp))
 
                     GlassCard(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(16.dp)) {
+                        Column(modifier = Modifier.padding(18.dp)) {
                             SummaryDetailRow("Date", sum.date)
                             HorizontalDivider(Modifier.padding(vertical = 10.dp), color = RaahiBorderSoft)
                             SummaryDetailRow("Total Distance", "${sum.totalDistanceKm} km")
@@ -279,9 +279,9 @@ fun TripSummaryScreen(
 private fun StoryPill(label: String, value: String, tint: Color, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(Color.White.copy(alpha = 0.05f))
-            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.White.copy(alpha = 0.78f))
+            .border(1.dp, RaahiOrange.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
             .padding(vertical = 10.dp, horizontal = 12.dp)
     ) {
         Column {

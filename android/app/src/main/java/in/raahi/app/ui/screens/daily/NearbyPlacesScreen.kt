@@ -397,10 +397,10 @@ private fun PlaceRow(place: PlaceDto) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(1.5.dp, RoundedCornerShape(14.dp), spotColor = Color(0x10000000))
-            .background(Color.White, RoundedCornerShape(14.dp))
-            .border(1.dp, RaahiBorderSoft, RoundedCornerShape(14.dp))
-            .padding(14.dp),
+            .shadow(1.5.dp, RoundedCornerShape(20.dp), spotColor = Color(0x10000000))
+            .background(Color.White, RoundedCornerShape(20.dp))
+            .border(1.dp, RaahiBorderSoft, RoundedCornerShape(20.dp))
+            .padding(horizontal = 16.dp, vertical = 17.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -428,12 +428,12 @@ private fun PlaceRow(place: PlaceDto) {
         if (place.distanceKm != null) {
             Box(
                 modifier = Modifier
-                    .background(RaahiCyan.copy(alpha = 0.12f), RaahiShapePill)
-                    .padding(horizontal = 9.dp, vertical = 4.dp)
+                    .background(RaahiOrange.copy(alpha = 0.10f), RaahiShapePill)
+                    .padding(horizontal = 10.dp, vertical = 5.dp)
             ) {
                 Text(
                     text = "%.1f km".format(place.distanceKm),
-                    color = RaahiCyan,
+                    color = RaahiOrange,
                     fontWeight = FontWeight.Bold,
                     fontSize = 11.5.sp
                 )
