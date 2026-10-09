@@ -196,6 +196,13 @@ private fun HomeContent(
                 Spacer(Modifier.height(10.dp))
             }
 
+            // 5. Real Ticker (if available)
+            val tickerItems = tickerItems(vehicle, carHealth, metrics)
+            if (tickerItems.isNotEmpty()) {
+                Ticker(items = tickerItems, modifier = Modifier.padding(horizontal = 16.dp))
+                Spacer(Modifier.height(14.dp))
+            }
+
             // 1. Greeting hero
             GreetingHeroBanner(user)
             Spacer(Modifier.height(14.dp))
@@ -211,13 +218,6 @@ private fun HomeContent(
             // 4. AI Mechanic Card (Screen 6 reference)
             AiMechanicCard(onClick = onAiMechanic)
             Spacer(Modifier.height(14.dp))
-
-            // 5. Real Ticker (if available)
-            val tickerItems = tickerItems(vehicle, carHealth, metrics)
-            if (tickerItems.isNotEmpty()) {
-                Ticker(items = tickerItems, modifier = Modifier.padding(horizontal = 16.dp))
-                Spacer(Modifier.height(14.dp))
-            }
 
             // 6. Vehicle / Car Health Hero Card
             VehicleHeroCard(vehicle, carHealth, onSetupVehicle, onCarHealth)
