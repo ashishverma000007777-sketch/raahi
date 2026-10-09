@@ -16,6 +16,7 @@ import java.util.*;
 public class OverpassPlacesProvider implements PlacesProvider {
 
     private static final List<String> OVERPASS_ENDPOINTS = List.of(
+            "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
             "https://overpass.private.coffee/api/interpreter",
             "https://overpass-api.de/api/interpreter",
             "https://overpass.kumi.systems/api/interpreter"

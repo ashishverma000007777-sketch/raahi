@@ -370,6 +370,7 @@ public class AdminController {
         String body = "data=" + URLEncoder.encode(query, StandardCharsets.UTF_8);
 
         for (String endpoint : List.of(
+                "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
                 "https://overpass.private.coffee/api/interpreter",
                 "https://overpass-api.de/api/interpreter",
                 "https://overpass.kumi.systems/api/interpreter")) {
