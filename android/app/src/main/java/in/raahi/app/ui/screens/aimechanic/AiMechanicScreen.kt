@@ -540,13 +540,43 @@ private fun ChatBubble(
                         Text("Nearby Garages", color = RaahiOrange, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
-            } else {
+            } else if (isUser) {
                 Text(
                     text = msg.content,
-                    color = if (isUser) Color.White else RaahiText,
-                    fontSize = 13.5.sp,
-                    lineHeight = 19.sp
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    lineHeight = 21.sp
                 )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    msg.content.lines().forEach { rawLine ->
+                        val line = rawLine.trim()
+                        if (line.isNotEmpty()) {
+                            val cleaned = line
+                                .replace(Regex("\\*\\*(.*?)\\*\\*"), "$1")
+                                .replace(Regex("^#{1,3}\\s*"), "")
+                            val heading = line.startsWith("### ") ||
+                                line.startsWith("## ") ||
+                                line.startsWith("# ") ||
+                                (line.startsWith("**") && line.endsWith("**") && line.length < 70)
+                            val bullet = line.startsWith("* ") ||
+                                line.startsWith("- ") ||
+                                line.startsWith("• ")
+                            val numbered = Regex("^\\d+[.)]\\s+").containsMatchIn(line)
+                            Text(
+                                text = when {
+                                    bullet -> "•  " + cleaned.removePrefix("* ").removePrefix("- ").removePrefix("• ")
+                                    else -> cleaned
+                                },
+                                color = RaahiText,
+                                fontSize = if (heading) 15.sp else 13.5.sp,
+                                fontWeight = if (heading) FontWeight.Bold else FontWeight.Normal,
+                                lineHeight = if (heading) 21.sp else 20.sp,
+                                modifier = if (numbered || bullet) Modifier.padding(start = 3.dp) else Modifier
+                            )
+                        }
+                    }
+                }
             }
         }
     }
