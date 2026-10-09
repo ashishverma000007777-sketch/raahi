@@ -34,6 +34,9 @@ import java.nio.charset.StandardCharsets;
 import org.springframework.web.client.RestTemplate;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.stream.Collectors;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 
 /**
  * Admin API. Every method re-checks ADMIN against the database (AdminGuard) and every mutation
@@ -355,13 +358,24 @@ public class AdminController {
             + ");out center tags 500;";
         JsonNode response = null;
         Exception lastError = null;
+        org.springframework.http.client.SimpleClientHttpRequestFactory factory =
+                new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(5000);
+        factory.setReadTimeout(25000);
+        RestTemplate osmClient = new RestTemplate(factory);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+        headers.set(HttpHeaders.USER_AGENT, "RaahiApp/2.0 (contact@raahi.in)");
+        headers.set(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE);
+        String body = "data=" + URLEncoder.encode(query, StandardCharsets.UTF_8);
+
         for (String endpoint : List.of(
-                "https://overpass-api.de/api/interpreter",
                 "https://overpass.private.coffee/api/interpreter",
+                "https://overpass-api.de/api/interpreter",
                 "https://overpass.kumi.systems/api/interpreter")) {
             try {
-                String url = endpoint + "?data=" + URLEncoder.encode(query, StandardCharsets.UTF_8);
-                response = new RestTemplate().getForObject(url, JsonNode.class);
+                response = osmClient.postForObject(
+                        endpoint, new HttpEntity<>(body, headers), JsonNode.class);
                 if (response != null && response.has("elements")) break;
                 response = null;
             } catch (Exception ex) {
