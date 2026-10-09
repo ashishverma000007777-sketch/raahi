@@ -85,7 +85,7 @@ public class MechanicController {
                   COS(RADIANS(?)) * COS(RADIANS(latitude)) *
                   POWER(SIN(RADIANS(longitude - ?) / 2), 2)
                 )) AS distance_km
-              FROM osm_mechanic_leads WHERE status <> 'REJECTED'
+              FROM osm_mechanic_leads WHERE COALESCE(status, 'NEW') <> 'REJECTED'
             ) nearby
             WHERE distance_km <= ? ORDER BY distance_km LIMIT 200
             """, lat, lat, lng, r));

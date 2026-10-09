@@ -34,6 +34,7 @@ import androidx.compose.material.icons.outlined.DirectionsCar
 import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.SupportAgent
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material.icons.outlined.WaterDrop
@@ -62,6 +63,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import `in`.raahi.app.network.AiStatusDto
 import `in`.raahi.app.network.CarHealthDto
 import `in`.raahi.app.network.JobDto
+import `in`.raahi.app.network.HelperStatusDto
 import `in`.raahi.app.network.UserDto
 import `in`.raahi.app.network.VehicleDto
 import `in`.raahi.app.ui.components.*
@@ -81,6 +83,7 @@ fun HomeScreen(
     onSetupVehicle: () -> Unit,
     onOpenDaily: (String) -> Unit,
     onOpenNotifications: () -> Unit,
+    onOpenWallet: () -> Unit = {},
     onAddFuel: () -> Unit,
     onNavigateTab: (RaahiTab) -> Unit,
     onPlanTrip: () -> Unit = {},
@@ -90,18 +93,53 @@ fun HomeScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val metrics by viewModel.metrics.collectAsState()
+    val helperStatus by viewModel.helperStatus.collectAsState()
+    val helperBusy by viewModel.helperBusy.collectAsState()
+    val helperError by viewModel.helperError.collectAsState()
     val selectedCity by viewModel.selectedCity.collectAsState()
+    val incomingRequest by viewModel.incomingRequest.collectAsState()
 
     val context = LocalContext.current
     val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) viewModel.refreshMetrics(hasLocationPermission(context))
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.refreshMetrics(hasLocationPermission(context))
+                viewModel.refreshHelperStatus()
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     `in`.raahi.app.ui.components.RequestNotificationPermissionOnce()
+
+    incomingRequest?.let { request ->
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissIncomingRequest() },
+            title = { Text("New roadside request", fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text(request.problemType.replace("_", " "), fontWeight = FontWeight.SemiBold)
+                    if (!request.problemDesc.isNullOrBlank()) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(request.problemDesc)
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Text("Reward: ₹${request.rewardAmount.toInt()}")
+                    request.distanceKm?.let { Text("Distance: ${"%.1f".format(it)} km") }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.dismissIncomingRequest()
+                    onHelperDashboard()
+                }) { Text("View requests", color = RaahiOrange) }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissIncomingRequest() }) { Text("Dismiss") }
+            },
+        )
+    }
 
     Surface(modifier = Modifier.fillMaxSize(), color = RaahiBg) {
         Column(Modifier.fillMaxSize()) {
@@ -117,7 +155,10 @@ fun HomeScreen(
                         onBecomeHelper = onBecomeHelper, onAiMechanic = onAiMechanic, onCarHealth = onCarHealth,
                         onSetupVehicle = onSetupVehicle, onOpenDaily = onOpenDaily,
                         onPlanTrip = onPlanTrip, onOpenActiveTrip = onOpenActiveTrip, onTripHistory = onTripHistory,
-                        metrics = metrics, onOpenNotifications = onOpenNotifications, onAddFuel = onAddFuel,
+                        metrics = metrics, onOpenNotifications = onOpenNotifications, onOpenWallet = onOpenWallet, onAddFuel = onAddFuel,
+                        helperStatus = helperStatus, helperBusy = helperBusy, helperError = helperError,
+                        onToggleHelperOnline = { online -> viewModel.setHelperOnline(online, hasLocationPermission(context)) },
+                        onRefreshHelperStatus = viewModel::refreshHelperStatus,
                         onProfile = { onNavigateTab(RaahiTab.PROFILE) },
                     )
                     is HomeUiState.Loaded -> HomeContent(
@@ -129,7 +170,10 @@ fun HomeScreen(
                         onBecomeHelper = onBecomeHelper, onAiMechanic = onAiMechanic, onCarHealth = onCarHealth,
                         onSetupVehicle = onSetupVehicle, onOpenDaily = onOpenDaily,
                         onPlanTrip = onPlanTrip, onOpenActiveTrip = onOpenActiveTrip, onTripHistory = onTripHistory,
-                        metrics = metrics, onOpenNotifications = onOpenNotifications, onAddFuel = onAddFuel,
+                        metrics = metrics, onOpenNotifications = onOpenNotifications, onOpenWallet = onOpenWallet, onAddFuel = onAddFuel,
+                        helperStatus = helperStatus, helperBusy = helperBusy, helperError = helperError,
+                        onToggleHelperOnline = { online -> viewModel.setHelperOnline(online, hasLocationPermission(context)) },
+                        onRefreshHelperStatus = viewModel::refreshHelperStatus,
                         onProfile = { onNavigateTab(RaahiTab.PROFILE) },
                     )
                 }
@@ -158,7 +202,9 @@ private fun HomeContent(
     onAiMechanic: () -> Unit, onCarHealth: () -> Unit, onSetupVehicle: () -> Unit,
     onOpenDaily: (String) -> Unit, onProfile: () -> Unit,
     onPlanTrip: () -> Unit = {}, onOpenActiveTrip: (String) -> Unit = {}, onTripHistory: () -> Unit = {},
-    metrics: HomeMetrics = HomeMetrics(), onOpenNotifications: () -> Unit = {}, onAddFuel: () -> Unit = {},
+    metrics: HomeMetrics = HomeMetrics(), onOpenNotifications: () -> Unit = {}, onOpenWallet: () -> Unit = {}, onAddFuel: () -> Unit = {},
+    helperStatus: HelperStatusDto? = null, helperBusy: Boolean = false, helperError: String? = null,
+    onToggleHelperOnline: (Boolean) -> Unit = {}, onRefreshHelperStatus: () -> Unit = {},
 ) {
     val scrollState = rememberScrollState()
     val scrolled by remember { derivedStateOf { scrollState.value > 20 } }
@@ -231,10 +277,12 @@ private fun HomeContent(
             )
 
             Spacer(Modifier.height(14.dp))
-            if (user?.role == "HELPER" || user?.role == "MECHANIC") {
-                HelperDashboardCard(onClick = onHelperDashboard)
-            } else if (user?.role == "DRIVER") {
-                BecomeHelperCard(onClick = onBecomeHelper)
+            if (user?.role == "HELPER" || user?.role == "MECHANIC" || user?.role == "DRIVER") {
+                HelperApplicationStatusCard(
+                    status = helperStatus, busy = helperBusy, error = helperError,
+                    onToggle = onToggleHelperOnline, onRetry = onRefreshHelperStatus,
+                    onOpenDashboard = onHelperDashboard, onApplyOrReview = onBecomeHelper,
+                )
             }
 
             // 8. This week
@@ -256,7 +304,8 @@ private fun HomeContent(
             onProfile = onProfile,
             scrolled = scrolled,
             unread = unreadCount(metrics.summary),
-            onBell = onOpenNotifications
+            onBell = onOpenNotifications,
+            onWallet = onOpenWallet
         )
     }
 }
@@ -269,7 +318,8 @@ private fun BoxScope.HeaderRow(
     onProfile: () -> Unit,
     scrolled: Boolean,
     unread: Int,
-    onBell: () -> Unit
+    onBell: () -> Unit,
+    onWallet: () -> Unit
 ) {
     val scrollFraction by androidx.compose.animation.core.animateFloatAsState(
         targetValue = if (scrolled) 1f else 0f, label = "headerBgFraction",
@@ -310,6 +360,25 @@ private fun BoxScope.HeaderRow(
         }
 
         Spacer(Modifier.weight(1f))
+
+        // Payments & Wallet shortcut
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(CircleShape)
+                .background(Color.White)
+                .border(1.dp, RaahiBorderSoft, CircleShape)
+                .clickable(onClick = onWallet),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Outlined.AccountBalanceWallet,
+                contentDescription = "Payments & Wallet",
+                tint = RaahiTextDim,
+                modifier = Modifier.size(19.dp)
+            )
+        }
+        Spacer(Modifier.width(8.dp))
 
         // Notification Bell Button
         BellWithBadge(unread = unread, onClick = onBell)
@@ -668,6 +737,59 @@ private fun AiMechanicCard(onClick: () -> Unit) {
                 tint = RaahiOrange,
                 modifier = Modifier.size(16.dp)
             )
+        }
+    }
+}
+
+@Composable
+private fun HelperApplicationStatusCard(
+    status: HelperStatusDto?, busy: Boolean, error: String?,
+    onToggle: (Boolean) -> Unit, onRetry: () -> Unit,
+    onOpenDashboard: () -> Unit, onApplyOrReview: () -> Unit,
+) {
+    GlassCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+        Column(Modifier.padding(16.dp)) {
+            Text("Raahi Helper", color = RaahiText, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(6.dp))
+            when {
+                status == null -> {
+                    Text(error ?: "Loading application status…", color = RaahiTextDim, fontSize = 12.5.sp)
+                    TextButton(onClick = onRetry) { Text("Retry", color = RaahiOrange) }
+                }
+                status.applicationStatus == "APPROVED" -> {
+                    Text(if (status.online) "You're online and can receive nearby requests."
+                        else "You're offline. Go online to receive nearby requests.",
+                        color = RaahiTextDim, fontSize = 12.5.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(if (status.online) "Online" else "Offline",
+                            color = if (status.online) RaahiGreen else RaahiTextDim,
+                            fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                        if (busy) CircularProgressIndicator(color = RaahiOrange,
+                            modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                        else Switch(checked = status.online, onCheckedChange = onToggle,
+                            enabled = status.accountActive && status.blockedUntil == null,
+                            colors = SwitchDefaults.colors(checkedTrackColor = RaahiOrange,
+                                checkedThumbColor = Color.White))
+                    }
+                    TextButton(onClick = onOpenDashboard) { Text("Open Helper Dashboard", color = RaahiOrange) }
+                }
+                else -> {
+                    val info = when (status.applicationStatus) {
+                        "PENDING" -> Triple("Application under review", "Your documents are waiting for approval.", "View status")
+                        "REJECTED" -> Triple("Application not approved", status.rejectionReason ?: "Review your application.", "Review application")
+                        "SUSPENDED" -> Triple("Helper account suspended", status.suspensionReason ?: "Contact support to review your account.", "View details")
+                        else -> Triple("Become a Raahi helper", "Apply to receive nearby roadside requests.", "Apply now")
+                    }
+                    Text(info.first, color = RaahiOrange, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Spacer(Modifier.height(4.dp))
+                    Text(info.second, color = RaahiTextDim, fontSize = 12.5.sp)
+                    TextButton(onClick = onApplyOrReview) { Text(info.third, color = RaahiOrange) }
+                }
+            }
+            if (!error.isNullOrBlank() && status != null) {
+                Text(error, color = RaahiRed, fontSize = 12.sp)
+                TextButton(onClick = onRetry) { Text("Retry", color = RaahiOrange) }
+            }
         }
     }
 }

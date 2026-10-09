@@ -67,7 +67,8 @@ data class HelperStatusDto(
 )
 data class LedgerEntryDto(
     val id: String?, val job_id: String?, val entry_type: String, val amount: Double,
-    val job_amount: Double?, val payment_mode: String?, val reference: String?, val created_at: String?,
+    val job_amount: Double?, val commission_rate: Double? = null,
+    val payment_mode: String?, val reference: String?, val created_at: String?,
 )
 data class HelperCommissionDto(val balance: Double, val due: Double, val rate: Double, val entries: List<LedgerEntryDto>)
 data class HelperEarningsDto(

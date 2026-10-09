@@ -32,6 +32,7 @@ import `in`.raahi.app.ui.screens.daily.StreakScreen
 import `in`.raahi.app.ui.screens.commerce.FuelRatesScreen
 import `in`.raahi.app.ui.screens.commerce.ShopScreen
 import `in`.raahi.app.ui.screens.commerce.SubscriptionScreen
+import `in`.raahi.app.ui.screens.commerce.WalletScreen
 import `in`.raahi.app.ui.screens.helper.HelperApplicationScreen
 import `in`.raahi.app.ui.screens.fuel.AddFuelScreen
 import `in`.raahi.app.ui.screens.home.HomeScreen
@@ -92,6 +93,7 @@ private object Routes {
     const val NOTIFICATIONS = "notifications"
     const val SHOP = "shop"
     const val SUBSCRIPTION = "subscription"
+    const val WALLET = "wallet"
     const val TRIP_PLAN = "trip_plan"
     const val TRIP_OVERVIEW = "trip_overview/{tripId}"
     const val TRIP_ACTIVE = "trip_active/{tripId}"
@@ -295,6 +297,7 @@ fun RaahiNavHost(
                 onCarHealth = { navController.navigate(Routes.CAR_REPORT_CARD) },
                 onSetupVehicle = { navController.navigate(Routes.VEHICLE_SETUP) },
                 onOpenNotifications = { navController.navigate(Routes.NOTIFICATIONS) },
+                onOpenWallet = { navController.navigate(Routes.WALLET) },
                 onAddFuel = { navController.navigate(Routes.ADD_FUEL) },
                 onPlanTrip = { navController.navigate(Routes.TRIP_PLAN) },
                 onOpenActiveTrip = { tripId -> navController.navigate(Routes.tripActive(tripId)) },
@@ -333,7 +336,7 @@ fun RaahiNavHost(
                 onHelper = { navController.navigate(Routes.HELPER_DASHBOARD) { launchSingleTop = true } },
                 onEarnWithRaahi = { navController.navigate(Routes.HELPER_APPLICATION) { launchSingleTop = true } },
                 onNotifications = { navController.navigate(Routes.NOTIFICATIONS) },
-                onPayments = { navController.navigate(Routes.SUBSCRIPTION) },
+                onPayments = { navController.navigate(Routes.WALLET) },
             )
         }
 
@@ -364,6 +367,7 @@ fun RaahiNavHost(
         composable(Routes.FUEL_RATES) { FuelRatesScreen(onBack = { navController.popBackStack() }) }
         composable(Routes.SHOP) { ShopScreen(onBack = { navController.popBackStack() }, onNavigateTab = navigateToTab) }
         composable(Routes.SUBSCRIPTION) { SubscriptionScreen(onBack = { navController.popBackStack() }) }
+        composable(Routes.WALLET) { WalletScreen(onBack = { navController.popBackStack() }) }
 
         composable(Routes.REQUEST_HELP) {
             RequestHelpScreen(

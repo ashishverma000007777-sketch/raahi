@@ -2,6 +2,8 @@ package `in`.raahi.app.ui.screens.home
 
 import android.content.Context
 import android.location.Geocoder
+import android.media.AudioManager
+import android.media.ToneGenerator
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -12,6 +14,7 @@ import `in`.raahi.app.data.HomeRepository
 import `in`.raahi.app.data.JobsRepository
 import `in`.raahi.app.data.LocationProvider
 import `in`.raahi.app.data.MechanicsRepository
+import `in`.raahi.app.data.HelperRepository
 import `in`.raahi.app.data.VehicleRepository
 import `in`.raahi.app.network.AiStatusDto
 import `in`.raahi.app.network.CarHealthDto
@@ -19,11 +22,14 @@ import `in`.raahi.app.network.FuelRateDto
 import `in`.raahi.app.network.FuelSummaryDto
 import `in`.raahi.app.network.HomeSummaryDto
 import `in`.raahi.app.network.JobDto
+import `in`.raahi.app.network.HelperStatusDto
 import `in`.raahi.app.network.RaahiWebSocketClient
 import `in`.raahi.app.network.UserDto
 import `in`.raahi.app.network.VehicleDto
 import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -97,6 +103,7 @@ class HomeViewModel @Inject constructor(
     private val homeRepository: HomeRepository,
     private val mechanicsRepository: MechanicsRepository,
     private val locationProvider: LocationProvider,
+    private val helperRepository: HelperRepository,
     private val webSocketClient: RaahiWebSocketClient,
     private val tripRepository: `in`.raahi.app.data.TripRepository,
 ) : ViewModel() {
@@ -108,6 +115,132 @@ class HomeViewModel @Inject constructor(
     val metrics: StateFlow<HomeMetrics> = _metrics.asStateFlow()
 
     private val _selectedCity = MutableStateFlow(locationProvider.selectedCityName)
+
+    private val _helperStatus = MutableStateFlow<HelperStatusDto?>(null)
+    val helperStatus: StateFlow<HelperStatusDto?> = _helperStatus.asStateFlow()
+    private val _helperBusy = MutableStateFlow(false)
+    val helperBusy: StateFlow<Boolean> = _helperBusy.asStateFlow()
+    private val _helperError = MutableStateFlow<String?>(null)
+    val helperError: StateFlow<String?> = _helperError.asStateFlow()
+
+    private val _incomingRequest = MutableStateFlow<JobDto?>(null)
+    val incomingRequest: StateFlow<JobDto?> = _incomingRequest.asStateFlow()
+    private var incomingPollingJob: Job? = null
+    private val seenIncomingRequestIds = mutableSetOf<String>()
+    private var incomingRequestsSeeded = false
+
+    fun dismissIncomingRequest() {
+        _incomingRequest.value = null
+    }
+
+    private fun syncIncomingRequestPolling(status: `in`.raahi.app.network.HelperStatusDto) {
+        if (status.applicationStatus != "APPROVED" || !status.online ||
+            !status.accountActive || status.blockedUntil != null) {
+            incomingPollingJob?.cancel()
+            incomingPollingJob = null
+            return
+        }
+        if (incomingPollingJob?.isActive == true) return
+
+        incomingPollingJob = viewModelScope.launch {
+            while (true) {
+                try {
+                    val fix = locationProvider.getCurrentLocation()
+                    if (fix != null) {
+                        val requests = jobsRepository.availableJobs(fix.lat, fix.lng)
+                            .filter { it.status == "PENDING" }
+                        val ids = requests.map { it.id }.toSet()
+
+                        if (!incomingRequestsSeeded) {
+                            seenIncomingRequestIds.addAll(ids)
+                            incomingRequestsSeeded = true
+                        } else {
+                            val newRequest = requests.firstOrNull { it.id !in seenIncomingRequestIds }
+                            seenIncomingRequestIds.addAll(ids)
+                            if (newRequest != null) {
+                                _incomingRequest.value = newRequest
+                                playIncomingRequestSound()
+                            }
+                            if (seenIncomingRequestIds.size > 500) {
+                                seenIncomingRequestIds.clear()
+                                seenIncomingRequestIds.addAll(ids)
+                            }
+                        }
+                    }
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    // Keep polling after a temporary network failure.
+                }
+                delay(15_000)
+            }
+        }
+    }
+
+    private fun playIncomingRequestSound() {
+        viewModelScope.launch {
+            val tone = runCatching {
+                ToneGenerator(AudioManager.STREAM_NOTIFICATION, 80)
+            }.getOrNull() ?: return@launch
+
+            try {
+                repeat(3) {
+                    tone.startTone(ToneGenerator.TONE_PROP_BEEP, 140)
+                    delay(260)
+                }
+            } finally {
+                tone.release()
+            }
+        }
+    }
+
+    fun refreshHelperStatus() {
+        if (!authRepository.hasAuthToken()) return
+        viewModelScope.launch {
+            runCatching { helperRepository.status() }
+                .onSuccess {
+                    _helperStatus.value = it
+                    _helperError.value = null
+                    syncIncomingRequestPolling(it)
+                }
+                .onFailure { _helperError.value = it.toUserFriendlyMessage("Unable to load helper status") }
+        }
+    }
+
+    fun setHelperOnline(online: Boolean, hasLocationPermission: Boolean) {
+        val current = _helperStatus.value
+        if (current == null) {
+            _helperError.value = "Helper status is still loading. Please retry."
+            return
+        }
+        if (current.applicationStatus != "APPROVED") {
+            _helperError.value = "Your helper application must be approved first."
+            return
+        }
+        if (online && !hasLocationPermission) {
+            _helperError.value = "Enable location permission to go online."
+            return
+        }
+        if (online && (!current.accountActive || current.blockedUntil != null)) {
+            _helperError.value = "Your helper account is not currently allowed online."
+            return
+        }
+        _helperBusy.value = true
+        _helperError.value = null
+        viewModelScope.launch {
+            try {
+                val fix = if (online) locationProvider.getCurrentLocation()
+                    ?: throw IllegalStateException("Turn on device location and try again")
+                else null
+                helperRepository.setOnline(online, fix?.lat, fix?.lng)
+                _helperStatus.value = helperRepository.status()
+            } catch (e: Exception) {
+                _helperError.value = e.toUserFriendlyMessage("Could not update online status")
+            } finally {
+                _helperBusy.value = false
+            }
+        }
+    }
     val selectedCity: StateFlow<String> = _selectedCity.asStateFlow()
 
     fun selectCity(cityName: String, lat: Double, lng: Double) {
@@ -261,8 +394,16 @@ class HomeViewModel @Inject constructor(
                     Geocoder(context, Locale.ENGLISH).getFromLocation(here.lat, here.lng, 1)?.firstOrNull()?.adminArea
                 }.getOrNull()
             }
-            val price = if (adminArea == null) null else runCatching { homeRepository.fuelRates() }.getOrNull()
-                ?.firstOrNull { normState(it.state) == normState(adminArea) }
+            // Use only real /fuel-rates rows. Prefer the reverse-geocoded state;
+            // if geocoding fails, try the selected city only when it names a state
+            // (e.g. Punjab), never infer a price from an unrelated city name.
+            val rates = runCatching { homeRepository.fuelRates() }.getOrNull().orEmpty()
+            val selected = locationProvider.selectedCityName.trim()
+            val stateNames = listOfNotNull(adminArea?.trim()?.takeIf { it.isNotBlank() },
+                selected.takeIf { candidate -> rates.any { normState(it.state) == normState(candidate) } })
+            val price = stateNames.asSequence()
+                .flatMap { name -> rates.asSequence().filter { normState(it.state) == normState(name) } }
+                .firstOrNull()
                 ?.let { FuelPrice(it) }
             _metrics.update { it.copy(fuelPrice = price) }
         }

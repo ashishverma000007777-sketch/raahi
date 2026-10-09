@@ -102,6 +102,7 @@ fun MechanicsMapScreen(
                             Box(Modifier.weight(1f).fillMaxWidth()) {
                                 MechanicsMapView(
                                     modifier = Modifier.fillMaxSize(), userLocation = loaded.userLocation, mechanics = filtered,
+                                    shops = loaded.shops,
                                     onMechanicClick = { onMechanicClick(it.userId) }, onMapReady = { map = it },
                                 )
                                 MapControls(

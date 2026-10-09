@@ -79,10 +79,21 @@ class MechanicsMapViewModel @Inject constructor(
             val shopsResult = runCatching { mechanicsRepository.nearbyShops(location.lat, location.lng) }
             val mechanics = mechanicsResult.getOrDefault(emptyList())
             val shops = shopsResult.getOrDefault(emptyList())
-            val error = if (mechanicsResult.isFailure && shopsResult.isFailure)
-                mechanicsResult.exceptionOrNull()?.toUserFriendlyMessage(
-                    "Nearby mechanics unavailable. Please check your connection."
-                ) else null
+            val error = when {
+                mechanicsResult.isFailure && shopsResult.isFailure ->
+                    mechanicsResult.exceptionOrNull()?.toUserFriendlyMessage(
+                        "Nearby mechanics and repair shops unavailable. Please check your connection."
+                    )
+                shopsResult.isFailure ->
+                    shopsResult.exceptionOrNull()?.toUserFriendlyMessage(
+                        "Imported repair shops could not load. Please retry."
+                    )
+                mechanicsResult.isFailure ->
+                    mechanicsResult.exceptionOrNull()?.toUserFriendlyMessage(
+                        "Nearby mechanics unavailable. Imported repair shops may still be shown."
+                    )
+                else -> null
+            }
             _state.value = MechanicsMapUiState.Loaded(
                 userLocation = location, mechanics = mechanics, errorMessage = error,
                 isRefreshing = false, shops = shops

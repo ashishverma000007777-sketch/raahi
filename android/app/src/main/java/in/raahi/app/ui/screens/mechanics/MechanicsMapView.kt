@@ -9,6 +9,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import `in`.raahi.app.data.LatLng
 import `in`.raahi.app.network.MechanicDto
+import `in`.raahi.app.network.OsmMechanicShopDto
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.geojson.Feature
@@ -32,6 +33,8 @@ private const val USER_SOURCE_ID = "user-source"
 private const val USER_LAYER_ID = "user-layer"
 private const val MECHANICS_SOURCE_ID = "mechanics-source"
 private const val MECHANICS_LAYER_ID = "mechanics-layer"
+private const val SHOPS_SOURCE_ID = "osm-shops-source"
+private const val SHOPS_LAYER_ID = "osm-shops-layer"
 private const val MECHANIC_ID_PROPERTY = "mechanicUserId"
 private const val AVAILABLE_PROPERTY = "available"
 
@@ -51,6 +54,7 @@ fun MechanicsMapView(
     modifier: Modifier = Modifier,
     userLocation: LatLng,
     mechanics: List<MechanicDto>,
+    shops: List<OsmMechanicShopDto> = emptyList(),
     onMechanicClick: (MechanicDto) -> Unit,
     onMapReady: (MapLibreMap) -> Unit = {},
 ) {
@@ -58,6 +62,7 @@ fun MechanicsMapView(
     val mapViewRef = remember { arrayOfNulls<MapView>(1) }
     // Keep the latest list for the click listener (the listener is registered once).
     val latestMechanics by rememberUpdatedState(mechanics)
+    val latestShops by rememberUpdatedState(shops)
 
     AndroidView<android.view.View>(
         modifier = modifier,
@@ -89,6 +94,7 @@ fun MechanicsMapView(
                         addOsmRasterLayer(style)
                         addUserLocationLayer(style, userLocation)
                         addMechanicsLayer(style, mechanics)
+                        addOsmShopsLayer(style, shops)
                     }
                     map.cameraPosition = CameraPosition.Builder()
                         .target(MlLatLng(userLocation.lat, userLocation.lng))
@@ -98,6 +104,8 @@ fun MechanicsMapView(
                         val screenPoint = map.projection.toScreenLocation(point)
                         val features = map.queryRenderedFeatures(screenPoint, MECHANICS_LAYER_ID)
                         val mechanicId = features.firstOrNull()?.getStringProperty(MECHANIC_ID_PROPERTY)
+                        val shopFeatures = map.queryRenderedFeatures(screenPoint, SHOPS_LAYER_ID)
+                        if (shopFeatures.isNotEmpty()) return@addOnMapClickListener true
                         val mechanic = latestMechanics.firstOrNull { it.userId == mechanicId }
                         if (mechanic != null) onMechanicClick(mechanic)
                         mechanic != null
@@ -126,6 +134,8 @@ fun MechanicsMapView(
                     ?.setGeoJson(mechanicsToFeatureCollection(mechanics))
                 (style.getSource(USER_SOURCE_ID) as? GeoJsonSource)
                     ?.setGeoJson(Feature.fromGeometry(Point.fromLngLat(userLocation.lng, userLocation.lat)))
+                (style.getSource(SHOPS_SOURCE_ID) as? GeoJsonSource)
+                    ?.setGeoJson(osmShopsToFeatureCollection(shops))
             }
         },
     )
@@ -213,6 +223,31 @@ private fun addMechanicsLayer(style: Style, mechanics: List<MechanicDto>) {
         circleStrokeColor("#FFFFFF"),
     )
     style.addLayer(mechanicsLayer)
+}
+
+private fun addOsmShopsLayer(style: Style, shops: List<OsmMechanicShopDto>) {
+    style.addSource(GeoJsonSource(SHOPS_SOURCE_ID, osmShopsToFeatureCollection(shops)))
+    val layer = CircleLayer(SHOPS_LAYER_ID, SHOPS_SOURCE_ID)
+    layer.setProperties(
+        circleRadius(7f),
+        circleColor("#F59E0B"),
+        circleStrokeWidth(2f),
+        circleStrokeColor("#FFFFFF"),
+    )
+    style.addLayer(layer)
+}
+
+private fun osmShopsToFeatureCollection(shops: List<OsmMechanicShopDto>): FeatureCollection {
+    val features = shops.mapNotNull { shop ->
+        if (!shop.lat.isFinite() || !shop.lng.isFinite() ||
+            shop.lat !in -90.0..90.0 || shop.lng !in -180.0..180.0
+        ) return@mapNotNull null
+        Feature.fromGeometry(Point.fromLngLat(shop.lng, shop.lat)).apply {
+            addStringProperty("osmShopId", shop.id)
+            addStringProperty("shopName", shop.name)
+        }
+    }
+    return FeatureCollection.fromFeatures(features)
 }
 
 private fun mechanicsToFeatureCollection(mechanics: List<MechanicDto>): FeatureCollection {

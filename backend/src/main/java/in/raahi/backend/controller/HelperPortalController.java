@@ -81,7 +81,7 @@ public class HelperPortalController {
         out.put("commissionDue", CommissionMath.owesMoney(balance));
         out.put("commissionRate", commissionService.rate());
         boolean canAccept = approved && user.getStatus() == User.Status.ACTIVE && !user.isTemporarilyBlocked()
-                && !CommissionMath.owesMoney(balance);
+                && commissionService.canAcceptWithBalance(balance);
         out.put("canAcceptJobs", canAccept);
         out.put("ratingAvg", user.getRatingAvg() == null ? 0.0 : user.getRatingAvg());
         out.put("totalHelps", user.getTotalHelps() == null ? 0 : user.getTotalHelps());

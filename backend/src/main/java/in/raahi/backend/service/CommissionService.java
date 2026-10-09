@@ -35,14 +35,20 @@ public class CommissionService {
         return CommissionMath.round2(sum == null ? 0.0 : sum);
     }
 
-    public void requireNoDue(UUID helperId) {
-        double bal = balance(helperId);
-        if (CommissionMath.owesMoney(bal)) {
-            throw ApiException.forbidden("COMMISSION_DUE",
-                    "Please settle your Raahi commission of \u20B9" + Math.abs(bal) + " to accept new jobs");
-        }
+    public static final double OUTSTANDING_LIMIT = 50.0;
+
+    public boolean canAcceptWithBalance(double balance) {
+        return CommissionMath.round2(balance) >= -OUTSTANDING_LIMIT;
     }
 
+    public void requireNoDue(UUID helperId) {
+        double bal = balance(helperId);
+        if (!canAcceptWithBalance(bal)) {
+            throw ApiException.forbidden("COMMISSION_LIMIT_REACHED",
+                    "Outstanding Raahi commission is ₹" + Math.abs(bal)
+                            + ". Settle enough to bring it within ₹50 before accepting new jobs.");
+        }
+    }
     /** Returns the commission amount recorded (positive number). Idempotent per job (unique index). */
     public double recordCommission(UUID helperId, UUID jobId, double jobAmount, String paymentMode) {
         double commission = CommissionMath.commission(jobAmount, rate);
