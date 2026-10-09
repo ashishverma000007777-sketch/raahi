@@ -29,6 +29,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import org.springframework.web.client.RestTemplate;
+import com.fasterxml.jackson.databind.JsonNode;
 import java.util.stream.Collectors;
 
 /**
@@ -314,6 +318,125 @@ public class AdminController {
         return ApiResponse.ok(jdbc.queryForList(
                 "SELECT id, actor_id, actor_role, action, target_type, target_id, detail, created_at FROM audit_logs ORDER BY created_at DESC LIMIT ?",
                 Math.min(500, Math.max(1, limit))));
+    }
+
+
+    // OSM mechanic leads: imported as unverified leads, never as active mechanics.
+    @GetMapping("/mechanic-leads")
+    @Transactional(readOnly = true)
+    public ApiResponse<List<Map<String, Object>>> mechanicLeads(
+            @AuthenticationPrincipal AuthenticatedUser p,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String q) {
+        guard.require(p);
+        String st = status == null || status.isBlank() ? "%" : status.trim().toUpperCase();
+        String term = q == null || q.isBlank() ? "%" : "%" + q.trim().toLowerCase() + "%";
+        return ApiResponse.ok(jdbc.queryForList("""
+            SELECT id, osm_type, osm_id, shop_name, phone, website, address,
+                   latitude, longitude, status, osm_url, updated_at
+            FROM osm_mechanic_leads
+            WHERE status LIKE ?
+              AND (LOWER(shop_name) LIKE ? OR LOWER(COALESCE(address,'')) LIKE ?
+                   OR COALESCE(phone,'') LIKE ?)
+            ORDER BY shop_name LIMIT 500
+            """, st, term, term, term));
+    }
+
+    @PostMapping("/mechanic-leads/sync")
+    @Transactional
+    public ApiResponse<Map<String, Object>> syncMechanicLeads(
+            @AuthenticationPrincipal AuthenticatedUser p) {
+        User admin = guard.require(p);
+        String query = "[out:json][timeout:25];("
+            + "nwr[\"shop\"=\"car_repair\"](30.55,76.60,30.85,76.95);"
+            + "nwr[\"craft\"=\"car_repair\"](30.55,76.60,30.85,76.95);"
+            + "nwr[\"shop\"=\"car\"](30.55,76.60,30.85,76.95);"
+            + "nwr[\"amenity\"=\"car_repair\"](30.55,76.60,30.85,76.95);"
+            + ");out center tags 500;";
+        JsonNode response = null;
+        Exception lastError = null;
+        for (String endpoint : List.of(
+                "https://overpass-api.de/api/interpreter",
+                "https://overpass.private.coffee/api/interpreter",
+                "https://overpass.kumi.systems/api/interpreter")) {
+            try {
+                String url = endpoint + "?data=" + URLEncoder.encode(query, StandardCharsets.UTF_8);
+                response = new RestTemplate().getForObject(url, JsonNode.class);
+                if (response != null && response.has("elements")) break;
+                response = null;
+            } catch (Exception ex) {
+                lastError = ex;
+                response = null;
+            }
+        }
+        if (response == null || !response.has("elements")) {
+            throw new ApiException(org.springframework.http.HttpStatus.BAD_GATEWAY,
+                    "OVERPASS_UNAVAILABLE", "OSM provider unavailable; try again later");
+        }
+
+        int imported = 0;
+        for (JsonNode element : response.path("elements")) {
+            JsonNode tags = element.path("tags");
+            String name = tags.path("name").asText("").trim();
+            if (name.isBlank()) continue;
+            String type = element.path("type").asText("");
+            long osmId = element.path("id").asLong(0);
+            if (osmId <= 0 || !List.of("node", "way", "relation").contains(type)) continue;
+
+            double lat = element.has("lat") ? element.path("lat").asDouble()
+                    : element.path("center").path("lat").asDouble();
+            double lng = element.has("lon") ? element.path("lon").asDouble()
+                    : element.path("center").path("lon").asDouble();
+            if (!Double.isFinite(lat) || !Double.isFinite(lng)
+                    || lat < 30.4 || lat > 31.0 || lng < 76.4 || lng > 77.1) continue;
+
+            String phone = tags.path("contact:phone").asText(tags.path("phone").asText(""));
+            String website = tags.path("contact:website").asText(tags.path("website").asText(""));
+            String address = tags.path("addr:full").asText("");
+            if (address.isBlank()) {
+                address = (tags.path("addr:housenumber").asText("") + " "
+                        + tags.path("addr:street").asText("") + " "
+                        + tags.path("addr:suburb").asText("") + " "
+                        + tags.path("addr:city").asText("")).trim();
+            }
+            String osmUrl = "https://www.openstreetmap.org/" + type + "/" + osmId;
+            jdbc.update("""
+                INSERT INTO osm_mechanic_leads
+                    (osm_type, osm_id, shop_name, phone, website, address, latitude, longitude, osm_url)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (osm_type, osm_id) DO UPDATE SET
+                    shop_name = EXCLUDED.shop_name,
+                    phone = COALESCE(NULLIF(EXCLUDED.phone,''), osm_mechanic_leads.phone),
+                    website = COALESCE(NULLIF(EXCLUDED.website,''), osm_mechanic_leads.website),
+                    address = COALESCE(NULLIF(EXCLUDED.address,''), osm_mechanic_leads.address),
+                    latitude = EXCLUDED.latitude, longitude = EXCLUDED.longitude,
+                    osm_url = EXCLUDED.osm_url, updated_at = NOW()
+                """, type, osmId, name, phone, website, address, lat, lng, osmUrl);
+            imported++;
+        }
+        audit.log(admin.getId(), "ADMIN", "OSM_MECHANIC_LEADS_SYNCED",
+                "MECHANIC_LEADS", null, "Processed " + imported + " OSM mechanic leads in Chandigarh Tricity");
+        return ApiResponse.ok(Map.of("processed", imported, "source", "OpenStreetMap Overpass",
+                "note", "Leads are unverified; no mechanic accounts were created or approved."));
+    }
+
+    @PostMapping("/mechanic-leads/{id}/status")
+    @Transactional
+    public ApiResponse<Map<String, Object>> updateMechanicLeadStatus(
+            @AuthenticationPrincipal AuthenticatedUser p, @PathVariable UUID id,
+            @RequestBody Map<String, String> body) {
+        User admin = guard.require(p);
+        String status = body == null ? "" : body.getOrDefault("status", "").trim().toUpperCase();
+        if (!List.of("NEW", "CONTACTED", "VERIFIED", "REJECTED").contains(status)) {
+            throw ApiException.badRequest("INVALID_LEAD_STATUS", "Status must be NEW, CONTACTED, VERIFIED or REJECTED");
+        }
+        int changed = jdbc.update(
+                "UPDATE osm_mechanic_leads SET status = ?, updated_at = NOW() WHERE id = ?",
+                status, id);
+        if (changed == 0) throw ApiException.notFound("LEAD_NOT_FOUND", "Mechanic lead not found");
+        audit.log(admin.getId(), "ADMIN", "OSM_MECHANIC_LEAD_STATUS_UPDATED",
+                "MECHANIC_LEAD", id.toString(), status);
+        return ApiResponse.ok(Map.of("success", true, "status", status));
     }
 
     private long count(String sql) {

@@ -56,6 +56,7 @@ button,input,select{font:inherit}button{cursor:pointer;border:0}.hidden{display:
       <button data-page="overview" class="active">Dashboard</button>
       <button data-page="applications">Applications</button>
       <button data-page="helpers">Helpers</button>
+      <button data-page="mechanic-leads">Mechanic Leads (OSM)</button>
       <button data-page="users">Users</button>
       <button data-page="jobs">Jobs</button>
       <button data-page="reports">Reports</button>
@@ -117,6 +118,7 @@ async function load(page){
   if(page==="overview") return overview();
   if(page==="applications") return applications();
   if(page==="helpers") return helpers();
+  if(page==="mechanic-leads") return mechanicLeads();
   if(page==="users") return users();
   if(page==="jobs") return jobs();
   if(page==="reports") return reports();
@@ -142,6 +144,25 @@ async function applications(){
 
 async function approve(id){if(!confirm("Approve this helper application?"))return;await api("/admin/helper-applications/"+id+"/approve",{method:"POST"});toast("Helper approved");load("applications")}
 async function reject(id){const reason=prompt("Rejection reason:");if(!reason)return;await api("/admin/helper-applications/"+id+"/reject",{method:"POST",body:JSON.stringify({reason})});toast("Application rejected");load("applications")}
+
+
+async function mechanicLeads(){
+ const d=await api("/admin/mechanic-leads");
+ $("content").innerHTML=`<div class="panel"><div class="panel-head"><h2>OSM Mechanic Shop Leads · Chandigarh Tricity</h2><div class="toolbar"><button class="action" onclick="syncMechanicLeads()">Sync from OpenStreetMap</button><button class="action light" onclick="load('mechanic-leads')">Refresh</button></div></div>
+ <p style="padding:0 18px;color:#727780;font-size:13px">OSM data is unverified. No accounts are created and no shop is automatically approved.</p>
+ <div class="table-wrap"><table><thead><tr><th>Shop</th><th>Phone</th><th>Address</th><th>Location</th><th>OSM</th><th>Status</th></tr></thead><tbody>
+ ${d.length?d.map(x=>`<tr><td><b>${esc(x.shop_name)}</b></td><td>${esc(x.phone||"Not listed")}</td><td>${esc(x.address||"-")}</td><td>${Number(x.latitude).toFixed(5)}, ${Number(x.longitude).toFixed(5)}</td><td><a href="${esc(x.osm_url)}" target="_blank" rel="noopener noreferrer">OpenStreetMap</a>${x.website?`<br><a href="${esc(x.website)}" target="_blank" rel="noopener noreferrer">Website</a>`:""}</td><td><select onchange="updateMechanicLead('${esc(x.id)}',this.value)">${["NEW","CONTACTED","VERIFIED","REJECTED"].map(s=>`<option value="${s}" ${x.status===s?"selected":""}>${s}</option>`).join("")}</select></td></tr>`).join(""):`<tr><td colspan="6" class="empty">No leads yet. Select Sync from OpenStreetMap to import shops.</td></tr>`}
+ </tbody></table></div></div>`;
+}
+async function syncMechanicLeads(){
+ if(!confirm("Fetch OSM car repair shops for Chandigarh, Mohali, Panchkula and Zirakpur?"))return;
+ try{const d=await api("/admin/mechanic-leads/sync",{method:"POST"});toast("OSM sync processed "+d.processed+" leads");await load("mechanic-leads")}
+ catch(e){toast(e.message)}
+}
+async function updateMechanicLead(id,status){
+ try{await api("/admin/mechanic-leads/"+id+"/status",{method:"POST",body:JSON.stringify({status})});toast("Lead status updated")}
+ catch(e){toast(e.message);load("mechanic-leads")}
+}
 
 async function helpers(){
  const d=await api("/admin/helpers");
