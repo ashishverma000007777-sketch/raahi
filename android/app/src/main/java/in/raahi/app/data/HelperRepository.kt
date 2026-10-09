@@ -87,51 +87,7 @@ class HelperRepository @Inject constructor(
         }
     }
 
-    suspend fun status(): HelperStatusDto {
-        val app = myApplication()
-
-        return if (app == null) {
-            HelperStatusDto(
-                applicationStatus = "NONE",
-                rejectionReason = null,
-                suspensionReason = null,
-                accountActive = true,
-                blockedUntil = null,
-                blockReason = null,
-                online = false,
-                commissionBalance = 0.0,
-                commissionDue = false,
-                commissionRate = 0.0,
-                canAcceptJobs = false,
-                ratingAvg = 0.0,
-                totalHelps = 0,
-                name = null,
-                phone = null,
-                services = null,
-                serviceRadiusKm = null,
-            )
-        } else {
-            HelperStatusDto(
-                applicationStatus = app.status,
-                rejectionReason = app.rejectionReason,
-                suspensionReason = app.suspensionReason,
-                accountActive = app.status == "APPROVED",
-                blockedUntil = null,
-                blockReason = null,
-                online = false,
-                commissionBalance = 0.0,
-                commissionDue = false,
-                commissionRate = 0.0,
-                canAcceptJobs = app.status == "APPROVED",
-                ratingAvg = 0.0,
-                totalHelps = 0,
-                name = app.applicantName,
-                phone = app.applicantPhone,
-                services = app.services,
-                serviceRadiusKm = app.serviceRadiusKm,
-            )
-        }
-    }
+    suspend fun status(): HelperStatusDto = apiCall { api.helperStatus() }
 
     suspend fun setOnline(online: Boolean, lat: Double?, lng: Double?) {
         apiCall { api.setHelperAvailability(AvailabilityRequest(online, lat, lng)) }

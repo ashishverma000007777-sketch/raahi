@@ -54,6 +54,7 @@ public class MechanicController {
 
         List<MechanicProfile> profiles = mechanicRepository.findNearby(lat, lng, radius);
         List<MechanicDto> dtos = profiles.stream()
+                .filter(p -> p.getUser().getRole() == User.Role.MECHANIC)
                 .map(p -> toDto(p, lat, lng))
                 .collect(Collectors.toList());
         return ApiResponse.ok(dtos);

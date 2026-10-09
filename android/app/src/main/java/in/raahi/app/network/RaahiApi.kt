@@ -472,6 +472,9 @@ interface RaahiApi {
     suspend fun applyAsHelper(@Part parts: List<MultipartBody.Part>): ApiEnvelope<HelperApplicationDto>
 
 
+    @GET("helper/status")
+    suspend fun helperStatus(): ApiEnvelope<HelperStatusDto>
+
     @PUT("helper/availability")
     suspend fun setHelperAvailability(@Body req: AvailabilityRequest): ApiEnvelope<Map<String, Boolean>>
 
