@@ -60,7 +60,7 @@ fun ProfileSetupScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 20.dp)
+                .padding(horizontal = 20.dp, vertical = 18.dp)
         ) {
             if (isEditing && onBack != null) {
                 IconButton(
@@ -74,7 +74,7 @@ fun ProfileSetupScreen(
                     )
                 }
             } else {
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(14.dp))
             }
 
             // Header Section
@@ -98,7 +98,7 @@ fun ProfileSetupScreen(
                 lineHeight = 19.sp
             )
 
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(24.dp))
 
             // The Three Input Boxes — polished, elevated cards with clean borders, icons, and typography
             // 1. Name Box
@@ -117,10 +117,10 @@ fun ProfileSetupScreen(
                 },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(16.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .shadow(elevation = 2.dp, shape = RoundedCornerShape(14.dp), spotColor = Color(0x0C000000)),
+                    .shadow(elevation = 1.dp, shape = RoundedCornerShape(16.dp), spotColor = Color(0x0C000000)),
                 colors = profileFieldColors(),
             )
 
@@ -176,8 +176,8 @@ fun ProfileSetupScreen(
                 Spacer(Modifier.height(14.dp))
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFFFEF2F2),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, RaahiRed.copy(alpha = 0.3f)),
+                    color = RaahiRed.copy(alpha = 0.07f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, RaahiRed.copy(alpha = 0.25f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
@@ -190,7 +190,7 @@ fun ProfileSetupScreen(
                 }
             }
 
-            Spacer(Modifier.height(30.dp))
+            Spacer(Modifier.height(24.dp))
 
             // Action Button
             RaahiPrimaryButton(

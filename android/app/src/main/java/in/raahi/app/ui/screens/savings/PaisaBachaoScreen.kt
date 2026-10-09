@@ -293,7 +293,7 @@ private fun SavingsHeroCard(savings: SavingsSummaryDto) {
             } else {
                 Text(
                     text = "₹${(savings.currentMonthFuelSpend ?: 0.0).toInt()}",
-                    color = RaahiCyan,
+                    color = RaahiOrange,
                     fontWeight = FontWeight.Bold,
                     fontSize = 32.sp,
                     fontFamily = RaahiDisplayFont
@@ -374,7 +374,7 @@ private fun MonthlySpendComparisonCard(savings: SavingsSummaryDto, onAddFuel: ()
                         .fillMaxWidth()
                         .height(10.dp)
                         .clip(RoundedCornerShape(5.dp))
-                        .background(RaahiCyan)
+                        .background(RaahiOrange)
                 )
             }
 
@@ -425,7 +425,7 @@ private fun MonthlySpendComparisonCard(savings: SavingsSummaryDto, onAddFuel: ()
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text("Volume Filled This Month", color = RaahiTextDim, fontSize = 12.sp)
-                    Text("${savings.currentMonthLitres} Litres", color = RaahiCyan, fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
+                    Text("${savings.currentMonthLitres} Litres", color = RaahiOrange, fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
                 }
             }
         }
@@ -446,10 +446,10 @@ private fun MileageTrendCard(savings: SavingsSummaryDto, onAddFuel: () -> Unit) 
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
-                        modifier = Modifier.size(36.dp).background(RaahiCyan.copy(alpha = 0.14f), CircleShape),
+                        modifier = Modifier.size(36.dp).background(RaahiOrange.copy(alpha = 0.10f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Outlined.Speed, contentDescription = null, tint = RaahiCyan, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Outlined.Speed, contentDescription = null, tint = RaahiOrange, modifier = Modifier.size(18.dp))
                     }
                     Spacer(Modifier.width(10.dp))
                     Column {
@@ -491,7 +491,7 @@ private fun MileageTrendCard(savings: SavingsSummaryDto, onAddFuel: () -> Unit) 
                 Spacer(Modifier.height(10.dp))
                 Button(
                     onClick = onAddFuel,
-                    colors = ButtonDefaults.buttonColors(containerColor = RaahiCyan.copy(alpha = 0.15f), contentColor = RaahiCyan),
+                    colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange.copy(alpha = 0.10f), contentColor = RaahiCyan),
                     shape = RaahiShapeSmall,
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -603,7 +603,7 @@ private fun FuelPriceRadarCard(radar: FuelPriceRadarDto, onFuelRates: () -> Unit
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text("Border Difference", color = RaahiTextDim, fontSize = 11.sp)
-                    Text(radar.priceDifferencePerLitre?.let { "-₹$it/L" } ?: "0.00", color = RaahiCyan, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text(radar.priceDifferencePerLitre?.let { "-₹$it/L" } ?: "0.00", color = RaahiOrange, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 }
             }
         }
@@ -635,7 +635,7 @@ private fun MaintenanceSpendCard(savings: SavingsSummaryDto, onServiceHistory: (
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text("Lifetime Recorded", color = RaahiTextDim, fontSize = 11.5.sp)
-                    Text("₹${totalSpend.toInt()}", color = RaahiCyan, fontWeight = FontWeight.Bold, fontSize = 16.sp, fontFamily = RaahiDisplayFont)
+                    Text("₹${totalSpend.toInt()}", color = RaahiOrange, fontWeight = FontWeight.Bold, fontSize = 16.sp, fontFamily = RaahiDisplayFont)
                 }
             }
 
@@ -673,7 +673,7 @@ private fun CommunityBenchmarkCard(benchmark: CommunityBenchmarkDto) {
                 )
                 Box(
                     modifier = Modifier
-                        .background(if (benchmark.available) RaahiCyan.copy(alpha = 0.15f) else RaahiBorderSoft, RaahiShapePill)
+                        .background(if (benchmark.available) RaahiOrange.copy(alpha = 0.10f) else RaahiBorderSoft, RaahiShapePill)
                         .padding(horizontal = 8.dp, vertical = 3.dp)
                 ) {
                     Text(

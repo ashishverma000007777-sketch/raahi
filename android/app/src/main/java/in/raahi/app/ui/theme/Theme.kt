@@ -21,32 +21,32 @@ import `in`.raahi.app.R
 // ---------------------------------------------------------------------------------------
 
 // Backgrounds
-val RaahiBg = Color(0xFFFAF7F2)          // Light warm cream / off-white (page root)
+val RaahiBg = Color(0xFFF5F8FC)          // Light warm cream / off-white (page root)
 val RaahiBg2 = Color(0xFFFFFFFF)         // Clean white card / surface
 val RaahiGlass = Color(0xFFFFFFFF)       // White card surface
 val RaahiGlassStrong = Color(0xFFFFFFFF) // Elevated white card surface
-val RaahiBorder = Color(0xFFEDE8E1)      // Soft subtle warm border
-val RaahiBorderSoft = Color(0xFFF3EFEA)  // Soft light border
+val RaahiBorder = Color(0xFFE2E9F3)      // Soft subtle warm border
+val RaahiBorderSoft = Color(0xFFEBF0F7)  // Soft light border
 
 // Text — Deep Navy Typography
-val RaahiText = Color(0xFF111827)        // Deep navy primary text
-val RaahiTextDim = Color(0xFF475569)     // Slate navy secondary text
-val RaahiTextFaint = Color(0xFF94A3B8)   // Soft muted slate text
+val RaahiText = Color(0xFF142039)        // Deep navy primary text
+val RaahiTextDim = Color(0xFF596780)     // Slate navy secondary text
+val RaahiTextFaint = Color(0xFF8B97AA)   // Soft muted slate text
 
 // Accents — Automotive Coral Red
-val RaahiOrange = Color(0xFFFF4B3A)      // Vibrant automotive coral red
-val RaahiAmber = Color(0xFFF59E0B)       // Warm Amber
-val RaahiPink = Color(0xFFFF3366)        // Subtle pink/coral
-val RaahiGreen = Color(0xFF10B981)       // Emerald Green (completed / healthy)
-val RaahiCyan = Color(0xFF0EA5E9)        // Sky Cyan
-val RaahiVioletAccent = Color(0xFF7C5CFF)
-val RaahiRed = Color(0xFFEF4444)         // Emergency Red (SOS)
+val RaahiOrange = Color(0xFFFF6B35)      // Vibrant automotive coral red
+val RaahiAmber = Color(0xFFFFB547)       // Warm Amber
+val RaahiPink = Color(0xFFF28BA8)        // Subtle pink/coral
+val RaahiGreen = Color(0xFF22B573)       // Emerald Green (completed / healthy)
+val RaahiCyan = Color(0xFF4D9EFF)        // Sky Cyan
+val RaahiVioletAccent = Color(0xFF8A72F5)
+val RaahiRed = Color(0xFFE5484D)         // Emergency Red (SOS)
 
 // Coral / Selection tokens
-val RaahiCoral = Color(0xFFFF4B3A)
-val RaahiCoralGlow = Color(0x33FF4B3A)
-val RaahiSelectionBg = Color(0xFFFFF0ED)
-val RaahiSelectionBorder = Color(0xFFFF4B3A)
+val RaahiCoral = Color(0xFFFF6B35)
+val RaahiCoralGlow = Color(0x26FF6B35)
+val RaahiSelectionBg = Color(0xFFFFF0E8)
+val RaahiSelectionBorder = Color(0xFFFF6B35)
 
 // Backward-compat aliases
 val RaahiNavyBackground = RaahiBg
@@ -63,8 +63,8 @@ val RaahiYellow = RaahiAmber
 val RaahiWarningOrange = RaahiAmber
 
 // Signature gradients
-val RaahiBrandGradient = Brush.horizontalGradient(listOf(Color(0xFFFF5242), Color(0xFFFF3366)))
-val RaahiAiGradient = Brush.linearGradient(listOf(Color(0xFF0EA5E9), Color(0xFF7C5CFF)))
+val RaahiBrandGradient = Brush.horizontalGradient(listOf(Color(0xFFFF6B35), Color(0xFFFFA45B)))
+val RaahiAiGradient = Brush.linearGradient(listOf(Color(0xFF4D9EFF), Color(0xFF8A72F5)))
 fun raahiHeroGradient() = Brush.linearGradient(
     listOf(Color(0xFFFFF6F0), Color(0xFFFFFFFF))
 )

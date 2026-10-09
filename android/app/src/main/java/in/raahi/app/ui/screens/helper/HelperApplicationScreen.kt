@@ -80,12 +80,12 @@ private fun StatusView(s: HelperApplicationUiState, vm: HelperApplicationViewMod
         "SUSPENDED" -> Triple(RaahiRed, "Helper account suspended", st.suspensionReason?.let { "Reason: $it. Contact Raahi support to review your account." } ?: "Contact Raahi support to review your account.")
         else -> Triple(RaahiTextDim, "No application yet", "")
     }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 18.dp)) {
         GlassCard(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(18.dp)) {
+            Column(Modifier.padding(20.dp)) {
                 RaahiStatusPill(st.applicationStatus, tint)
                 Spacer(Modifier.height(12.dp))
-                Text(title, color = RaahiText, fontSize = 18.sp, fontWeight = FontWeight.Bold, fontFamily = RaahiDisplayFont)
+                Text(title, color = RaahiText, fontSize = 20.sp, fontWeight = FontWeight.Bold, fontFamily = RaahiDisplayFont)
                 Spacer(Modifier.height(6.dp))
                 Text(body, color = RaahiTextDim, fontSize = 13.5.sp)
             }
@@ -112,12 +112,12 @@ private fun Wizard(s: HelperApplicationUiState, vm: HelperApplicationViewModel) 
     val steps = WizardStep.entries
     Column(Modifier.fillMaxSize()) {
         // progress dots
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             steps.forEach {
                 Box(Modifier.weight(1f).height(4.dp).background(if (it.ordinal <= s.step.ordinal) RaahiOrange else RaahiBorder, CircleShape))
             }
         }
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp)) {
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 18.dp)) {
             when (s.step) {
                 WizardStep.BASICS -> BasicsStep(s.form, vm)
                 WizardStep.SERVICES -> ChipStep("What can you help with?", PROBLEM_TYPES.map { it.label to it.id.uppercase() }, s.form.services) { sel ->
@@ -133,7 +133,7 @@ private fun Wizard(s: HelperApplicationUiState, vm: HelperApplicationViewModel) 
             }
             s.error?.let { Spacer(Modifier.height(12.dp)); Text(it, color = RaahiRed, fontSize = 13.sp, fontWeight = FontWeight.Medium) }
         }
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
             if (s.step == WizardStep.REVIEW) {
                 RaahiPrimaryButton("Submit application", onClick = vm::submit, loading = s.submitting)
             } else {
@@ -190,7 +190,7 @@ private fun UploadRow(label: String, uri: Uri?, onPicked: (Uri) -> Unit) {
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { picked -> if (picked != null) onPicked(picked) }
     GlassCard(Modifier.fillMaxWidth().clickable { launcher.launch("image/*") }) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(10.dp).background(if (uri != null) RaahiGreen else RaahiTextFaint, CircleShape))
+            Box(Modifier.size(12.dp).background(if (uri != null) RaahiGreen else RaahiTextFaint, CircleShape))
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(label, color = RaahiText, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)

@@ -49,12 +49,12 @@ fun MyJobsScreen(
                         Text(
                             text = "My Jobs",
                             color = RaahiText,
-                            fontSize = 18.sp,
+                            fontSize = 22.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = RaahiDisplayFont
                         )
                         Text(
-                            text = "Roadside Assistance Workflow & Requests",
+                            text = "Your requests and active jobs",
                             color = RaahiTextDim,
                             fontSize = 12.sp
                         )
@@ -177,8 +177,8 @@ fun MyJobsScreen(
                             }
                         } else {
                             LazyColumn(
-                                contentPadding = PaddingValues(16.dp),
-                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                                contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 10.dp, bottom = 30.dp),
+                                verticalArrangement = Arrangement.spacedBy(14.dp),
                             ) {
                                 items(s.jobs, key = { it.id }) { job ->
                                     MyJobRow(job, onClick = { onOpenJob(job.id) })
@@ -216,10 +216,10 @@ private fun MyJobsSkeleton() {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .shadow(1.dp, RoundedCornerShape(14.dp), spotColor = Color(0x0C000000))
-                    .background(Color.White, RoundedCornerShape(14.dp))
-                    .border(1.dp, RaahiBorderSoft, RoundedCornerShape(14.dp))
-                    .padding(14.dp),
+                    .shadow(1.dp, RoundedCornerShape(18.dp), spotColor = Color(0x0C000000))
+                    .background(Color.White, RoundedCornerShape(18.dp))
+                    .border(1.dp, RaahiBorderSoft, RoundedCornerShape(18.dp))
+                    .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
@@ -261,9 +261,9 @@ private fun MyJobsSkeleton() {
 private fun MyJobRow(job: JobDto, onClick: () -> Unit) {
     val problem = PROBLEM_TYPES.firstOrNull { it.id == job.problemType }
     val statusColor = when (job.status) {
-        "PENDING" -> RaahiYellow
-        "MATCHED", "ARRIVED", "IN_PROGRESS" -> RaahiCyan
-        "WORK_DONE" -> RaahiYellow
+        "PENDING" -> RaahiAmber
+        "MATCHED", "ARRIVED", "IN_PROGRESS" -> RaahiOrange
+        "WORK_DONE" -> RaahiAmber
         "COMPLETED" -> RaahiGreen
         "CANCELLED", "EXPIRED" -> RaahiRed
         else -> RaahiTextMuted
@@ -271,11 +271,11 @@ private fun MyJobRow(job: JobDto, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(elevation = 2.dp, shape = RoundedCornerShape(14.dp), spotColor = Color(0x10000000))
-            .background(Color.White, RoundedCornerShape(14.dp))
-            .border(1.dp, RaahiBorderSoft, RoundedCornerShape(14.dp))
+            .shadow(elevation = 2.dp, shape = RoundedCornerShape(20.dp), spotColor = Color(0x10000000))
+            .background(Color.White, RoundedCornerShape(20.dp))
+            .border(1.dp, RaahiBorderSoft, RoundedCornerShape(20.dp))
             .clickable(onClick = onClick)
-            .padding(14.dp),
+            .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -302,8 +302,8 @@ private fun MyJobRow(job: JobDto, onClick: () -> Unit) {
         }
         Box(
             modifier = Modifier
-                .background(statusColor.copy(alpha = 0.14f), RoundedCornerShape(20.dp))
-                .padding(horizontal = 10.dp, vertical = 5.dp)
+                .background(statusColor.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
+                .padding(horizontal = 11.dp, vertical = 7.dp)
         ) {
             Text(
                 text = job.status.replace('_', ' '),

@@ -63,7 +63,7 @@ fun TripPlanScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .padding(horizontal = 18.dp, vertical = 14.dp)
         ) {
 
             // Vehicle & Current Telemetry info badge (Auto-obtained)
@@ -71,21 +71,21 @@ fun TripPlanScreen(
             if (vehicle != null) {
                 GlassCard(
                     modifier = Modifier.fillMaxWidth(),
-                    borderColor = RaahiCyan.copy(alpha = 0.25f),
-                    background = RaahiCyan.copy(alpha = 0.05f)
+                    borderColor = RaahiOrange.copy(alpha = 0.22f),
+                    background = RaahiOrange.copy(alpha = 0.04f)
                 ) {
                     Row(
-                        modifier = Modifier.padding(14.dp),
+                        modifier = Modifier.padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
                             modifier = Modifier
                                 .size(38.dp)
                                 .clip(CircleShape)
-                                .background(RaahiCyan.copy(alpha = 0.15f)),
+                                .background(RaahiOrange.copy(alpha = 0.13f)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Filled.DirectionsCar, contentDescription = null, tint = RaahiCyan, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Filled.DirectionsCar, contentDescription = null, tint = RaahiOrange, modifier = Modifier.size(20.dp))
                         }
                         Spacer(Modifier.width(12.dp))
                         Column {
@@ -112,7 +112,7 @@ fun TripPlanScreen(
             Spacer(Modifier.height(8.dp))
 
             GlassCard(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(18.dp)) {
                     // Start Location
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Filled.LocationOn, contentDescription = null, tint = RaahiGreen, modifier = Modifier.size(20.dp))
@@ -129,8 +129,8 @@ fun TripPlanScreen(
                             unfocusedTextColor = RaahiText,
                             focusedBorderColor = RaahiOrange,
                             unfocusedBorderColor = RaahiBorder,
-                            focusedContainerColor = RaahiBg2,
-                            unfocusedContainerColor = RaahiBg2,
+                            focusedContainerColor = Color.White,
+                            unfocusedContainerColor = Color.White,
                         ),
                         placeholder = { Text("e.g. Current Location", color = RaahiTextFaint) },
                         singleLine = true
@@ -172,9 +172,9 @@ fun TripPlanScreen(
                         listOf("Manali", "Jaipur", "Agra", "Rishikesh").forEach { spot ->
                             Box(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(RaahiGlassStrong)
-                                    .border(1.dp, RaahiBorderSoft, RoundedCornerShape(8.dp))
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color.White)
+                                    .border(1.dp, RaahiBorderSoft, RoundedCornerShape(12.dp))
                                     .clickable { viewModel.onDestinationChanged(spot) }
                                     .padding(horizontal = 10.dp, vertical = 5.dp)
                             ) {
@@ -231,8 +231,8 @@ fun TripPlanScreen(
                                     modifier = Modifier
                                         .size(36.dp)
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(if (selected) RaahiOrange else RaahiBg2)
-                                        .border(1.dp, if (selected) RaahiOrange else RaahiBorder, RoundedCornerShape(8.dp))
+                                        .background(if (selected) RaahiOrange else Color.White)
+                                        .border(1.dp, if (selected) RaahiOrange else RaahiBorder, RoundedCornerShape(12.dp))
                                         .clickable { viewModel.onPassengersChanged(count) },
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -258,8 +258,8 @@ fun TripPlanScreen(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(if (selected) RaahiOrange.copy(alpha = 0.15f) else RaahiBg2)
-                                    .border(1.dp, if (selected) RaahiOrange else RaahiBorder, RoundedCornerShape(8.dp))
+                                    .background(if (selected) RaahiOrange.copy(alpha = 0.12f) else Color.White)
+                                    .border(1.dp, if (selected) RaahiOrange else RaahiBorder, RoundedCornerShape(12.dp))
                                     .clickable { viewModel.onPreferredRouteChanged(route) }
                                     .padding(horizontal = 12.dp, vertical = 7.dp)
                             ) {

@@ -262,10 +262,10 @@ fun Ticker(items: List<String>, modifier: Modifier = Modifier) {
     Box(
         modifier
             .fillMaxWidth()
-            .height(30.dp)
-            .shadow(elevation = 1.dp, shape = RaahiShapeSmall, spotColor = Color(0x0D000000))
-            .background(Color.White, RaahiShapeSmall)
-            .border(1.dp, RaahiBorderSoft, RaahiShapeSmall),
+            .height(38.dp)
+            .shadow(elevation = 1.dp, shape = RaahiShapePill, spotColor = Color(0x0D000000))
+            .background(Color.White, RaahiShapePill)
+            .border(1.dp, RaahiBorderSoft, RaahiShapePill),
         contentAlignment = Alignment.CenterStart,
     ) {
         Row(
@@ -273,7 +273,7 @@ fun Ticker(items: List<String>, modifier: Modifier = Modifier) {
             horizontalArrangement = Arrangement.spacedBy(22.dp),
         ) {
             items.forEach { text ->
-                Text(text, color = RaahiTextDim, fontSize = 11.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+                Text(text, color = RaahiTextDim, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1)
             }
         }
     }
@@ -295,10 +295,10 @@ fun RaahiBottomNavBar(current: RaahiTab, onSelect: (RaahiTab) -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 10.dp)
-            .height(60.dp)
-            .shadow(elevation = 10.dp, shape = RoundedCornerShape(26.dp), spotColor = Color(0x18000000), ambientColor = Color(0x0A000000))
-            .background(Color.White, RoundedCornerShape(26.dp))
-            .border(1.dp, Color(0xFFEDE8E1), RoundedCornerShape(26.dp)),
+            .height(64.dp)
+            .shadow(elevation = 8.dp, shape = RoundedCornerShape(28.dp), spotColor = Color(0x18000000), ambientColor = Color(0x0A000000))
+            .background(Color.White, RoundedCornerShape(28.dp))
+            .border(1.dp, Color(0xFFEDE8E1), RoundedCornerShape(28.dp)),
     ) {
         Row(
             modifier = Modifier.fillMaxSize(),
@@ -391,9 +391,9 @@ fun RaahiPrimaryButton(
         enabled = enabled && !loading,
         modifier = modifier
             .fillMaxWidth()
-            .height(54.dp)
-            .then(if (enabled) Modifier.shadow(elevation = 6.dp, shape = RoundedCornerShape(16.dp), spotColor = container) else Modifier),
-        shape = RoundedCornerShape(16.dp),
+            .height(56.dp)
+            .then(if (enabled) Modifier.shadow(elevation = 4.dp, shape = RoundedCornerShape(18.dp), spotColor = container.copy(alpha = 0.45f)) else Modifier),
+        shape = RoundedCornerShape(18.dp),
         colors = androidx.compose.material3.ButtonDefaults.buttonColors(
             containerColor = container,
             disabledContainerColor = container.copy(alpha = 0.35f),
@@ -420,8 +420,8 @@ fun RaahiOutlineButton(
     androidx.compose.material3.OutlinedButton(
         onClick = onClick,
         enabled = enabled,
-        modifier = modifier.fillMaxWidth().height(50.dp),
-        shape = RoundedCornerShape(16.dp),
+        modifier = modifier.fillMaxWidth().height(52.dp),
+        shape = RoundedCornerShape(18.dp),
         border = androidx.compose.foundation.BorderStroke(1.dp, tint.copy(alpha = if (enabled) 0.6f else 0.25f)),
         colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(containerColor = Color.White, contentColor = tint),
     ) {
@@ -448,8 +448,8 @@ fun RaahiTextField(
         singleLine = singleLine,
         minLines = minLines,
         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = keyboardType),
-        modifier = modifier.fillMaxWidth().shadow(elevation = 1.dp, shape = RaahiShapeSmall, spotColor = Color(0x0C000000)),
-        shape = RaahiShapeSmall,
+        modifier = modifier.fillMaxWidth().shadow(elevation = 1.dp, shape = RoundedCornerShape(14.dp), spotColor = Color(0x0A000000)),
+        shape = RoundedCornerShape(14.dp),
         colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
             focusedTextColor = RaahiText, unfocusedTextColor = RaahiText,
             focusedBorderColor = RaahiOrange, unfocusedBorderColor = RaahiBorder,

@@ -68,9 +68,9 @@ fun SosScreen(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFFE11D48),
-                        Color(0xFFDC2626),
-                        Color(0xFF991B1B)
+                        Color(0xFFFFF4EE),
+                        Color(0xFFFFE9E2),
+                        Color(0xFFFFF7F2)
                     )
                 )
             )
@@ -84,26 +84,26 @@ fun SosScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back", tint = Color.White)
+                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back", tint = Color(0xFF292524))
                 }
                 Column(Modifier.weight(1f)) {
                     Text(
                         "SOS",
-                        color = Color.White,
+                        color = Color(0xFF292524),
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = RaahiDisplayFont
                     )
                     Text(
                         "Emergency Assistance",
-                        color = Color.White.copy(alpha = 0.8f),
+                        color = Color(0xFF78716C),
                         fontSize = 11.5.sp
                     )
                 }
                 TextButton(onClick = onEmergencyContacts) {
-                    Icon(Icons.Filled.ContactPhone, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Filled.ContactPhone, contentDescription = null, tint = Color(0xFFE11D48), modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("Contacts", color = Color.White, fontWeight = FontWeight.SemiBold)
+                    Text("Contacts", color = Color(0xFFE11D48), fontWeight = FontWeight.SemiBold)
                 }
             }
 
@@ -205,7 +205,7 @@ private fun IdleSosBody(
 
             Text(
                 text = "Slide the slider below to alert\nnearby helpers and emergency contacts",
-                color = Color.White,
+                color = Color(0xFF57534E),
                 textAlign = TextAlign.Center,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
@@ -214,7 +214,7 @@ private fun IdleSosBody(
 
             if (error != null) {
                 Spacer(Modifier.height(14.dp))
-                Text(error, color = Color(0xFFFFD1D1), fontSize = 12.5.sp, textAlign = TextAlign.Center)
+                Text(error, color = Color(0xFFB91C1C), fontSize = 12.5.sp, textAlign = TextAlign.Center)
             }
         }
 

@@ -217,16 +217,16 @@ fun PhoneLoginScreen(
                 .statusBarsPadding()
                 .imePadding()
                 .verticalScroll(scrollState)
-                .padding(horizontal = 24.dp, vertical = 20.dp),
+                .padding(horizontal = 22.dp, vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
                 // New Raahi Brand Emblem (Heroic, seamless, subtle entrance + glow)
                 RaahiEmblem(
-                    size = 80.dp,
+                    size = 76.dp,
                     glow = true,
                     animated = true,
                     modifier = Modifier.graphicsLayer {
@@ -262,7 +262,7 @@ fun PhoneLoginScreen(
                     modifier = Modifier.padding(horizontal = 16.dp)
                 )
 
-                Spacer(modifier = Modifier.height(36.dp))
+                Spacer(modifier = Modifier.height(30.dp))
 
                 // Phone Input Card with Focus Animation
                 val cardBorderBrush = when {
@@ -279,7 +279,7 @@ fun PhoneLoginScreen(
                         .clip(RaahiShapeMedium)
                         .background(cardBg)
                         .border(1.5.dp, cardBorderBrush, RaahiShapeMedium)
-                        .padding(horizontal = 16.dp, vertical = 14.dp)
+                        .padding(horizontal = 16.dp, vertical = 16.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -369,7 +369,8 @@ fun PhoneLoginScreen(
                                 modifier = Modifier
                                     .size(24.dp)
                                     .clip(CircleShape)
-                                    .background(RaahiGlassStrong)
+                                    .background(Color.White)
+                                    .border(1.dp, RaahiBorderSoft, CircleShape)
                                     .clickable {
                                         phoneInput = TextFieldValue("")
                                         errorText = null
@@ -430,7 +431,7 @@ fun PhoneLoginScreen(
                 val isSending = state is AuthUiState.SendingOtp
                 val buttonModifier = Modifier
                     .fillMaxWidth()
-                    .height(54.dp)
+                    .height(56.dp)
                     .graphicsLayer {
                         scaleX = buttonScale
                         scaleY = buttonScale
@@ -440,7 +441,7 @@ fun PhoneLoginScreen(
                         if (isValid && !isSending) {
                             Modifier.background(RaahiBrandGradient)
                         } else {
-                            Modifier.background(RaahiGlassStrong)
+                            Modifier.background(Color(0xFFF0ECE7))
                         }
                     )
                     .clickable(
@@ -493,7 +494,7 @@ fun PhoneLoginScreen(
 
             // Legal & Security Disclaimer
             Column(
-                modifier = Modifier.padding(top = 32.dp, bottom = 12.dp),
+                modifier = Modifier.padding(top = 24.dp, bottom = 10.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(

@@ -40,7 +40,7 @@ import java.util.Locale
 
 private val WalletInk = Color(0xFF202A35)
 private val WalletMuted = Color(0xFF77818D)
-private val WalletCanvas = Color(0xFFF4F6F8)
+private val WalletCanvas = Color(0xFFFAF7F2)
 private val WalletGreen = Color(0xFF16845B)
 private val WalletRed = Color(0xFFCB4A4A)
 private val WalletOrange = Color(0xFFE87932)

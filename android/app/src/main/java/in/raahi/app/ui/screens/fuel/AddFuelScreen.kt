@@ -77,8 +77,17 @@ fun AddFuelScreen(onBack: () -> Unit, viewModel: AddFuelViewModel = hiltViewMode
                 IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = RaahiText) }
                 Text("Add fuel fill-up", color = RaahiText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Enter the total amount, or litres and price per litre.", color = RaahiTextDim, fontSize = 12.sp)
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Text(
+                    "Enter the total amount, or litres and price per litre.",
+                    color = RaahiTextDim,
+                    fontSize = 13.sp
+                )
                 FuelField("Total amount (₹)", total) { total = it }
                 FuelField("Litres (optional)", litres) { litres = it }
                 FuelField("Price per litre (optional)", price) { price = it }
@@ -100,8 +109,11 @@ private fun FuelField(label: String, value: String, keyboard: KeyboardType = Key
     OutlinedTextField(
         value = value, onValueChange = onChange, label = { Text(label) }, singleLine = true,
         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = keyboard),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
         colors = OutlinedTextFieldDefaults.colors(
             focusedTextColor = RaahiText, unfocusedTextColor = RaahiText,
+            focusedContainerColor = androidx.compose.ui.graphics.Color.White,
+            unfocusedContainerColor = androidx.compose.ui.graphics.Color.White,
             focusedLabelColor = RaahiOrange, unfocusedLabelColor = RaahiTextDim,
             focusedBorderColor = RaahiOrange, unfocusedBorderColor = RaahiBorderSoft, cursorColor = RaahiOrange,
         ),

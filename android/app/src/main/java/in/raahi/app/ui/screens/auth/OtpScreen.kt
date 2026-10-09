@@ -183,7 +183,7 @@ fun OtpScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(scrollState)
-                .padding(horizontal = 24.dp, vertical = 16.dp),
+                .padding(horizontal = 20.dp, vertical = 14.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
@@ -199,9 +199,9 @@ fun OtpScreen(
                             onBack()
                         },
                         modifier = Modifier
-                            .size(40.dp)
+                            .size(42.dp)
                             .clip(CircleShape)
-                            .background(RaahiGlass)
+                            .background(Color.White)
                             .border(1.dp, RaahiBorderSoft, CircleShape)
                     ) {
                         Icon(
@@ -215,7 +215,7 @@ fun OtpScreen(
                     Row(
                         modifier = Modifier
                             .clip(RaahiShapePill)
-                            .background(RaahiGlass)
+                            .background(Color.White)
                             .border(1.dp, RaahiBorderSoft, RaahiShapePill)
                             .padding(horizontal = 10.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -243,7 +243,7 @@ fun OtpScreen(
                 // Security Icon Badge
                 Box(
                     modifier = Modifier
-                        .size(64.dp)
+                        .size(68.dp)
                         .clip(RaahiShapeMedium)
                         .background(RaahiOrange.copy(alpha = 0.12f))
                         .border(1.dp, RaahiOrange.copy(alpha = 0.3f), RaahiShapeMedium),
@@ -288,7 +288,7 @@ fun OtpScreen(
                 Row(
                     modifier = Modifier
                         .clip(RaahiShapePill)
-                        .background(RaahiGlass)
+                        .background(Color.White)
                         .border(1.dp, RaahiBorderSoft, RaahiShapePill)
                         .clickable {
                             viewModel.resetToEnteringPhone()
@@ -424,9 +424,9 @@ fun OtpScreen(
 
                             Box(
                                 modifier = Modifier
-                                    .size(width = 46.dp, height = 54.dp)
+                                    .size(width = 46.dp, height = 56.dp)
                                     .clip(RaahiShapeSmall)
-                                    .background(if (digit.isNotEmpty()) RaahiGlassStrong else RaahiGlass)
+                                    .background(if (digit.isNotEmpty()) Color(0xFFFFF0E8) else Color.White)
                                     .border(if (isFocused) 2.dp else 1.dp, boxBorder, RaahiShapeSmall)
                                     .clickable {
                                         otpState.selectCell(i)
@@ -493,8 +493,8 @@ fun OtpScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(top = 16.dp)
-                                .clip(RoundedCornerShape(10.dp))
+                                .padding(top = 14.dp)
+                                .clip(RoundedCornerShape(12.dp))
                                 .background(RaahiRed.copy(alpha = 0.12f))
                                 .border(1.dp, RaahiRed.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
                                 .padding(horizontal = 14.dp, vertical = 10.dp),
@@ -595,13 +595,13 @@ fun OtpScreen(
                 // Primary Verify Button
                 val buttonModifier = Modifier
                     .fillMaxWidth()
-                    .height(54.dp)
+                    .height(56.dp)
                     .clip(RaahiShapeMedium)
                     .then(
                         if (isCodeComplete && !isVerifying) {
                             Modifier.background(RaahiBrandGradient)
                         } else {
-                            Modifier.background(RaahiGlassStrong)
+                            Modifier.background(Color(0xFFF0ECE7))
                         }
                     )
                     .clickable(

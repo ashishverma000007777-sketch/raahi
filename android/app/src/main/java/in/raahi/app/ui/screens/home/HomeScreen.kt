@@ -190,6 +190,58 @@ private fun LoadingState() {
     }
 }
 
+
+@Composable
+private fun RaahiHomeActionGrid(
+    onRequestHelp: () -> Unit,
+    onFindMechanic: () -> Unit,
+    onMyJobs: () -> Unit,
+    onSos: () -> Unit,
+) {
+    val cards = listOf(
+        HomeActionItem("Request Help", Icons.Outlined.SupportAgent, Color(0xFFFF6B35), Color(0xFFFFF0E8), onRequestHelp),
+        HomeActionItem("Find Mechanic", RaahiIcons.Wrench, Color(0xFF4D9EFF), Color(0xFFEAF3FF), onFindMechanic),
+        HomeActionItem("My Jobs", Icons.Outlined.History, Color(0xFF22B573), Color(0xFFE8F8F0), onMyJobs),
+        HomeActionItem("SOS", Icons.Outlined.Warning, Color(0xFFE5484D), Color(0xFFFFECEC), onSos),
+    )
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        cards.forEach { item ->
+            Column(
+                Modifier.weight(1f).height(102.dp)
+                    .shadow(2.dp, RoundedCornerShape(19.dp), spotColor = Color(0x10000000))
+                    .background(Color.White, RoundedCornerShape(19.dp))
+                    .border(1.dp, Color(0xFFE7ECF3), RoundedCornerShape(19.dp))
+                    .clickable(onClick = item.onClick)
+                    .padding(horizontal = 2.dp, vertical = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Box(
+                    Modifier.size(38.dp).background(item.background, RoundedCornerShape(13.dp)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(item.icon, contentDescription = item.title, tint = item.tint, modifier = Modifier.size(21.dp))
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(item.title, color = Color(0xFF142039), fontSize = 10.sp,
+                    fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+            }
+        }
+    }
+}
+
+private data class HomeActionItem(
+    val title: String,
+    val icon: ImageVector,
+    val tint: Color,
+    val background: Color,
+    val onClick: () -> Unit,
+)
+
 @Composable
 private fun HomeContent(
     user: UserDto?, activeJob: JobDto?, activeTrip: `in`.raahi.app.network.TripDto? = null, vehicle: VehicleDto?, carHealth: CarHealthDto?,
@@ -224,9 +276,17 @@ private fun HomeContent(
             Modifier
                 .fillMaxSize()
                 .verticalScroll(scrollState)
-                .padding(bottom = 24.dp)
+                .padding(bottom = 30.dp)
         ) {
-            Spacer(Modifier.height(64.dp)) // Space for floating header
+            Spacer(Modifier.height(68.dp)) // Space for floating header
+
+            // 5. Real Ticker (if available)
+            val tickerItems = tickerItems(vehicle, carHealth, metrics)
+            if (tickerItems.isNotEmpty()) {
+                Ticker(items = tickerItems, modifier = Modifier.padding(horizontal = 18.dp))
+                Spacer(Modifier.height(14.dp))
+            }
+
 
             if (offlineError != null) {
                 OfflineStatusBanner(
@@ -242,31 +302,27 @@ private fun HomeContent(
                 Spacer(Modifier.height(10.dp))
             }
 
-            // 5. Real Ticker (if available)
-            val tickerItems = tickerItems(vehicle, carHealth, metrics)
-            if (tickerItems.isNotEmpty()) {
-                Ticker(items = tickerItems, modifier = Modifier.padding(horizontal = 16.dp))
-                Spacer(Modifier.height(14.dp))
-            }
+            
 
             // 1. Greeting hero
             GreetingHeroBanner(user)
             Spacer(Modifier.height(14.dp))
 
-            // 2. Primary Action Cards: Request Help & Find Mechanic (Screen 6 reference)
-            PrimaryActionCards(onRequestHelp, onNearbyMechanics)
-            Spacer(Modifier.height(12.dp))
+            // Four primary actions from the Home reference layout.
+            RaahiHomeActionGrid(
+                onRequestHelp = onRequestHelp,
+                onFindMechanic = onNearbyMechanics,
+                onMyJobs = onMyJobs,
+                onSos = onSos,
+            )
+            Spacer(Modifier.height(16.dp))
 
-            // 3. Secondary Actions Row: My Jobs, Car Health, SOS Emergency (Screen 6 reference)
-            SecondaryActionsRow(onMyJobs, onCarHealth, onSos)
-            Spacer(Modifier.height(14.dp))
-
-            // 4. AI Mechanic Card (Screen 6 reference)
-            AiMechanicCard(onClick = onAiMechanic)
-            Spacer(Modifier.height(14.dp))
-
-            // 6. Vehicle / Car Health Hero Card
+            // Vehicle status follows the primary actions.
             VehicleHeroCard(vehicle, carHealth, onSetupVehicle, onCarHealth)
+            Spacer(Modifier.height(14.dp))
+
+            // AI Mechanic remains prominent.
+            AiMechanicCard(onClick = onAiMechanic)
             Spacer(Modifier.height(14.dp))
 
             // 7. Plan Trip Card
@@ -287,12 +343,12 @@ private fun HomeContent(
 
             // 8. This week
             Spacer(Modifier.height(20.dp))
-            Box(Modifier.padding(horizontal = 16.dp)) { SectionLabel("This week") }
-            WeekStrip(metrics = metrics, onAddFuel = onAddFuel, modifier = Modifier.padding(horizontal = 16.dp))
+            Box(Modifier.padding(horizontal = 18.dp)) { SectionLabel("This week") }
+            WeekStrip(metrics = metrics, onAddFuel = onAddFuel, modifier = Modifier.padding(horizontal = 18.dp))
 
             // 9. More Section
             Spacer(Modifier.height(18.dp))
-            Box(Modifier.padding(horizontal = 16.dp)) { SectionLabel("More") }
+            Box(Modifier.padding(horizontal = 18.dp)) { SectionLabel("More") }
             DailyRow(onOpenDaily)
         }
 
@@ -324,7 +380,7 @@ private fun BoxScope.HeaderRow(
     val scrollFraction by androidx.compose.animation.core.animateFloatAsState(
         targetValue = if (scrolled) 1f else 0f, label = "headerBgFraction",
     )
-    val bg = androidx.compose.ui.graphics.lerp(Color.Transparent, Color(0xF2FAF7F2), scrollFraction)
+    val bg = androidx.compose.ui.graphics.lerp(Color.Transparent, Color(0xF2F5F8FC), scrollFraction)
     Row(
         modifier = Modifier
             .align(Alignment.TopCenter)
@@ -1025,7 +1081,7 @@ private fun DailyRow(onOpenDaily: (String) -> Unit) {
         Triple("places", "\uD83D\uDCCD", "Places"), Triple("tips", "\uD83D\uDCA1", "Tips"),
         Triple("fuel", "\u26FD", "Fuel"), Triple("shop", "\uD83D\uDED2", "Shop"), Triple("plans", "\u2B50", "Plans"),
     )
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(horizontal = 16.dp)) {
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(horizontal = 18.dp)) {
         items(items) { (key, emoji, label) ->
             Column(
                 modifier = Modifier
@@ -1034,7 +1090,7 @@ private fun DailyRow(onOpenDaily: (String) -> Unit) {
                     .background(Color.White, RaahiShapeMedium)
                     .border(1.dp, RaahiBorderSoft, RaahiShapeMedium)
                     .clickable { onOpenDaily(key) }
-                    .padding(vertical = 12.dp),
+                    .padding(vertical = 14.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(emoji, fontSize = 18.sp)

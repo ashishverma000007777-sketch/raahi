@@ -132,10 +132,10 @@ fun MechanicsMapScreen(
 
 @Composable
 private fun TopBar(onBack: () -> Unit, onRefresh: () -> Unit, availableCount: Int, totalCount: Int, errorMessage: String? = null) {
-    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back", tint = RaahiText) }
         Column(Modifier.weight(1f)) {
-            Text("Nearby Mechanics", color = RaahiText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, fontFamily = RaahiDisplayFont)
+            Text("Nearby Mechanics", color = RaahiText, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, fontFamily = RaahiDisplayFont)
             if (errorMessage != null) {
                 Text("Offline mode · Tap to retry", color = RaahiAmber, fontSize = 10.5.sp)
             } else if (totalCount > 0) {
@@ -156,7 +156,7 @@ private fun applyFilter(mechanics: List<MechanicDto>, filter: String): List<Mech
 
 @Composable
 private fun FilterChipRow(categories: List<String>, selected: String, onSelect: (String) -> Unit) {
-    LazyRow(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyRow(contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         items(categories) { c -> RaahiChip(c, c == selected) { onSelect(c) } }
     }
 }
@@ -193,11 +193,11 @@ private fun MechanicsBottomSheet(
     onMechanicClick: (MechanicDto) -> Unit,
     onRecenter: () -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxWidth().background(RaahiBg2, RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))) {
+    Column(modifier = Modifier.fillMaxWidth().background(RaahiBg2, RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp))) {
         Box(Modifier.fillMaxWidth().padding(top = 10.dp), contentAlignment = Alignment.TopCenter) {
             Box(Modifier.width(36.dp).height(4.dp).background(RaahiBorder, RaahiShapePill))
         }
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
             val title = when {
                 errorMessage != null -> "Nearby Mechanics"
                 mechanics.isEmpty() && shops.isEmpty() -> "No mechanics or shops found"
@@ -219,7 +219,7 @@ private fun MechanicsBottomSheet(
         when {
             errorMessage != null -> UnavailableMechanicsState(errorMessage, onRetry = onRetry ?: {}, modifier = Modifier.height(150.dp))
             mechanics.isEmpty() && shops.isEmpty() -> EmptyMechanicsState(Modifier.height(140.dp))
-            else -> LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            else -> LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (mechanics.isNotEmpty()) {
                     item { Text("Verified Raahi mechanics", color = RaahiTextDim, fontSize = 11.sp) }
                     items(mechanics, key = { "verified-${it.userId}" }) { m -> MechanicRow(m) { onMechanicClick(m) } }
@@ -233,7 +233,7 @@ private fun MechanicsBottomSheet(
                             Column(Modifier.weight(1f)) {
                                 Text(shop.name, color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 12.5.sp, maxLines = 2)
                                 if (!shop.address.isNullOrBlank()) Text(shop.address, color = RaahiTextDim, fontSize = 10.5.sp, maxLines = 2)
-                                if (!shop.phone.isNullOrBlank()) Text(shop.phone, color = RaahiCyan, fontSize = 11.sp)
+                                if (!shop.phone.isNullOrBlank()) Text(shop.phone, color = RaahiTextDim, fontSize = 11.sp)
                             }
                             Text("${"%.1f".format(shop.distanceKm)} km", color = RaahiTextDim, fontSize = 10.5.sp)
                         }
@@ -314,7 +314,7 @@ private fun EmptyMechanicsState(modifier: Modifier = Modifier) {
 private fun MechanicRow(m: MechanicDto, onClick: () -> Unit) {
     val isSos = m.specializations?.contains("SOS", ignoreCase = true) == true
     RowCard(onClick = onClick) {
-        IconBadge(if (isSos) Icons.Outlined.SupportAgent else RaahiIcons.Wrench, if (isSos) RaahiRed else RaahiGreen, 36.dp, CircleShape)
+        IconBadge(if (isSos) Icons.Outlined.SupportAgent else RaahiIcons.Wrench, if (isSos) RaahiRed else RaahiGreen, 40.dp, CircleShape)
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(m.shopName ?: m.name ?: "Mechanic", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 12.5.sp, maxLines = 1)
@@ -325,7 +325,7 @@ private fun MechanicRow(m: MechanicDto, onClick: () -> Unit) {
             }
         }
         Column(horizontalAlignment = Alignment.End) {
-            if (m.distanceKm >= 0) Text("${"%.1f".format(m.distanceKm)} km", color = RaahiCyan, fontWeight = FontWeight.Bold, fontSize = 11.5.sp, fontFamily = RaahiDisplayFont)
+            if (m.distanceKm >= 0) Text("${"%.1f".format(m.distanceKm)} km", color = RaahiOrange, fontWeight = FontWeight.Bold, fontSize = 11.5.sp, fontFamily = RaahiDisplayFont)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(6.dp).background(if (m.isAvailable) RaahiGreen else RaahiRed, CircleShape))
                 Spacer(Modifier.width(4.dp))

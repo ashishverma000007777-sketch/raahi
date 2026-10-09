@@ -90,8 +90,8 @@ fun TripHistoryScreen(
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize().padding(padding),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
                         items(trips) { trip ->
                             TripHistoryCard(trip = trip, onClick = { onOpenTrip(trip) })
@@ -109,7 +109,7 @@ private fun TripHistoryCard(trip: TripDto, onClick: () -> Unit) {
         modifier = Modifier.fillMaxWidth(),
         onClick = onClick
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(18.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -118,21 +118,21 @@ private fun TripHistoryCard(trip: TripDto, onClick: () -> Unit) {
                 Text(trip.title, color = RaahiText, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, fontFamily = RaahiDisplayFont)
                 val statusColor = when (trip.status) {
                     "COMPLETED" -> RaahiGreen
-                    "IN_PROGRESS" -> RaahiCyan
+                    "IN_PROGRESS" -> RaahiOrange
                     else -> RaahiAmber
                 }
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(statusColor.copy(alpha = 0.15f))
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(statusColor.copy(alpha = 0.12f))
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
                 ) {
                     Text(trip.status, color = statusColor, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
             Spacer(Modifier.height(6.dp))
-            Text("${trip.startLocationName} → ${trip.destLocationName}", color = RaahiTextDim, fontSize = 12.sp)
+            Text("${trip.startLocationName} → ${trip.destLocationName}", color = RaahiTextDim, fontSize = 13.sp, lineHeight = 18.sp)
 
             Spacer(Modifier.height(12.dp))
             Row(
@@ -151,7 +151,7 @@ private fun TripHistoryCard(trip: TripDto, onClick: () -> Unit) {
                 if (cost != null) {
                     Column {
                         Text("Fuel Cost", color = RaahiTextFaint, fontSize = 11.sp)
-                        Text("₹${String.format(Locale.ROOT, "%.0f", cost)}", color = RaahiAmber, fontWeight = FontWeight.Medium, fontSize = 13.sp)
+                        Text("₹${String.format(Locale.ROOT, "%.0f", cost)}", color = RaahiOrange, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                     }
                 }
             }
