@@ -48,7 +48,7 @@ private val WalletOrange = Color(0xFFE87932)
 private fun walletMoney(value: Double?): String =
     NumberFormat.getCurrencyInstance(Locale("en", "IN")).format(value ?: 0.0)
 
-private data class WalletUiState(
+data class WalletUiState(
     val loading: Boolean = true,
     val status: HelperStatusDto? = null,
     val commission: HelperCommissionDto? = null,
