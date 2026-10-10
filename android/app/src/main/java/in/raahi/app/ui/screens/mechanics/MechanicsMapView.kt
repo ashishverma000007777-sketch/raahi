@@ -56,6 +56,7 @@ fun MechanicsMapView(
     mechanics: List<MechanicDto>,
     shops: List<OsmMechanicShopDto> = emptyList(),
     onMechanicClick: (MechanicDto) -> Unit,
+    onShopClick: (OsmMechanicShopDto) -> Unit = {},
     onMapReady: (MapLibreMap) -> Unit = {},
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -102,13 +103,29 @@ fun MechanicsMapView(
                         .build()
                     map.addOnMapClickListener { point ->
                         val screenPoint = map.projection.toScreenLocation(point)
-                        val features = map.queryRenderedFeatures(screenPoint, MECHANICS_LAYER_ID)
+                        val touchBox = android.graphics.RectF(
+                            screenPoint.x - 32f,
+                            screenPoint.y - 32f,
+                            screenPoint.x + 32f,
+                            screenPoint.y + 32f
+                        )
+                        val features = map.queryRenderedFeatures(touchBox, MECHANICS_LAYER_ID)
                         val mechanicId = features.firstOrNull()?.getStringProperty(MECHANIC_ID_PROPERTY)
-                        val shopFeatures = map.queryRenderedFeatures(screenPoint, SHOPS_LAYER_ID)
-                        if (shopFeatures.isNotEmpty()) return@addOnMapClickListener true
+                        val shopFeatures = map.queryRenderedFeatures(touchBox, SHOPS_LAYER_ID)
+                        if (shopFeatures.isNotEmpty()) {
+                            val shopId = shopFeatures.firstOrNull()?.getStringProperty("osmShopId")
+                            val shop = latestShops.firstOrNull { it.id == shopId }
+                            if (shop != null) {
+                                onShopClick(shop)
+                                return@addOnMapClickListener true
+                            }
+                        }
                         val mechanic = latestMechanics.firstOrNull { it.userId == mechanicId }
-                        if (mechanic != null) onMechanicClick(mechanic)
-                        mechanic != null
+                        if (mechanic != null) {
+                            onMechanicClick(mechanic)
+                            return@addOnMapClickListener true
+                        }
+                        false
                     }
                     onMapReady(map)
                 }

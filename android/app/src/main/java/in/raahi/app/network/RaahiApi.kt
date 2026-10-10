@@ -557,6 +557,9 @@ interface RaahiApi {
     @GET("vehicles/me")
     suspend fun myVehicle(): ApiEnvelope<VehicleDto>
 
+    @DELETE("vehicles/me")
+    suspend fun deleteVehicle(): ApiEnvelope<Map<String, Boolean>>
+
     @PUT("vehicles/me")
     suspend fun upsertVehicle(@Body req: UpsertVehicleRequest): ApiEnvelope<VehicleDto>
 

@@ -1,5 +1,6 @@
 package `in`.raahi.app.ui.screens.daily
 
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -87,27 +88,27 @@ fun HighwayAlertsScreen(onBack: () -> Unit, viewModel: HighwayAlertsViewModel = 
     val state by viewModel.state.collectAsState()
     var showCreate by remember { mutableStateOf(false) }
 
-    Surface(modifier = Modifier.fillMaxSize(), color = RaahiNavyBackground) {
+    Surface(modifier = Modifier.fillMaxSize(), color = RaahiBg) {
         Column(Modifier.fillMaxSize()) {
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = RaahiTextPrimary) }
-                Text("Highway Alerts", color = RaahiTextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                IconButton(onClick = { showCreate = true }) { Icon(Icons.Filled.Add, contentDescription = "Post alert", tint = RaahiOrangeAccent) }
+                IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = RaahiText) }
+                Text("Highway Alerts", color = RaahiText, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                IconButton(onClick = { showCreate = true }) { Icon(Icons.Filled.Add, contentDescription = "Post alert", tint = RaahiOrange) }
             }
 
             when (val s = state) {
-                is AlertsUiState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = RaahiOrangeAccent) }
+                is AlertsUiState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = RaahiOrange) }
                 is AlertsUiState.Error -> Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(s.message, color = RaahiTextMuted)
+                        Text(s.message, color = RaahiTextDim)
                         Spacer(Modifier.height(12.dp))
-                        Button(onClick = viewModel::refresh, colors = ButtonDefaults.buttonColors(containerColor = RaahiOrangeAccent)) { Text("Retry") }
+                        Button(onClick = viewModel::refresh, colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange)) { Text("Retry") }
                     }
                 }
                 is AlertsUiState.Loaded -> {
                     if (s.alerts.isEmpty()) {
                         Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
-                            Text("No active alerts nearby right now", color = RaahiTextMuted)
+                            Text("No active alerts nearby right now", color = RaahiTextDim)
                         }
                     } else {
                         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -129,13 +130,13 @@ fun HighwayAlertsScreen(onBack: () -> Unit, viewModel: HighwayAlertsViewModel = 
 
 @Composable
 private fun AlertCard(alert: AlertDto, onVote: (String) -> Unit) {
-    Column(Modifier.fillMaxWidth().background(RaahiCardBg, RoundedCornerShape(14.dp)).padding(14.dp)) {
-        Text(alert.type.replace('_', ' ').uppercase(), color = RaahiOrangeAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+    Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(20.dp)).padding(18.dp)) {
+        Text(alert.type.replace('_', ' ').uppercase(), color = RaahiOrange, fontSize = 11.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(4.dp))
-        Text(alert.message, color = RaahiTextPrimary, fontSize = 14.sp)
+        Text(alert.message, color = RaahiText, fontSize = 14.sp)
         if (!alert.location.isNullOrBlank()) {
             Spacer(Modifier.height(4.dp))
-            Text(alert.location, color = RaahiTextMuted, fontSize = 11.sp)
+            Text(alert.location, color = RaahiTextDim, fontSize = 11.sp)
         }
         Spacer(Modifier.height(10.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -143,7 +144,7 @@ private fun AlertCard(alert: AlertDto, onVote: (String) -> Unit) {
             Spacer(Modifier.width(16.dp))
             VoteButton(Icons.Filled.ThumbDown, alert.downvotes, active = alert.myVote == "down", color = RaahiRed, enabled = alert.myVote == null) { onVote("down") }
             Spacer(Modifier.weight(1f))
-            alert.postedBy?.let { Text("by $it", color = RaahiTextMuted, fontSize = 10.sp) }
+            alert.postedBy?.let { Text("by $it", color = RaahiTextDim, fontSize = 10.sp) }
         }
     }
 }
@@ -154,9 +155,9 @@ private fun VoteButton(icon: androidx.compose.ui.graphics.vector.ImageVector, co
         modifier = Modifier.clickable(enabled = enabled, onClick = onClick),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, contentDescription = null, tint = if (active) color else RaahiTextMuted, modifier = Modifier.size(16.dp))
+        Icon(icon, contentDescription = null, tint = if (active) color else RaahiTextDim, modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(4.dp))
-        Text(count.toString(), color = if (active) color else RaahiTextMuted, fontSize = 12.sp)
+        Text(count.toString(), color = if (active) color else RaahiTextDim, fontSize = 12.sp)
     }
 }
 

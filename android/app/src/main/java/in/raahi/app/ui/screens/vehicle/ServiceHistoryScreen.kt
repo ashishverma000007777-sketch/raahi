@@ -38,14 +38,14 @@ fun ServiceHistoryScreen(onBack: () -> Unit, viewModel: ServiceHistoryViewModel 
     val state by viewModel.state.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
 
-    Surface(modifier = Modifier.fillMaxSize(), color = RaahiNavyBackground) {
+    Surface(modifier = Modifier.fillMaxSize(), color = RaahiBg) {
         Column(Modifier.fillMaxSize()) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = RaahiTextPrimary) }
-                Text("Service History", color = RaahiTextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Text("Service History", color = RaahiText, fontSize = 21.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                 IconButton(onClick = { showAddDialog = true }) { Icon(Icons.Filled.Add, contentDescription = "Add record", tint = RaahiOrangeAccent) }
             }
 
@@ -72,7 +72,7 @@ fun ServiceHistoryScreen(onBack: () -> Unit, viewModel: ServiceHistoryViewModel 
                             }
                         }
                     } else {
-                        LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        LazyColumn(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                             items(s.records, key = { it.id }) { r -> ServiceRecordCard(r) }
                         }
                     }
@@ -93,11 +93,11 @@ fun ServiceHistoryScreen(onBack: () -> Unit, viewModel: ServiceHistoryViewModel 
 @Composable
 private fun ServiceRecordCard(r: ServiceRecordDto) {
     Column(
-        modifier = Modifier.fillMaxWidth().background(RaahiCardBg, RaahiShapeMedium).padding(14.dp)
+        modifier = Modifier.fillMaxWidth().background(Color.White, RaahiShapeLarge).padding(18.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier.size(36.dp).background(RaahiSurfaceHigh, CircleShape), contentAlignment = Alignment.Center) {
-                Icon(Icons.Filled.Build, contentDescription = null, tint = RaahiOrangeAccent, modifier = Modifier.size(17.dp))
+            Box(modifier = Modifier.size(40.dp).background(RaahiSelectionBg, CircleShape), contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.Build, contentDescription = null, tint = RaahiOrangeAccent, modifier = Modifier.size(19.dp))
             }
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
@@ -223,8 +223,8 @@ private fun DialogField(label: String, value: String, keyboardType: KeyboardType
             shape = RaahiShapeSmall,
             colors = OutlinedTextFieldDefaults.colors(
                 focusedTextColor = RaahiTextPrimary, unfocusedTextColor = RaahiTextPrimary,
-                focusedContainerColor = RaahiSurfaceHigh, unfocusedContainerColor = RaahiSurfaceHigh,
-                focusedBorderColor = RaahiOrangeAccent, unfocusedBorderColor = RaahiCardBorder,
+                focusedContainerColor = Color.White, unfocusedContainerColor = Color.White,
+                focusedBorderColor = RaahiOrange, unfocusedBorderColor = RaahiBorderSoft,
                 cursorColor = RaahiOrangeAccent,
             ),
         )

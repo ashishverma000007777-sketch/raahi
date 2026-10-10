@@ -68,7 +68,7 @@ fun HelperDashboardScreen(
                 st == null -> ErrorBlock(s.error ?: "Could not load your helper status", viewModel::load)
                 st.applicationStatus != "APPROVED" -> NotApprovedBlock(st.applicationStatus, onApplyOrReview)
                 else -> Column(Modifier.fillMaxSize()) {
-                    Column(Modifier.padding(horizontal = 16.dp)) {
+                    Column(Modifier.padding(horizontal = 18.dp)) {
                         OnlineCard(online = st.online, canGoOnline = st.accountActive && st.blockedUntil == null, busy = s.togglingOnline, onToggle = { enabled ->
                             if (enabled && !locationPermission.isGranted) {
                                 pendingOnline = true
@@ -87,10 +87,10 @@ fun HelperDashboardScreen(
                         }
                         s.error?.let { Spacer(Modifier.height(10.dp)); Text(it, color = RaahiRed, fontSize = 12.5.sp, fontWeight = FontWeight.Medium) }
                     }
-                    Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         DashTab.entries.forEach { t -> RaahiChip(t.label, active = s.tab == t) { viewModel.selectTab(t) } }
                     }
-                    Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
+                    Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 18.dp).padding(bottom = 30.dp)) {
                         if (s.tabLoading) {
                             Box(Modifier.fillMaxWidth().padding(8.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = RaahiOrange, modifier = Modifier.size(22.dp), strokeWidth = 2.dp) }
                         }
@@ -143,7 +143,7 @@ private fun NotApprovedBlock(status: String, onApplyOrReview: () -> Unit) {
 @Composable
 private fun OnlineCard(online: Boolean, canGoOnline: Boolean, busy: Boolean, onToggle: (Boolean) -> Unit) {
     GlassCard(Modifier.fillMaxWidth()) {
-        Row(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(horizontal = 18.dp, vertical = 18.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(if (online) "You're online" else "You're offline", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Text(if (online) "Nearby customers can request your help" else "Go online to receive nearby requests", color = RaahiTextDim, fontSize = 12.sp)
@@ -162,8 +162,8 @@ private fun OnlineCard(online: Boolean, canGoOnline: Boolean, busy: Boolean, onT
 
 @Composable
 private fun CommissionDueBanner(due: Double, rate: Double) {
-    Column(Modifier.fillMaxWidth().background(RaahiRed.copy(alpha = 0.10f), RaahiShapeMedium).padding(14.dp)) {
-        Text("Commission due ₹${"%.2f".format(due)}", color = RaahiRed, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+    Column(Modifier.fillMaxWidth().background(RaahiAmber.copy(alpha = 0.12f), RaahiShapeMedium).padding(16.dp)) {
+        Text("Commission due ₹${"%.2f".format(due)}", color = RaahiAmber, fontWeight = FontWeight.Bold, fontSize = 14.sp)
         Spacer(Modifier.height(4.dp))
         Text("Raahi's ${(rate * 100).toInt()}% commission on completed jobs must be settled before you can accept new jobs. Contact Raahi support after paying to have it recorded.", color = RaahiText, fontSize = 12.sp)
     }
@@ -177,8 +177,8 @@ private fun RequestsTab(s: HelperDashUiState, online: Boolean, canAccept: Boolea
     if (!online) { EmptyNote("Go online to see nearby requests."); return }
     if (visible.isEmpty()) { EmptyNote("No nearby requests right now. New requests appear here automatically."); return }
     visible.forEach { job ->
-        GlassCard(Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
-            Column(Modifier.padding(16.dp)) {
+        GlassCard(Modifier.fillMaxWidth().padding(bottom = 14.dp)) {
+            Column(Modifier.padding(18.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(PROBLEM_TYPES.firstOrNull { it.id == job.problemType }?.label ?: job.problemType, color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 16.sp)
@@ -210,8 +210,8 @@ private fun RequestsTab(s: HelperDashUiState, online: Boolean, canAccept: Boolea
 private fun ActiveTab(jobs: List<JobDto>, onOpen: (String) -> Unit) {
     if (jobs.isEmpty()) { EmptyNote("No active job. Accept a request to get started."); return }
     jobs.forEach { job ->
-        GlassCard(Modifier.fillMaxWidth().padding(bottom = 12.dp).clickable { onOpen(job.id) }) {
-            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        GlassCard(Modifier.fillMaxWidth().padding(bottom = 14.dp).clickable { onOpen(job.id) }) {
+            Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(PROBLEM_TYPES.firstOrNull { it.id == job.problemType }?.label ?: job.problemType, color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                     Text(job.requesterName ?: "Requester", color = RaahiTextDim, fontSize = 12.sp)
@@ -247,7 +247,7 @@ private fun EarningsTab(s: HelperDashUiState) {
     val c = s.commission
     if (e == null || c == null) { EmptyNote("Earnings will appear after your first completed job."); return }
     GlassCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.padding(20.dp)) {
             Text("NET EARNINGS", color = RaahiTextFaint, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
             Text("₹${"%.2f".format(e.netEarnings)}", color = RaahiText, fontSize = 30.sp, fontWeight = FontWeight.Bold, fontFamily = RaahiDisplayFont)
             Spacer(Modifier.height(10.dp))
@@ -283,7 +283,7 @@ private fun EarningsTab(s: HelperDashUiState) {
 private fun ProfileTab(s: HelperDashUiState, onApplyOrReview: () -> Unit) {
     val st = s.status ?: return
     GlassCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.padding(20.dp)) {
             Text(st.name ?: "Helper", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 18.sp, fontFamily = RaahiDisplayFont)
             Text(st.phone ?: "", color = RaahiTextDim, fontSize = 12.sp)
             Spacer(Modifier.height(10.dp))

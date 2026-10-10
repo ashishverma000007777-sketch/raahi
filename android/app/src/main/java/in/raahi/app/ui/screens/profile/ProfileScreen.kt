@@ -22,8 +22,12 @@ import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Payment
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Speed
+import androidx.compose.material.icons.outlined.Star
+import androidx.compose.material.icons.outlined.Verified
+import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -57,6 +61,7 @@ fun ProfileScreen(
     onNotifications: () -> Unit = {},
     onPayments: () -> Unit = {},
     onEarnWithRaahi: () -> Unit = onHelper,
+    onManageVehicles: () -> Unit = onEditVehicle,
     viewModel: ProfileViewModel = hiltViewModel(),
     carHealthViewModel: CarHealthViewModel = hiltViewModel(),
 ) {
@@ -64,7 +69,7 @@ fun ProfileScreen(
     val signedOut by viewModel.signedOut.collectAsState()
     val carHealthState by carHealthViewModel.state.collectAsState()
     val odometerError by carHealthViewModel.odometerUpdateError.collectAsState()
-    var tab by remember { mutableStateOf(ProfileSubTab.CAR_HEALTH) }
+    var tab by rememberSaveable { mutableStateOf(ProfileSubTab.PROFILE) }
     val scrollState = rememberScrollState()
 
     LaunchedEffect(signedOut) { if (signedOut) onSignedOut() }
@@ -93,8 +98,11 @@ fun ProfileScreen(
                             )
                             ProfileSubTab.PROFILE -> ProfileTab(
                                 user = null,
+                                vehicle = (carHealthState as? CarHealthUiState.Loaded)?.vehicle,
                                 onEditProfile = onEditProfile,
-                                onEditVehicle = onEditVehicle,
+                                onManageVehicles = onManageVehicles,
+                                onSetupVehicle = onSetupVehicle,
+                                onServiceHistory = onServiceHistory,
                                 onSignOut = viewModel::signOut,
                                 onHelper = onHelper,
                                 onEarnWithRaahi = onEarnWithRaahi,
@@ -125,8 +133,11 @@ fun ProfileScreen(
                             )
                             ProfileSubTab.PROFILE -> ProfileTab(
                                 user = s.user,
+                                vehicle = (carHealthState as? CarHealthUiState.Loaded)?.vehicle,
                                 onEditProfile = onEditProfile,
-                                onEditVehicle = onEditVehicle,
+                                onManageVehicles = onManageVehicles,
+                                onSetupVehicle = onSetupVehicle,
+                                onServiceHistory = onServiceHistory,
                                 onSignOut = viewModel::signOut,
                                 onHelper = onHelper,
                                 onEarnWithRaahi = onEarnWithRaahi,
@@ -162,24 +173,39 @@ private fun ProfileHeader(onBack: () -> Unit, user: UserDto?, onEdit: () -> Unit
                 .shadow(elevation = 2.dp, shape = RoundedCornerShape(16.dp), spotColor = Color(0x10000000))
                 .background(Color.White, RoundedCornerShape(16.dp))
                 .border(1.dp, RaahiBorderSoft, RoundedCornerShape(16.dp))
+                .clickable(onClick = onEdit)
                 .padding(14.dp)
         ) {
-            Box(modifier = Modifier.size(52.dp).background(RaahiOrange, CircleShape), contentAlignment = Alignment.Center) {
-                Text((user?.name?.trim()?.firstOrNull() ?: 'A').uppercaseChar().toString(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 22.sp, fontFamily = RaahiDisplayFont)
+            Box(modifier = Modifier.size(52.dp).background(RaahiBrandGradient, CircleShape), contentAlignment = Alignment.Center) {
+                val initial = user?.name?.trim()?.firstOrNull()?.uppercaseChar()?.toString() ?: "R"
+                Text(initial, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 22.sp, fontFamily = RaahiDisplayFont)
             }
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
-                Text(user?.name?.takeIf { it.isNotBlank() } ?: "Ankush Verma", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 16.5.sp, fontFamily = RaahiDisplayFont)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        user?.name?.takeIf { it.isNotBlank() } ?: "Raahi Member",
+                        color = RaahiText,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.5.sp,
+                        fontFamily = RaahiDisplayFont
+                    )
+                    if (user?.isVerified == true) {
+                        Spacer(Modifier.width(6.dp))
+                        Icon(Icons.Outlined.Verified, contentDescription = "Verified Member", tint = RaahiCyan, modifier = Modifier.size(15.dp))
+                    }
+                }
                 val phone = user?.phone
                 if (!phone.isNullOrBlank()) {
                     Text(phone, color = RaahiTextDim, fontSize = 12.sp)
                 } else {
-                    Text("+91 98765 43210", color = RaahiTextDim, fontSize = 12.sp)
+                    Text("Phone verified", color = RaahiTextDim, fontSize = 12.sp)
                 }
                 Text(
-                    "ID: ${user?.id ?: "N/A"}",
-                    color = RaahiTextFaint,
-                    fontSize = 9.sp
+                    user?.role?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Driver",
+                    color = RaahiOrange,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 10.5.sp
                 )
             }
             Icon(Icons.AutoMirrored.Outlined.ArrowForward, contentDescription = null, tint = RaahiTextFaint, modifier = Modifier.size(16.dp))
@@ -189,20 +215,31 @@ private fun ProfileHeader(onBack: () -> Unit, user: UserDto?, onEdit: () -> Unit
 
 @Composable
 private fun StatsRow(user: UserDto?) {
-    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 18.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-        StatItem(user?.let { "${it.totalHelps}" } ?: "–", "Helps", RaahiGreen)
-        StatItem("–", "Earned", RaahiCyan)
-        StatItem(user?.let { if (it.ratingAvg > 0) "%.1f".format(it.ratingAvg) else "–" } ?: "–", "Rating", RaahiAmber)
-        StatItem("–", "Trips", RaahiOrange)
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        StatItem(user?.let { "${it.totalHelps}" } ?: "0", "Helps", RaahiGreen, Modifier.weight(1f))
+        StatItem(user?.let { if (it.ratingAvg > 0) "%.1f".format(it.ratingAvg) else "–" } ?: "–", "Rating", RaahiAmber, Modifier.weight(1f))
+        StatItem(user?.role?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Driver", "Role", RaahiCyan, Modifier.weight(1f))
+        StatItem(if (user?.isVerified == true) "Verified" else "Active", "Status", RaahiOrange, Modifier.weight(1f))
     }
 }
 
 @Composable
-private fun StatItem(value: String, label: String, color: Color) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, color = color, fontWeight = FontWeight.Bold, fontSize = 15.sp, fontFamily = RaahiDisplayFont)
-        Spacer(Modifier.height(2.dp))
-        Text(label, color = RaahiTextFaint, fontSize = 9.5.sp)
+private fun StatItem(value: String, label: String, color: Color, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .background(Color.White, RoundedCornerShape(15.dp))
+            .border(1.dp, RaahiBorderSoft, RoundedCornerShape(15.dp))
+            .padding(horizontal = 3.dp, vertical = 13.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(value, color = color, fontWeight = FontWeight.Bold, fontSize = 15.sp, fontFamily = RaahiDisplayFont, maxLines = 1)
+        Spacer(Modifier.height(4.dp))
+        Text(label, color = RaahiTextDim, fontSize = 10.sp, maxLines = 1)
     }
 }
 
@@ -488,61 +525,176 @@ private fun InfoCard(message: String, title: String? = null) {
 @Composable
 private fun ProfileTab(
     user: UserDto?,
+    vehicle: VehicleDto?,
     onEditProfile: () -> Unit,
-    onEditVehicle: () -> Unit,
+    onManageVehicles: () -> Unit,
+    onSetupVehicle: () -> Unit,
+    onServiceHistory: () -> Unit,
     onSignOut: () -> Unit,
     onHelper: () -> Unit,
     onEarnWithRaahi: () -> Unit,
     onNotifications: () -> Unit,
     onPayments: () -> Unit,
 ) {
-    Column {
-        Box(Modifier.padding(horizontal = 16.dp)) { SectionLabel("Account") }
-        InfoRow(Icons.Outlined.Speed, "Role", user?.role?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Driver")
-        Spacer(Modifier.height(10.dp))
-        InfoRow(Icons.Outlined.DirectionsCar, "Vehicle (legacy)", user?.vehicleType?.takeIf { it.isNotBlank() } ?: "Not set")
-
-        if (user == null) {
-            Spacer(Modifier.height(12.dp))
-            Box(Modifier.padding(horizontal = 16.dp)) {
-                InfoCard("Account details unavailable offline. Will sync once connected to the server.")
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        // Vehicle Section
+        Column {
+            Box(Modifier.padding(horizontal = 16.dp)) { SectionLabel("My Vehicle") }
+            Spacer(Modifier.height(8.dp))
+            if (vehicle != null) {
+                GlassCard(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    onClick = onManageVehicles
+                ) {
+                    Column(Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .background(RaahiOrange.copy(alpha = 0.14f), RoundedCornerShape(12.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Outlined.DirectionsCar, contentDescription = null, tint = RaahiOrange, modifier = Modifier.size(24.dp))
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    listOfNotNull(vehicle.brand, vehicle.model, vehicle.variant).joinToString(" "),
+                                    color = RaahiText,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    fontFamily = RaahiDisplayFont
+                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(vehicle.registrationNumber, color = RaahiTextDim, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
+                                    Spacer(Modifier.width(6.dp))
+                                    Box(Modifier.size(4.dp).background(RaahiTextFaint, CircleShape))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("${vehicle.odometerKm} km", color = RaahiCyan, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                            Icon(Icons.AutoMirrored.Outlined.ArrowForward, contentDescription = null, tint = RaahiTextFaint, modifier = Modifier.size(16.dp))
+                        }
+                        Spacer(Modifier.height(10.dp))
+                        HorizontalDivider(color = RaahiBorderSoft)
+                        Spacer(Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Manage garage & vehicle records", color = RaahiOrange, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
+                            Icon(Icons.Outlined.Settings, contentDescription = null, tint = RaahiOrange, modifier = Modifier.size(14.dp))
+                        }
+                    }
+                }
+            } else {
+                GlassCard(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    onClick = onSetupVehicle
+                ) {
+                    Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        IconBadge(Icons.Outlined.DirectionsCar, RaahiOrange, 40.dp, RoundedCornerShape(10.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("Add your vehicle", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text("Unlock Car Health diagnostics & service alerts", color = RaahiTextDim, fontSize = 11.sp)
+                        }
+                        Button(
+                            onClick = onSetupVehicle,
+                            colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text("Add", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
             }
         }
 
-        Spacer(Modifier.height(18.dp))
-        Box(Modifier.padding(horizontal = 16.dp)) { SectionLabel("Quick Access") }
-        ProfileMenuItem(Icons.Outlined.DirectionsCar, "My Cars", onClick = onEditVehicle)
-        Spacer(Modifier.height(8.dp))
-        val isHelperOrMechanic = user?.role == "HELPER" || user?.role == "MECHANIC"
-        ProfileMenuItem(
-            Icons.Outlined.Payment,
-            if (isHelperOrMechanic) "Helper Dashboard" else "Earn with Raahi",
-            onClick = if (isHelperOrMechanic) onHelper else onEarnWithRaahi,
-        )
-        Spacer(Modifier.height(8.dp))
-        ProfileMenuItem(Icons.Outlined.Payment, "Payments & Wallet", onClick = onPayments)
-        Spacer(Modifier.height(8.dp))
-        ProfileMenuItem(Icons.Outlined.Notifications, "Notifications", onClick = onNotifications)
-        Spacer(Modifier.height(8.dp))
-        ProfileMenuItem(Icons.Outlined.Settings, "Settings", onClick = onEditProfile)
-        Spacer(Modifier.height(8.dp))
-        ProfileMenuItem(Icons.Outlined.HelpOutline, "Help & Support")
+        // Account & Garage Group
+        Column {
+            Box(Modifier.padding(horizontal = 16.dp)) { SectionLabel("Account & Garage") }
+            Spacer(Modifier.height(8.dp))
+            ProfileMenuItem(Icons.Outlined.DirectionsCar, "My Garage", subtitle = "Manage registered vehicles", onClick = onManageVehicles)
+            Spacer(Modifier.height(8.dp))
+            ProfileMenuItem(Icons.Outlined.Edit, "Edit Profile", subtitle = "Name, phone & profile details", onClick = onEditProfile)
+            Spacer(Modifier.height(8.dp))
+            ProfileMenuItem(Icons.Outlined.History, "Maintenance & Service History", subtitle = "Service records and receipts", onClick = onServiceHistory)
+        }
 
-        Spacer(Modifier.height(20.dp))
-        RowCard(modifier = Modifier.padding(horizontal = 16.dp), urgent = true, onClick = onSignOut) {
-            Icon(Icons.AutoMirrored.Outlined.Logout, contentDescription = null, tint = RaahiRed, modifier = Modifier.size(17.dp))
+        // Partner / Helper Group
+        Column {
+            val isHelperOrMechanic = user?.role == "HELPER" || user?.role == "MECHANIC"
+            Box(Modifier.padding(horizontal = 16.dp)) { SectionLabel("Earnings & Partner") }
+            Spacer(Modifier.height(8.dp))
+            if (isHelperOrMechanic) {
+                ProfileMenuItem(
+                    Icons.Outlined.Speed,
+                    "Helper Dashboard",
+                    subtitle = "Online status, active jobs & commission",
+                    onClick = onHelper
+                )
+            } else {
+                ProfileMenuItem(
+                    Icons.Outlined.Build,
+                    "Earn with Raahi",
+                    subtitle = "Join our roadside helper network in Tricity",
+                    onClick = onEarnWithRaahi
+                )
+            }
+        }
+
+        // Finances Group
+        Column {
+            Box(Modifier.padding(horizontal = 16.dp)) { SectionLabel("Finances & Plans") }
+            Spacer(Modifier.height(8.dp))
+            ProfileMenuItem(
+                Icons.Outlined.Payment,
+                "Payments & Wallet",
+                subtitle = "Outstanding commission, ledger & payouts",
+                onClick = onPayments
+            )
+        }
+
+        // Support & App
+        Column {
+            Box(Modifier.padding(horizontal = 16.dp)) { SectionLabel("App & Support") }
+            Spacer(Modifier.height(8.dp))
+            ProfileMenuItem(Icons.Outlined.Notifications, "Notifications", subtitle = "Job alerts and system updates", onClick = onNotifications)
+            Spacer(Modifier.height(8.dp))
+            ProfileMenuItem(Icons.Outlined.HelpOutline, "24x7 Roadside Support & FAQs", subtitle = "Direct assistance & emergency guidelines")
+        }
+
+        // Sign out
+        RowCard(
+            modifier = Modifier.padding(horizontal = 16.dp),
+            urgent = true,
+            onClick = onSignOut
+        ) {
+            Icon(Icons.AutoMirrored.Outlined.Logout, contentDescription = null, tint = RaahiRed, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(10.dp))
-            Text("Log out", color = RaahiRed, fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
+            Text("Log out of Raahi", color = RaahiRed, fontWeight = FontWeight.Bold, fontSize = 13.sp)
         }
     }
 }
 
 @Composable
-private fun ProfileMenuItem(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, onClick: (() -> Unit)? = null) {
+private fun ProfileMenuItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String? = null,
+    onClick: (() -> Unit)? = null
+) {
     RowCard(modifier = Modifier.padding(horizontal = 16.dp), onClick = onClick) {
-        IconBadge(icon, RaahiOrange, 34.dp)
+        IconBadge(icon, RaahiOrange, 36.dp, RoundedCornerShape(10.dp))
         Spacer(Modifier.width(12.dp))
-        Text(title, color = RaahiText, fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp, modifier = Modifier.weight(1f))
+        Column(Modifier.weight(1f)) {
+            Text(title, color = RaahiText, fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp)
+            if (!subtitle.isNullOrBlank()) {
+                Text(subtitle, color = RaahiTextDim, fontSize = 10.5.sp)
+            }
+        }
         Icon(Icons.AutoMirrored.Outlined.ArrowForward, contentDescription = null, tint = RaahiTextFaint, modifier = Modifier.size(16.dp))
     }
 }

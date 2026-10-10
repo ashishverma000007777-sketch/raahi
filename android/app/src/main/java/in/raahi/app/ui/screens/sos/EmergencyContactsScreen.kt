@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -32,27 +33,27 @@ fun EmergencyContactsScreen(
     var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
 
-    Surface(modifier = Modifier.fillMaxSize(), color = RaahiNavyBackground) {
+    Surface(modifier = Modifier.fillMaxSize(), color = Color(0xFFFAF7F2)) {
         Column(Modifier.fillMaxSize()) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = RaahiTextPrimary) }
-                Text("Emergency Contacts", color = RaahiTextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Text("Emergency Contacts", color = Color(0xFF252525), fontSize = 21.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
             }
 
             Text(
                 "Stored only on this device. Used to send an SOS text if you tap \"alert my contacts\".",
-                color = RaahiTextMuted, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                color = Color(0xFF77716B), fontSize = 12.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
             )
 
-            Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp).background(Color.White, RoundedCornerShape(20.dp)).padding(16.dp)) {
                 OutlinedTextField(
                     value = name, onValueChange = { name = it }, label = { Text("Name") },
                     singleLine = true, modifier = Modifier.fillMaxWidth(), colors = contactFieldColors(),
                 )
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(14.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
                         value = phone, onValueChange = { phone = it.filter { c -> c.isDigit() || c == '+' } },
@@ -80,7 +81,7 @@ fun EmergencyContactsScreen(
             } else {
                 LazyColumn(
                     contentPadding = PaddingValues(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     items(contacts, key = { it.phone }) { contact ->
                         ContactRow(contact, onRemove = { viewModel.remove(contact.phone) })
@@ -94,10 +95,10 @@ fun EmergencyContactsScreen(
 @Composable
 private fun ContactRow(contact: EmergencyContact, onRemove: () -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth().background(RaahiCardBg, RoundedCornerShape(14.dp)).padding(14.dp),
+        modifier = Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(18.dp)).padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(38.dp).background(RaahiOrangeAccent.copy(alpha = 0.14f), CircleShape), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(42.dp).background(Color(0xFFFFF0E8), CircleShape), contentAlignment = Alignment.Center) {
             Icon(Icons.Filled.Person, contentDescription = null, tint = RaahiOrangeAccent, modifier = Modifier.size(20.dp))
         }
         Spacer(Modifier.width(12.dp))

@@ -49,6 +49,7 @@ import `in`.raahi.app.ui.screens.savings.PaisaBachaoScreen
 import `in`.raahi.app.ui.screens.sos.EmergencyContactsScreen
 import `in`.raahi.app.ui.screens.sos.SosScreen
 import `in`.raahi.app.ui.screens.vehicle.CarReportCardScreen
+import `in`.raahi.app.ui.screens.vehicle.MyVehiclesScreen
 import `in`.raahi.app.ui.screens.vehicle.ServiceHistoryScreen
 import `in`.raahi.app.ui.screens.vehicle.VehicleSetupScreen
 import `in`.raahi.app.ui.screens.trip.TripActiveScreen
@@ -72,6 +73,7 @@ private object Routes {
     const val PROFILE = "profile"
     const val VEHICLE_SETUP = "vehicle_setup"
     const val VEHICLE_EDIT = "vehicle_edit"
+    const val MY_VEHICLES = "my_vehicles"
     const val SERVICE_HISTORY = "service_history"
     const val HOME = "home"
     const val REQUEST_HELP = "request_help"
@@ -280,6 +282,15 @@ fun RaahiNavHost(
             )
         }
 
+        composable(Routes.MY_VEHICLES) {
+            MyVehiclesScreen(
+                onBack = { navController.popBackStack() },
+                onAddVehicle = { navController.navigate(Routes.VEHICLE_SETUP) },
+                onEditVehicle = { navController.navigate(Routes.VEHICLE_EDIT) },
+                onViewHealth = { navController.navigate(Routes.CAR_REPORT_CARD) },
+            )
+        }
+
         composable(Routes.SERVICE_HISTORY) {
             ServiceHistoryScreen(onBack = { navController.popBackStack() })
         }
@@ -331,6 +342,7 @@ fun RaahiNavHost(
                 },
                 onSetupVehicle = { navController.navigate(Routes.VEHICLE_SETUP) { launchSingleTop = true } },
                 onEditVehicle = { navController.navigate(Routes.VEHICLE_EDIT) { launchSingleTop = true } },
+                onManageVehicles = { navController.navigate(Routes.MY_VEHICLES) },
                 onServiceHistory = { navController.navigate(Routes.SERVICE_HISTORY) },
                 onNavigateTab = navigateToTab,
                 onHelper = { navController.navigate(Routes.HELPER_DASHBOARD) { launchSingleTop = true } },

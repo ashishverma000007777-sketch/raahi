@@ -192,8 +192,8 @@ fun CarReportCardContent(
     LazyColumn(
         state = listState,
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
+        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item { Spacer(Modifier.height(56.dp)) }
 
@@ -301,7 +301,7 @@ private fun VehicleIdentityCard(
                         Text("${vehicle.modelYear}", color = RaahiTextDim, fontSize = 12.sp)
                         Spacer(Modifier.width(8.dp))
                         Box(
-                            Modifier.background(RaahiCyan.copy(alpha = 0.16f), RaahiShapeSmall)
+                            Modifier.background(RaahiSelectionBg, RaahiShapeSmall)
                                 .padding(horizontal = 7.dp, vertical = 2.dp)
                         ) {
                             Text(
@@ -507,7 +507,7 @@ private fun ReportCardRadarCard(health: CarHealthDto?) {
         Column(Modifier.padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("Performance Balance", color = RaahiText, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, fontFamily = RaahiDisplayFont)
-                Text("Triad View", color = RaahiCyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text("Triad View", color = RaahiOrange, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(14.dp))
 
@@ -548,12 +548,12 @@ private fun ReportCardRadarCard(health: CarHealthDto?) {
                     }
 
                     // Filled radar polygon
-                    drawPath(dataPath, color = RaahiCyan.copy(alpha = 0.28f))
-                    drawPath(dataPath, color = RaahiCyan, style = Stroke(width = 2.dp.toPx()))
+                    drawPath(dataPath, color = RaahiOrange.copy(alpha = 0.18f))
+                    drawPath(dataPath, color = RaahiOrange, style = Stroke(width = 2.dp.toPx()))
 
                     // Vertex dots
                     drawCircle(RaahiGreen, radius = 4.dp.toPx(), center = v1)
-                    drawCircle(RaahiCyan, radius = 4.dp.toPx(), center = v2)
+                    drawCircle(RaahiOrange, radius = 4.dp.toPx(), center = v2)
                     drawCircle(if (hasSafety) RaahiVioletAccent else Color.Gray, radius = 4.dp.toPx(), center = v3)
                 }
             }
@@ -563,7 +563,7 @@ private fun ReportCardRadarCard(health: CarHealthDto?) {
             // Legend Row
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                 RadarLegendItem(color = RaahiGreen, label = "Care", score = health?.careScore?.let { "$it" } ?: "--")
-                RadarLegendItem(color = RaahiCyan, label = "Efficiency", score = health?.efficiencyScore?.let { "$it" } ?: "--")
+                RadarLegendItem(color = RaahiOrange, label = "Efficiency", score = health?.efficiencyScore?.let { "$it" } ?: "--")
                 RadarLegendItem(color = if (hasSafety) RaahiVioletAccent else RaahiTextDim, label = "Safety", score = health?.safetyScore?.let { "$it" } ?: "Pending")
             }
         }
@@ -606,7 +606,7 @@ private fun SubScoresTriad(
         // 2. Efficiency Sub-Score
         SubScoreDetailCard(
             icon = Icons.Outlined.LocalGasStation,
-            iconTint = RaahiCyan,
+            iconTint = RaahiOrange,
             title = "Fuel & Mileage Efficiency",
             score = health?.efficiencyScore,
             grade = health?.efficiencyGrade,
@@ -713,7 +713,7 @@ private fun WeeklyReportCard(report: WeeklyReportDto) {
 
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 WeeklyStatItem("Distance", "${report.distanceDrivenKm ?: 0} km", Icons.Outlined.Navigation, RaahiOrange)
-                WeeklyStatItem("Fuel Spent", report.fuelSpent?.let { "₹${it.toInt()}" } ?: "--", Icons.Outlined.LocalGasStation, RaahiCyan)
+                WeeklyStatItem("Fuel Spent", report.fuelSpent?.let { "₹${it.toInt()}" } ?: "--", Icons.Outlined.LocalGasStation, RaahiOrange)
                 WeeklyStatItem("Trips", "${report.tripsCompleted ?: 0}", Icons.Outlined.Route, RaahiGreen)
             }
 

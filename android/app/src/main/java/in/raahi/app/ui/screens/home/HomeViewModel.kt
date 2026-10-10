@@ -123,6 +123,9 @@ class HomeViewModel @Inject constructor(
     private val _helperError = MutableStateFlow<String?>(null)
     val helperError: StateFlow<String?> = _helperError.asStateFlow()
 
+    private val _walletBalance = MutableStateFlow<Double?>(null)
+    val walletBalance: StateFlow<Double?> = _walletBalance.asStateFlow()
+
     private val _incomingRequest = MutableStateFlow<JobDto?>(null)
     val incomingRequest: StateFlow<JobDto?> = _incomingRequest.asStateFlow()
     private var incomingPollingJob: Job? = null
@@ -200,6 +203,7 @@ class HomeViewModel @Inject constructor(
             runCatching { helperRepository.status() }
                 .onSuccess {
                     _helperStatus.value = it
+                    _walletBalance.value = it.commissionBalance
                     _helperError.value = null
                     syncIncomingRequestPolling(it)
                 }
@@ -279,6 +283,7 @@ class HomeViewModel @Inject constructor(
 
     init {
         load()
+        refreshHelperStatus()
         // Home is the first screen reached only once actually authenticated, so this is
         // where the app-wide WebSocket connection starts; RaahiWebSocketClient is a Hilt
         // singleton, so it stays connected across every other screen for the process
@@ -352,13 +357,20 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    private var lastMetricsRefreshTime = 0L
+
     /**
      * Loads every per-user metric from its real source. Each source is fetched independently
-     * so one failure only affects its own tile. Called on every ON_RESUME so returning from
-     * Add Fuel / Vehicle setup / Notifications shows fresh numbers.
+     * so one failure only affects its own tile. Called on ON_RESUME with a 15-second throttle
+     * to avoid duplicate requests when navigating back and forth.
      */
-    fun refreshMetrics(hasLocationPermission: Boolean) {
+    fun refreshMetrics(hasLocationPermission: Boolean, force: Boolean = false) {
         if (!authRepository.hasAuthToken()) return
+        val now = System.currentTimeMillis()
+        if (!force && (now - lastMetricsRefreshTime < 15_000L)) {
+            return
+        }
+        lastMetricsRefreshTime = now
         viewModelScope.launch { runLoad({ homeRepository.summary() }) { r -> _metrics.update { it.copy(summary = r) } } }
         viewModelScope.launch { runLoad({ homeRepository.fuelSummary() }) { r -> _metrics.update { it.copy(fuel = r) } } }
         viewModelScope.launch { runLoad({ homeRepository.aiStatus() }) { r -> _metrics.update { it.copy(ai = r) } } }

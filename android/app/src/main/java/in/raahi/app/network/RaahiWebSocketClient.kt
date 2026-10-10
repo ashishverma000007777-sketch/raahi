@@ -19,6 +19,10 @@ import okhttp3.WebSocketListener
 import javax.inject.Inject
 import javax.inject.Singleton
 
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+
 sealed class WsEvent {
     data class JobStatusChange(val jobId: String, val status: String) : WsEvent()
     data class JobHelperLocation(val jobId: String, val lat: Double, val lng: Double) : WsEvent()
@@ -44,8 +48,8 @@ class RaahiWebSocketClient @Inject constructor(
     private val _events = MutableSharedFlow<WsEvent>(extraBufferCapacity = 16)
     val events: SharedFlow<WsEvent> = _events
 
-    private val _connectionState = MutableSharedFlow<WsConnectionState>(replay = 1, extraBufferCapacity = 4)
-    val connectionState: SharedFlow<WsConnectionState> = _connectionState
+    private val _connectionState = MutableStateFlow(WsConnectionState.DISCONNECTED)
+    val connectionState: StateFlow<WsConnectionState> = _connectionState.asStateFlow()
 
     private var socket: WebSocket? = null
     private var shouldReconnect = false
@@ -76,10 +80,12 @@ class RaahiWebSocketClient @Inject constructor(
             .addHeader("Authorization", "Bearer $token")
             .build()
 
+        _connectionState.value = WsConnectionState.CONNECTING
+
         socket = okHttpClient.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 reconnectAttempt = 0
-                _connectionState.tryEmit(WsConnectionState.CONNECTED)
+                _connectionState.value = WsConnectionState.CONNECTED
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
@@ -91,12 +97,12 @@ class RaahiWebSocketClient @Inject constructor(
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                _connectionState.tryEmit(WsConnectionState.DISCONNECTED)
+                _connectionState.value = WsConnectionState.DISCONNECTED
                 scheduleReconnect(baseHttpUrl)
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                _connectionState.tryEmit(WsConnectionState.DISCONNECTED)
+                _connectionState.value = WsConnectionState.DISCONNECTED
                 if (response?.code == 401) {
                     // Unauthorized handshake — do not loop indefinitely
                     shouldReconnect = false

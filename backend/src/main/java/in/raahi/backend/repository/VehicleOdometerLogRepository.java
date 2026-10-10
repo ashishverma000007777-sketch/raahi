@@ -12,4 +12,6 @@ public interface VehicleOdometerLogRepository extends JpaRepository<VehicleOdome
     java.util.Optional<VehicleOdometerLog> findFirstByVehicleIdAndRecordedAtLessThanEqualOrderByRecordedAtDesc(UUID vehicleId, java.time.Instant at);
 
     java.util.Optional<VehicleOdometerLog> findFirstByVehicleIdOrderByRecordedAtAsc(UUID vehicleId);
+
+    void deleteByVehicleId(UUID vehicleId);
 }

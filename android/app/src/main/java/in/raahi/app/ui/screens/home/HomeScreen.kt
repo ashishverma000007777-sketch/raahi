@@ -1,7 +1,12 @@
 package `in`.raahi.app.ui.screens.home
 
 import android.Manifest
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -56,7 +61,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
-import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -98,14 +102,90 @@ fun HomeScreen(
     val helperError by viewModel.helperError.collectAsState()
     val selectedCity by viewModel.selectedCity.collectAsState()
     val incomingRequest by viewModel.incomingRequest.collectAsState()
+    val walletBalance by viewModel.walletBalance.collectAsState()
 
     val context = LocalContext.current
+    var showDrivingConfirmation by remember { mutableStateOf(false) }
+
+    // A driving-alert notification can launch or bring Raahi back to the foreground.
+    // Consume the intent extra once so rotation/recomposition does not reopen the dialog.
+    LaunchedEffect(context) {
+        val activity = context as? android.app.Activity
+        if (activity?.intent?.getBooleanExtra("show_driving_confirmation", false) == true) {
+            showDrivingConfirmation = true
+            activity.intent.removeExtra("show_driving_confirmation")
+        }
+    }
+
+    DisposableEffect(context) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == `in`.raahi.app.data.DrivingTrackingService.EVENT_DRIVING_DETECTED) {
+                    showDrivingConfirmation = true
+                }
+            }
+        }
+        val filter = IntentFilter(
+            `in`.raahi.app.data.DrivingTrackingService.EVENT_DRIVING_DETECTED
+        )
+        ContextCompat.registerReceiver(
+            context,
+            receiver,
+            filter,
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+        onDispose {
+            runCatching { context.unregisterReceiver(receiver) }
+        }
+    }
+
+    if (showDrivingConfirmation) {
+        AlertDialog(
+            onDismissRequest = {
+                showDrivingConfirmation = false
+                context.startService(
+                    Intent(context, `in`.raahi.app.data.DrivingTrackingService::class.java)
+                        .setAction(`in`.raahi.app.data.DrivingTrackingService.ACTION_DECLINE)
+                )
+            },
+            title = { Text("Are you driving your car?", fontWeight = FontWeight.Bold) },
+            text = {
+                Text("Raahi can track your GPS distance and help update your vehicle's odometer. Distance tracking starts only after you confirm.")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDrivingConfirmation = false
+                    context.startService(
+                        Intent(context, `in`.raahi.app.data.DrivingTrackingService::class.java)
+                            .setAction(`in`.raahi.app.data.DrivingTrackingService.ACTION_CONFIRM)
+                    )
+                }) { Text("Yes, I'm driving", color = RaahiOrange) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showDrivingConfirmation = false
+                    context.startService(
+                        Intent(context, `in`.raahi.app.data.DrivingTrackingService::class.java)
+                            .setAction(`in`.raahi.app.data.DrivingTrackingService.ACTION_DECLINE)
+                    )
+                }) { Text("No", color = RaahiTextDim) }
+            }
+        )
+    }
+
     val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 viewModel.refreshMetrics(hasLocationPermission(context))
                 viewModel.refreshHelperStatus()
+                if (hasLocationPermission(context)) {
+                    ContextCompat.startForegroundService(
+                        context,
+                        Intent(context, `in`.raahi.app.data.DrivingTrackingService::class.java)
+                            .setAction(`in`.raahi.app.data.DrivingTrackingService.ACTION_START)
+                    )
+                }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -156,6 +236,7 @@ fun HomeScreen(
                         onSetupVehicle = onSetupVehicle, onOpenDaily = onOpenDaily,
                         onPlanTrip = onPlanTrip, onOpenActiveTrip = onOpenActiveTrip, onTripHistory = onTripHistory,
                         metrics = metrics, onOpenNotifications = onOpenNotifications, onOpenWallet = onOpenWallet, onAddFuel = onAddFuel,
+                        walletBalance = walletBalance,
                         helperStatus = helperStatus, helperBusy = helperBusy, helperError = helperError,
                         onToggleHelperOnline = { online -> viewModel.setHelperOnline(online, hasLocationPermission(context)) },
                         onRefreshHelperStatus = viewModel::refreshHelperStatus,
@@ -171,6 +252,7 @@ fun HomeScreen(
                         onSetupVehicle = onSetupVehicle, onOpenDaily = onOpenDaily,
                         onPlanTrip = onPlanTrip, onOpenActiveTrip = onOpenActiveTrip, onTripHistory = onTripHistory,
                         metrics = metrics, onOpenNotifications = onOpenNotifications, onOpenWallet = onOpenWallet, onAddFuel = onAddFuel,
+                        walletBalance = walletBalance,
                         helperStatus = helperStatus, helperBusy = helperBusy, helperError = helperError,
                         onToggleHelperOnline = { online -> viewModel.setHelperOnline(online, hasLocationPermission(context)) },
                         onRefreshHelperStatus = viewModel::refreshHelperStatus,
@@ -203,6 +285,7 @@ private fun HomeContent(
     onOpenDaily: (String) -> Unit, onProfile: () -> Unit,
     onPlanTrip: () -> Unit = {}, onOpenActiveTrip: (String) -> Unit = {}, onTripHistory: () -> Unit = {},
     metrics: HomeMetrics = HomeMetrics(), onOpenNotifications: () -> Unit = {}, onOpenWallet: () -> Unit = {}, onAddFuel: () -> Unit = {},
+    walletBalance: Double? = null,
     helperStatus: HelperStatusDto? = null, helperBusy: Boolean = false, helperError: String? = null,
     onToggleHelperOnline: (Boolean) -> Unit = {}, onRefreshHelperStatus: () -> Unit = {},
 ) {
@@ -243,31 +326,34 @@ private fun HomeContent(
             }
 
             // 5. Real Ticker (if available)
-            val tickerItems = tickerItems(vehicle, carHealth, metrics)
-            if (tickerItems.isNotEmpty()) {
-                Ticker(items = tickerItems, modifier = Modifier.padding(horizontal = 16.dp))
-                Spacer(Modifier.height(14.dp))
-            }
-
             // 1. Greeting hero
             GreetingHeroBanner(user)
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(10.dp))
 
             // 2. Primary Action Cards: Request Help & Find Mechanic (Screen 6 reference)
+                        val tickerItems = tickerItems(vehicle, carHealth, metrics)
+                        Ticker(
+                            items = tickerItems.ifEmpty {
+                                listOf("Fuel prices unavailable • Check location and connection")
+                            },
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                        Spacer(Modifier.height(10.dp))
+
             PrimaryActionCards(onRequestHelp, onNearbyMechanics)
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
 
             // 3. Secondary Actions Row: My Jobs, Car Health, SOS Emergency (Screen 6 reference)
             SecondaryActionsRow(onMyJobs, onCarHealth, onSos)
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(10.dp))
 
             // 4. AI Mechanic Card (Screen 6 reference)
             AiMechanicCard(onClick = onAiMechanic)
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(10.dp))
 
             // 6. Vehicle / Car Health Hero Card
             VehicleHeroCard(vehicle, carHealth, onSetupVehicle, onCarHealth)
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(10.dp))
 
             // 7. Plan Trip Card
             PlanTripCard(
@@ -276,7 +362,7 @@ private fun HomeContent(
                 onOpenActiveTrip = onOpenActiveTrip
             )
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(10.dp))
             if (user?.role == "HELPER" || user?.role == "MECHANIC" || user?.role == "DRIVER") {
                 HelperApplicationStatusCard(
                     status = helperStatus, busy = helperBusy, error = helperError,
@@ -305,7 +391,8 @@ private fun HomeContent(
             scrolled = scrolled,
             unread = unreadCount(metrics.summary),
             onBell = onOpenNotifications,
-            onWallet = onOpenWallet
+            onWallet = onOpenWallet,
+            walletBalance = walletBalance
         )
     }
 }
@@ -319,7 +406,8 @@ private fun BoxScope.HeaderRow(
     scrolled: Boolean,
     unread: Int,
     onBell: () -> Unit,
-    onWallet: () -> Unit
+    onWallet: () -> Unit,
+    walletBalance: Double? = null
 ) {
     val scrollFraction by androidx.compose.animation.core.animateFloatAsState(
         targetValue = if (scrolled) 1f else 0f, label = "headerBgFraction",
@@ -361,21 +449,42 @@ private fun BoxScope.HeaderRow(
 
         Spacer(Modifier.weight(1f))
 
-        // Payments & Wallet shortcut
-        Box(
+        // Payments & Wallet fintech balance indicator chip
+        val balanceText = walletBalance?.let { b ->
+            "₹${"%.0f".format(b)}"
+        } ?: "Wallet"
+
+        Row(
             modifier = Modifier
-                .size(34.dp)
-                .clip(CircleShape)
+                .height(34.dp)
+                .clip(RaahiShapePill)
                 .background(Color.White)
-                .border(1.dp, RaahiBorderSoft, CircleShape)
-                .clickable(onClick = onWallet),
-            contentAlignment = Alignment.Center
+                .border(1.dp, RaahiBorderSoft, RaahiShapePill)
+                .clickable(onClick = onWallet)
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 Icons.Outlined.AccountBalanceWallet,
                 contentDescription = "Payments & Wallet",
-                tint = RaahiTextDim,
-                modifier = Modifier.size(19.dp)
+                tint = RaahiOrange,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(Modifier.width(6.dp))
+            if (walletBalance != null) {
+                Box(
+                    modifier = Modifier
+                        .size(5.dp)
+                        .background(RaahiGreen, CircleShape)
+                )
+                Spacer(Modifier.width(4.dp))
+            }
+            Text(
+                balanceText,
+                color = RaahiText,
+                fontWeight = FontWeight.Bold,
+                fontSize = 12.sp,
+                fontFamily = RaahiDisplayFont
             )
         }
         Spacer(Modifier.width(8.dp))
@@ -554,7 +663,7 @@ private fun PrimaryActionCards(
                 Text(
                     text = "Get roadside assistance",
                     color = RaahiTextDim,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     maxLines = 1
                 )
             }
@@ -596,7 +705,7 @@ private fun PrimaryActionCards(
                 Text(
                     text = "Near you",
                     color = RaahiTextDim,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     maxLines = 1
                 )
             }
@@ -857,7 +966,7 @@ private fun VehicleHeroCard(vehicle: VehicleDto?, carHealth: CarHealthDto?, onSe
                 Column(Modifier.weight(1f)) {
                     Text(
                         "${vehicle.brand.uppercase()} ${vehicle.model.uppercase()} · ${vehicle.registrationNumber}",
-                        color = RaahiTextDim, fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
+                        color = RaahiTextDim, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
                     )
                     Spacer(Modifier.height(3.dp))
                     Text(
@@ -871,7 +980,7 @@ private fun VehicleHeroCard(vehicle: VehicleDto?, carHealth: CarHealthDto?, onSe
                 }
                 if (carHealth?.score != null) ScoreRing(carHealth.score)
             }
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 HeroStat("ODOMETER", "${vehicle.odometerKm} km", Modifier.weight(1f))
                 HeroStat("FUEL", vehicle.fuelType.lowercase().replaceFirstChar { it.uppercase() }, Modifier.weight(1f))
@@ -928,7 +1037,7 @@ private fun WeekStat(icon: ImageVector, value: String, label: String, modifier: 
         Icon(icon, contentDescription = null, tint = RaahiOrange, modifier = Modifier.size(16.dp))
         Spacer(Modifier.height(4.dp))
         Text(value, color = RaahiText, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, fontFamily = RaahiDisplayFont)
-        Text(label, color = RaahiTextDim, fontSize = 9.sp, maxLines = 1)
+        Text(label, color = RaahiTextDim, fontSize = 11.sp, maxLines = 1)
     }
 }
 
@@ -1039,7 +1148,7 @@ private fun DailyRow(onOpenDaily: (String) -> Unit) {
             ) {
                 Text(emoji, fontSize = 18.sp)
                 Spacer(Modifier.height(4.dp))
-                Text(label, color = RaahiTextDim, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                Text(label, color = RaahiTextDim, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
             }
         }
     }
@@ -1139,7 +1248,7 @@ fun LocationSelectionDialog(
                     }
                 }
 
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(10.dp))
 
                 // Use current location button
                 Row(
@@ -1192,7 +1301,7 @@ fun LocationSelectionDialog(
                     }
                 }
 
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(10.dp))
 
                 // Search field
                 OutlinedTextField(
@@ -1212,7 +1321,7 @@ fun LocationSelectionDialog(
                     )
                 )
 
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(10.dp))
 
                 // City List
                 Column(

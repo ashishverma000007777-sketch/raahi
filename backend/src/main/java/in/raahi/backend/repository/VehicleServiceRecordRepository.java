@@ -8,4 +8,5 @@ import java.util.UUID;
 
 public interface VehicleServiceRecordRepository extends JpaRepository<VehicleServiceRecord, UUID> {
     List<VehicleServiceRecord> findByVehicleIdOrderByServiceDateDesc(UUID vehicleId);
+    void deleteByVehicleId(UUID vehicleId);
 }

@@ -3,6 +3,7 @@ package `in`.raahi.app.ui.screens.jobs
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -72,59 +73,127 @@ fun JobStatusScreen(
                         RaahiOutlineButton("Try again", onClick = viewModel::refresh)
                     }
                 }
-                is Loaded -> JobStatusBody(s, viewModel, onDone)
+                is Loaded -> JobStatusBody(s, viewModel, onDone, wsState)
             }
         }
     }
 }
 
 @Composable
-private fun JobStatusBody(s: Loaded, vm: JobStatusViewModel, onDone: () -> Unit) {
+private fun JobStatusBody(s: Loaded, vm: JobStatusViewModel, onDone: () -> Unit, wsState: WsConnectionState) {
     val job = s.job
     val isHelper = job.viewerRole == "HELPER"
     val isRequester = job.viewerRole == "REQUESTER"
     var dialog by remember { mutableStateOf<JobDialog?>(null) }
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 32.dp)) {
+    Column(Modifier.fillMaxSize()) {
         if (job.viewerRole == null && job.status == "PENDING") {
             // Helper cancelled before arrival: the request is open again for other helpers.
-            InfoCard("You are no longer assigned to this request.", RaahiAmber)
-            Spacer(Modifier.height(16.dp))
-            RaahiPrimaryButton("Back to Home", onClick = onDone)
-            return@Column
+            Column(Modifier.fillMaxSize().padding(16.dp)) {
+                InfoCard("You are no longer assigned to this request.", RaahiAmber)
+                Spacer(Modifier.height(16.dp))
+                RaahiPrimaryButton("Back to Home", onClick = onDone)
+            }
+            return
         }
 
-        StepperCard(job)
-        Spacer(Modifier.height(14.dp))
-        JobDetailsCard(job)
+        // 1. Live Job Tracking Map
+        val showMap = job.status in setOf("PENDING", "MATCHED", "ARRIVED", "IN_PROGRESS", "WORK_DONE") && job.lat != null && job.lng != null
+        if (showMap) {
+            val customerLoc = `in`.raahi.app.data.LatLng(job.lat, job.lng)
+            val helperLoc = s.liveLocation?.let { `in`.raahi.app.data.LatLng(it.first, it.second) }
+            val routePoints = s.route?.points ?: emptyList()
 
-        val otherName = if (isHelper) job.requesterName else job.helperName
-        if (otherName != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(250.dp)
+            ) {
+                LiveJobTrackingMap(
+                    customerLocation = customerLoc,
+                    helperLocation = helperLoc,
+                    routePoints = routePoints,
+                    modifier = Modifier.fillMaxSize(),
+                )
+
+                // Top Floating Status Chip
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 10.dp)
+                        .background(RaahiGlassStrong, RaahiShapePill)
+                        .border(1.dp, RaahiBorderSoft, RaahiShapePill)
+                        .padding(horizontal = 14.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val dotColor = when {
+                        wsState == WsConnectionState.CONNECTED && (helperLoc != null || job.status == "PENDING") -> RaahiGreen
+                        wsState == WsConnectionState.CONNECTED -> RaahiAmber
+                        else -> RaahiOrange
+                    }
+                    Box(Modifier.size(8.dp).background(dotColor, CircleShape))
+                    Spacer(Modifier.width(8.dp))
+                    val statusText = when {
+                        job.status == "PENDING" -> "Searching for nearby helpers..."
+                        job.status == "MATCHED" && helperLoc != null -> "Helper on the way"
+                        job.status == "MATCHED" -> "Helper assigned · Waiting for GPS"
+                        job.status == "ARRIVED" -> "Helper has arrived"
+                        job.status == "IN_PROGRESS" -> "Work in progress"
+                        job.status == "WORK_DONE" -> "Work completed"
+                        else -> "Live Job Tracking"
+                    }
+                    Text(statusText, color = RaahiText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+
+                    if (s.route != null && job.status == "MATCHED") {
+                        val mins = (s.route.durationSeconds / 60.0).toInt().coerceAtLeast(1)
+                        val km = "%.1f".format(s.route.distanceMeters / 1000.0)
+                        Spacer(Modifier.width(8.dp))
+                        Text("• $km km ($mins min)", color = RaahiCyan, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
+        // 2. Scrollable Body
+        Column(
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 18.dp)
+                .padding(top = 12.dp, bottom = 36.dp)
+        ) {
+            StepperCard(job)
             Spacer(Modifier.height(14.dp))
-            OtherPartyCard(
-                name = otherName,
-                phone = if (isHelper) job.requesterPhone else job.helperPhone,
-                rating = if (isHelper) null else job.helperRatingAvg,
-                helps = if (isHelper) null else job.helperTotalHelps,
-                label = if (isHelper) "CUSTOMER" else "YOUR HELPER",
-            )
-        }
+            JobDetailsCard(job)
 
-        if (s.actionError != null) {
-            Spacer(Modifier.height(12.dp))
-            Text(s.actionError, color = RaahiRed, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-        }
+            val otherName = if (isHelper) job.requesterName else job.helperName
+            if (otherName != null) {
+                Spacer(Modifier.height(14.dp))
+                OtherPartyCard(
+                    name = otherName,
+                    phone = if (isHelper) job.requesterPhone else job.helperPhone,
+                    rating = if (isHelper) null else job.helperRatingAvg,
+                    helps = if (isHelper) null else job.helperTotalHelps,
+                    label = if (isHelper) "CUSTOMER" else "YOUR HELPER",
+                )
+            }
 
-        Spacer(Modifier.height(16.dp))
-        when {
-            isRequester -> RequesterActions(job, s.acting, vm, onDone, onDialog = { dialog = it })
-            isHelper -> HelperActions(job, s.acting, vm, onDone, onDialog = { dialog = it })
-        }
+            if (s.actionError != null) {
+                Spacer(Modifier.height(12.dp))
+                Text(s.actionError, color = RaahiRed, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            }
 
-        // After arrival normal cancellation is gone: Report Issue / Contact Support instead.
-        if ((isRequester || isHelper) && job.status in setOf("ARRIVED", "IN_PROGRESS", "WORK_DONE")) {
-            Spacer(Modifier.height(10.dp))
-            RaahiOutlineButton("Report Issue / Contact Support", onClick = { dialog = JobDialog.REPORT }, tint = RaahiAmber)
+            Spacer(Modifier.height(16.dp))
+            when {
+                isRequester -> RequesterActions(job, s.acting, vm, onDone, onDialog = { dialog = it })
+                isHelper -> HelperActions(job, s.acting, vm, onDone, onDialog = { dialog = it })
+            }
+
+            // After arrival normal cancellation is gone: Report Issue / Contact Support instead.
+            if ((isRequester || isHelper) && job.status in setOf("ARRIVED", "IN_PROGRESS", "WORK_DONE")) {
+                Spacer(Modifier.height(10.dp))
+                RaahiOutlineButton("Report Issue / Contact Support", onClick = { dialog = JobDialog.REPORT }, tint = RaahiAmber)
+            }
         }
     }
 
@@ -238,12 +307,12 @@ private fun StepperCard(job: JobDto) {
     }
     val current = STEPS.indexOf(job.status).coerceAtLeast(0)
     GlassCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.padding(20.dp)) {
             STEPS.forEachIndexed { i, step ->
                 val done = i < current || (job.status == "COMPLETED")
                 val active = i == current && job.status != "COMPLETED"
                 val tint = when { done -> RaahiGreen; active -> RaahiOrange; else -> RaahiTextFaint }
-                Row(Modifier.padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(12.dp).background(tint, CircleShape))
                     Spacer(Modifier.width(12.dp))
                     Text(
@@ -264,7 +333,7 @@ private fun StepperCard(job: JobDto) {
 @Composable
 private fun JobDetailsCard(job: JobDto) {
     GlassCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.padding(18.dp)) {
             DetailRow("Problem", PROBLEM_TYPES.firstOrNull { it.id == job.problemType }?.label ?: job.problemType)
             if (!job.problemDesc.isNullOrBlank()) DetailRow("Description", job.problemDesc)
             DetailRow("Offer", "₹${job.rewardAmount.toInt()} cash to helper")
@@ -287,12 +356,12 @@ private fun DetailRow(label: String, value: String) {
 private fun OtherPartyCard(name: String, phone: String?, rating: Double?, helps: Int?, label: String) {
     val context = LocalContext.current
     GlassCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.padding(18.dp)) {
             Text(label, color = RaahiTextFaint, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(46.dp).background(RaahiOrange, CircleShape), contentAlignment = Alignment.Center) {
-                    Text(name.firstOrNull()?.uppercaseChar()?.toString() ?: "?", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Box(Modifier.size(50.dp).background(RaahiSelectionBg, CircleShape), contentAlignment = Alignment.Center) {
+                    Text(name.firstOrNull()?.uppercaseChar()?.toString() ?: "?", color = RaahiOrange, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
@@ -332,7 +401,7 @@ private fun InfoCard(text: String, tint: Color) {
 @Composable
 private fun CodeCard(label: String, code: String?) {
     GlassCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.fillMaxWidth().padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(label, color = RaahiTextDim, fontSize = 12.sp)
             Spacer(Modifier.height(10.dp))
             Text(code ?: "------", color = RaahiOrange, fontSize = 32.sp, fontWeight = FontWeight.Bold, letterSpacing = 8.sp, fontFamily = RaahiDisplayFont)
@@ -344,7 +413,7 @@ private fun CodeCard(label: String, code: String?) {
 private fun ArrivalCard(acting: Boolean, onArrive: (String?) -> Unit) {
     var otp by remember { mutableStateOf("") }
     GlassCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.padding(20.dp)) {
             Text("Arrived at the location?", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 14.sp)
             Spacer(Modifier.height(4.dp))
             Text(
@@ -366,7 +435,7 @@ private fun ArrivalCard(acting: Boolean, onArrive: (String?) -> Unit) {
 private fun ConfirmCompletionCard(job: JobDto, acting: Boolean, onConfirm: (String) -> Unit) {
     var otp by remember { mutableStateOf("") }
     GlassCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.padding(20.dp)) {
             Text("Confirm the work is done", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 15.sp)
             Spacer(Modifier.height(4.dp))
             Text(
@@ -393,7 +462,7 @@ private fun RatingCard(acting: Boolean, onSubmit: (Int, String?) -> Unit) {
     var stars by remember { mutableIntStateOf(0) }
     var comment by remember { mutableStateOf("") }
     GlassCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text("Rate your helper", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 16.sp)
             Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {

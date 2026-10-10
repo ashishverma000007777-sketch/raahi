@@ -126,7 +126,7 @@ private fun HeaderRow(onBack: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 6.dp, vertical = 8.dp),
+            .padding(horizontal = 10.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = onBack) {
@@ -134,11 +134,11 @@ private fun HeaderRow(onBack: () -> Unit) {
         }
         Box(
             modifier = Modifier
-                .size(36.dp)
-                .background(RaahiAiGradient, RaahiShapeSmall),
+                .size(40.dp)
+                .background(RaahiOrange.copy(alpha = 0.12f), RaahiShapeSmall),
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+            Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = RaahiOrange, modifier = Modifier.size(20.dp))
         }
         Spacer(Modifier.width(9.dp))
         Column(Modifier.weight(1f)) {
@@ -157,7 +157,7 @@ private fun StepperRow(step: Int) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(horizontal = 18.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         StepBadge(1, "Describe", step)
@@ -222,9 +222,9 @@ private fun DescribeStep(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(RaahiGlass, RaahiShapeLarge)
-                .border(1.dp, RaahiBorderSoft, RaahiShapeLarge)
-                .padding(4.dp)
+                .background(Color.White, RaahiShapeLarge)
+                .border(1.dp, RaahiBorder, RaahiShapeLarge)
+                .padding(6.dp)
         ) {
             OutlinedTextField(
                 value = input,
@@ -313,7 +313,7 @@ private fun SuggestionFlow(items: List<String>, onClick: (String) -> Unit) {
                             .background(RaahiGlass, RaahiShapePill)
                             .border(1.dp, RaahiBorderSoft, RaahiShapePill)
                             .clickable { onClick(text) }
-                            .padding(horizontal = 13.dp, vertical = 9.dp),
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
                     ) {
                         Text(text, color = RaahiTextDim, fontSize = 11.5.sp, fontWeight = FontWeight.Medium)
                     }
@@ -340,8 +340,8 @@ private fun ColumnScope.ResultsStep(
         modifier = Modifier
             .fillMaxWidth()
             .weight(1f),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         items(state.messages, key = { it.id }) { msg ->
             ChatBubble(
@@ -372,7 +372,7 @@ private fun ColumnScope.ResultsStep(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(12.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         OutlinedTextField(
@@ -463,7 +463,7 @@ private fun FeedbackButton(icon: androidx.compose.ui.graphics.vector.ImageVector
     Box(
         modifier = Modifier
             .size(30.dp)
-            .background(if (picked) color.copy(alpha = 0.18f) else RaahiGlass, CircleShape)
+            .background(if (picked) color.copy(alpha = 0.15f) else Color.White, CircleShape)
             .border(1.dp, if (picked) Color.Transparent else RaahiBorderSoft, CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -488,7 +488,7 @@ private fun ChatBubble(
                 .widthIn(max = 310.dp)
                 .then(
                     if (!isUser) Modifier.shadow(elevation = 2.dp, shape = RaahiShapeMedium, spotColor = Color(0x10000000)).border(1.dp, RaahiBorderSoft, RaahiShapeMedium)
-                    else Modifier.shadow(elevation = 3.dp, shape = RaahiShapeMedium, spotColor = RaahiOrange)
+                    else Modifier.shadow(elevation = 2.dp, shape = RaahiShapeMedium, spotColor = RaahiOrange.copy(alpha = 0.25f))
                 )
                 .background(
                     when {
@@ -540,13 +540,43 @@ private fun ChatBubble(
                         Text("Nearby Garages", color = RaahiOrange, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
-            } else {
+            } else if (isUser) {
                 Text(
                     text = msg.content,
-                    color = if (isUser) Color.White else RaahiText,
-                    fontSize = 13.5.sp,
-                    lineHeight = 19.sp
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    lineHeight = 21.sp
                 )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    msg.content.lines().forEach { rawLine ->
+                        val line = rawLine.trim()
+                        if (line.isNotEmpty()) {
+                            val cleaned = line
+                                .replace(Regex("\\*\\*(.*?)\\*\\*"), "$1")
+                                .replace(Regex("^#{1,3}\\s*"), "")
+                            val heading = line.startsWith("### ") ||
+                                line.startsWith("## ") ||
+                                line.startsWith("# ") ||
+                                (line.startsWith("**") && line.endsWith("**") && line.length < 70)
+                            val bullet = line.startsWith("* ") ||
+                                line.startsWith("- ") ||
+                                line.startsWith("• ")
+                            val numbered = Regex("^\\d+[.)]\\s+").containsMatchIn(line)
+                            Text(
+                                text = when {
+                                    bullet -> "•  " + cleaned.removePrefix("* ").removePrefix("- ").removePrefix("• ")
+                                    else -> cleaned
+                                },
+                                color = RaahiText,
+                                fontSize = if (heading) 15.sp else 13.5.sp,
+                                fontWeight = if (heading) FontWeight.Bold else FontWeight.Normal,
+                                lineHeight = if (heading) 21.sp else 20.sp,
+                                modifier = if (numbered || bullet) Modifier.padding(start = 3.dp) else Modifier
+                            )
+                        }
+                    }
+                }
             }
         }
     }

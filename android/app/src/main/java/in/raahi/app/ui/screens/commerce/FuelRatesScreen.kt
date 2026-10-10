@@ -1,5 +1,6 @@
 package `in`.raahi.app.ui.screens.commerce
 
+import androidx.compose.ui.graphics.Color
 import `in`.raahi.app.data.AuthRepository
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -61,20 +62,20 @@ class FuelRatesViewModel @Inject constructor(
 fun FuelRatesScreen(onBack: () -> Unit, viewModel: FuelRatesViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsState()
 
-    Surface(modifier = Modifier.fillMaxSize(), color = RaahiNavyBackground) {
+    Surface(modifier = Modifier.fillMaxSize(), color = RaahiBg) {
         Column(Modifier.fillMaxSize()) {
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = RaahiTextPrimary) }
-                Text("Fuel Rates", color = RaahiTextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = RaahiText) }
+                Text("Fuel Rates", color = RaahiText, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
             }
 
             when (val s = state) {
-                is FuelUiState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = RaahiOrangeAccent) }
+                is FuelUiState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = RaahiOrange) }
                 is FuelUiState.Error -> Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(s.message, color = RaahiTextMuted)
+                        Text(s.message, color = RaahiTextDim)
                         Spacer(Modifier.height(12.dp))
-                        Button(onClick = viewModel::refresh, colors = ButtonDefaults.buttonColors(containerColor = RaahiOrangeAccent)) { Text("Retry") }
+                        Button(onClick = viewModel::refresh, colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange)) { Text("Retry") }
                     }
                 }
                 is FuelUiState.Loaded -> LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -87,8 +88,8 @@ fun FuelRatesScreen(onBack: () -> Unit, viewModel: FuelRatesViewModel = hiltView
 
 @Composable
 private fun FuelRateCard(rate: FuelRateDto) {
-    Column(Modifier.fillMaxWidth().background(RaahiCardBg, RoundedCornerShape(14.dp)).padding(14.dp)) {
-        Text(rate.state, color = RaahiTextPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+    Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(18.dp)).padding(16.dp)) {
+        Text(rate.state, color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 15.sp)
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
             RateColumn("Petrol", rate.petrol)
@@ -99,14 +100,14 @@ private fun FuelRateCard(rate: FuelRateDto) {
         // Honest timestamp — reflects when this row was actually last written in the DB, not
         // a fabricated "updated today" the old Node reference always claimed regardless of
         // the underlying (hardcoded, stale) numbers.
-        Text("Last updated: ${rate.updatedAt.take(10)}", color = RaahiTextMuted, fontSize = 10.sp)
+        Text("Last updated: ${rate.updatedAt.take(10)}", color = RaahiTextDim, fontSize = 10.sp)
     }
 }
 
 @Composable
 private fun RateColumn(label: String, value: Double) {
     Column {
-        Text(label, color = RaahiTextMuted, fontSize = 11.sp)
-        Text("₹%.2f".format(value), color = RaahiCyan, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+        Text(label, color = RaahiTextDim, fontSize = 11.sp)
+        Text("₹%.2f".format(value), color = RaahiOrange, fontWeight = FontWeight.Bold, fontSize = 15.sp)
     }
 }

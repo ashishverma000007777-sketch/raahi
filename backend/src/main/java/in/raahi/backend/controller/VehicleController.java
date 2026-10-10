@@ -62,6 +62,16 @@ public class VehicleController {
         return ApiResponse.ok(toDto(v));
     }
 
+    @DeleteMapping("/me")
+    @Transactional
+    public ApiResponse<java.util.Map<String, Boolean>> deleteMine(@AuthenticationPrincipal AuthenticatedUser principal) {
+        Vehicle v = requireVehicle(principal);
+        odometerLogRepository.deleteByVehicleId(v.getId());
+        serviceRecordRepository.deleteByVehicleId(v.getId());
+        vehicleRepository.delete(v);
+        return ApiResponse.ok(java.util.Map.of("deleted", true));
+    }
+
     /** Create-or-update. Used by both the "Set up your car" onboarding step and later edits
      * from Profile — same endpoint, same validation, no separate "create" vs "update" split. */
     @PutMapping("/me")

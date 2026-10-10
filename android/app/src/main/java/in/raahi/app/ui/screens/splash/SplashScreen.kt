@@ -120,7 +120,7 @@ fun RaahiSplashScreen(onFinished: () -> Unit) {
             verticalArrangement = Arrangement.SpaceBetween,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(vertical = 48.dp, horizontal = 24.dp)
+                .padding(vertical = 36.dp, horizontal = 22.dp)
         ) {
             Spacer(Modifier.height(10.dp))
 
@@ -132,7 +132,7 @@ fun RaahiSplashScreen(onFinished: () -> Unit) {
                 // Raahi Brand Icon
                 Box(
                     modifier = Modifier
-                        .size(100.dp)
+                        .size(108.dp)
                         .graphicsLayer {
                             alpha = logoAlpha
                             scaleX = logoScale
@@ -157,7 +157,7 @@ fun RaahiSplashScreen(onFinished: () -> Unit) {
                     Image(
                         painter = painterResource(id = R.drawable.ic_splash_logo),
                         contentDescription = "Raahi Logo",
-                        modifier = Modifier.size(92.dp)
+                        modifier = Modifier.size(96.dp)
                     )
                 }
 
@@ -169,7 +169,7 @@ fun RaahiSplashScreen(onFinished: () -> Unit) {
                     style = TextStyle(
                         fontFamily = RaahiDisplayFont,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 34.sp,
+                        fontSize = 36.sp,
                         color = RaahiText,
                         letterSpacing = 0.5.sp
                     ),
@@ -186,7 +186,7 @@ fun RaahiSplashScreen(onFinished: () -> Unit) {
                     style = TextStyle(
                         fontFamily = FontFamily.SansSerif,
                         fontWeight = FontWeight.Medium,
-                        fontSize = 13.sp,
+                        fontSize = 13.5.sp,
                         color = RaahiTextDim,
                         letterSpacing = 0.05.em
                     ),
@@ -215,7 +215,7 @@ fun RaahiSplashScreen(onFinished: () -> Unit) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 6.dp),
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -257,7 +257,7 @@ private fun SplashPillarItem(icon: ImageVector, title: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             modifier = Modifier
-                .size(40.dp)
+                .size(44.dp)
                 .background(RaahiOrange.copy(alpha = 0.12f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
@@ -265,10 +265,10 @@ private fun SplashPillarItem(icon: ImageVector, title: String) {
                 imageVector = icon,
                 contentDescription = null,
                 tint = RaahiOrange,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(22.dp)
             )
         }
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = title,
             style = TextStyle(

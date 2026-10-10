@@ -11,6 +11,8 @@ class VehicleRepository @Inject constructor(private val api: RaahiApi) {
      * (backend 404 VEHICLE_NOT_FOUND), not an error. */
     suspend fun myVehicle(): VehicleDto? = apiCallOrNullOn404 { api.myVehicle() }
 
+    suspend fun deleteVehicle(): Map<String, Boolean> = apiCall { api.deleteVehicle() }
+
     suspend fun upsertVehicle(req: UpsertVehicleRequest): VehicleDto = apiCall { api.upsertVehicle(req) }
 
     suspend fun updateOdometer(odometerKm: Int): VehicleDto =

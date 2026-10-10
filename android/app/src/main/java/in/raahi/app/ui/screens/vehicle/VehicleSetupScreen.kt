@@ -137,7 +137,7 @@ fun VehicleSetupScreen(
             Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(bottom = 32.dp)
+                .padding(bottom = 36.dp)
         ) {
             // Top Bar
             Row(
@@ -158,7 +158,7 @@ fun VehicleSetupScreen(
                 Text(
                     text = if (isEditing) "Edit your car" else "Set up your car",
                     color = RaahiText,
-                    fontSize = 24.sp,
+                    fontSize = 26.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = RaahiDisplayFont
                 )
@@ -170,10 +170,7 @@ fun VehicleSetupScreen(
                     lineHeight = 18.sp
                 )
 
-                Spacer(Modifier.height(16.dp))
-
-
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(22.dp))
 
                 // 1. Brand Selector (Tap Brand -> Compact dialog)
                 FieldLabel("Vehicle brand *")
@@ -262,11 +259,11 @@ fun VehicleSetupScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(RoundedCornerShape(16.dp))
                         .background(Color.White)
-                        .border(1.dp, RaahiBorder, RoundedCornerShape(12.dp))
+                        .border(1.dp, RaahiBorderSoft, RoundedCornerShape(16.dp))
                         .clickable { showOptional = !showOptional }
-                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                        .padding(horizontal = 16.dp, vertical = 15.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
@@ -319,9 +316,9 @@ fun VehicleSetupScreen(
                     enabled = state !is VehicleSetupState.Saving,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(52.dp)
-                        .shadow(elevation = 6.dp, shape = RoundedCornerShape(16.dp), spotColor = RaahiOrange),
-                    shape = RoundedCornerShape(16.dp),
+                        .height(56.dp)
+                        .shadow(elevation = 4.dp, shape = RoundedCornerShape(18.dp), spotColor = RaahiOrange.copy(alpha = 0.25f)),
+                    shape = RoundedCornerShape(18.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange),
                 ) {
                     if (state is VehicleSetupState.Saving) {
@@ -424,13 +421,13 @@ private fun SelectableField(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(52.dp)
-            .shadow(elevation = 1.dp, shape = RaahiShapeSmall, spotColor = Color(0x0C000000))
-            .background(if (enabled) Color.White else Color(0xFFF8F5EE), RaahiShapeSmall)
+            .height(56.dp)
+            .shadow(elevation = 1.dp, shape = RaahiShapeMedium, spotColor = Color(0x0C000000))
+            .background(if (enabled) Color.White else Color(0xFFF8F5EE), RaahiShapeMedium)
             .border(
                 1.dp,
-                if (value.isNotBlank()) RaahiOrange else RaahiBorder,
-                RaahiShapeSmall
+                if (value.isNotBlank()) RaahiSelectionBorder else RaahiBorderSoft,
+                RaahiShapeMedium
             )
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 14.dp),
@@ -479,7 +476,7 @@ private fun RaahiLightTextField(
         } else null,
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-        shape = RaahiShapeSmall,
+        shape = RaahiShapeMedium,
         colors = OutlinedTextFieldDefaults.colors(
             focusedTextColor = RaahiText,
             unfocusedTextColor = RaahiText,

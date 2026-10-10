@@ -17,13 +17,20 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import `in`.raahi.app.BuildConfig
+import `in`.raahi.app.data.LatLng
+import `in`.raahi.app.data.OsrmRoutingService
+import `in`.raahi.app.data.RouteResult
 import javax.inject.Inject
 
 sealed class JobStatusUiState {
     data object Loading : JobStatusUiState()
     data class Loaded(
-        val job: JobDto, val liveLocation: Pair<Double, Double>? = null,
-        val actionError: String? = null, val acting: Boolean = false,
+        val job: JobDto,
+        val liveLocation: Pair<Double, Double>? = null,
+        val route: RouteResult? = null,
+        val actionError: String? = null,
+        val acting: Boolean = false,
     ) : JobStatusUiState()
     data class Error(val message: String) : JobStatusUiState()
 }
@@ -34,7 +41,7 @@ private val LOCATION_SHARING_STATUSES = setOf("MATCHED", "ARRIVED", "IN_PROGRESS
 // in real time now, so this is a slow safety-net poll for when the socket is down or still
 // reconnecting, not the primary update mechanism 6B originally used.
 private const val FALLBACK_POLL_INTERVAL_MS = 20_000L
-private const val LOCATION_SHARE_INTERVAL_MS = 8_000L
+private const val LOCATION_SHARE_INTERVAL_MS = 6_000L
 
 @HiltViewModel
 class JobStatusViewModel @Inject constructor(
@@ -42,6 +49,7 @@ class JobStatusViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val webSocketClient: RaahiWebSocketClient,
     private val locationProvider: LocationProvider,
+    private val osrmRoutingService: OsrmRoutingService,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -54,6 +62,7 @@ class JobStatusViewModel @Inject constructor(
 
     init {
         if (authRepository.hasAuthToken()) {
+            runCatching { webSocketClient.connect(BuildConfig.BASE_URL) }
             startPolling()
             listenForLiveUpdates()
             startLocationSharingIfHelper()
@@ -82,6 +91,7 @@ class JobStatusViewModel @Inject constructor(
                         _state.update {
                             (it as? JobStatusUiState.Loaded)?.copy(liveLocation = event.lat to event.lng) ?: it
                         }
+                        updateRoute(event.lat, event.lng)
                     }
                     else -> {}
                 }
@@ -89,9 +99,27 @@ class JobStatusViewModel @Inject constructor(
         }
     }
 
-    /** Helper side, while IN_PROGRESS: push a location fix over the socket periodically so
+    private fun updateRoute(helperLat: Double, helperLng: Double) {
+        val current = _state.value as? JobStatusUiState.Loaded ?: return
+        val customerLat = current.job.lat ?: return
+        val customerLng = current.job.lng ?: return
+
+        viewModelScope.launch {
+            val route = osrmRoutingService.getRoute(
+                start = LatLng(helperLat, helperLng),
+                end = LatLng(customerLat, customerLng)
+            )
+            if (route != null) {
+                _state.update { prev ->
+                    (prev as? JobStatusUiState.Loaded)?.copy(route = route) ?: prev
+                }
+            }
+        }
+    }
+
+    /** Helper side, while MATCHED/ARRIVED/IN_PROGRESS: push a location fix over the socket periodically so
      * the requester's screen can show where their helper is. Stops once the job leaves
-     * IN_PROGRESS or this ViewModel is cleared. */
+     * active statuses or this ViewModel is cleared. */
     private fun startLocationSharingIfHelper() {
         viewModelScope.launch {
             while (true) {
@@ -111,8 +139,14 @@ class JobStatusViewModel @Inject constructor(
             runCatching { jobsRepository.getJob(jobId) }
                 .onSuccess { job ->
                     _state.update { prev ->
-                        val prevLoc = (prev as? JobStatusUiState.Loaded)?.liveLocation
-                        JobStatusUiState.Loaded(job, liveLocation = prevLoc)
+                        val prevLoaded = prev as? JobStatusUiState.Loaded
+                        val liveLoc = prevLoaded?.liveLocation
+                        val prevRoute = prevLoaded?.route
+                        JobStatusUiState.Loaded(job, liveLocation = liveLoc, route = prevRoute)
+                    }
+                    val currentLoaded = _state.value as? JobStatusUiState.Loaded
+                    currentLoaded?.liveLocation?.let { (lat, lng) ->
+                        updateRoute(lat, lng)
                     }
                 }
                 .onFailure { e ->
@@ -149,7 +183,7 @@ class JobStatusViewModel @Inject constructor(
         _state.value = current.copy(acting = true, actionError = null)
         viewModelScope.launch {
             runCatching { block() }
-                .onSuccess { job -> _state.value = JobStatusUiState.Loaded(job, liveLocation = current.liveLocation) }
+                .onSuccess { job -> _state.value = JobStatusUiState.Loaded(job, liveLocation = current.liveLocation, route = current.route) }
                 .onFailure { e ->
                     _state.update {
                         (it as? JobStatusUiState.Loaded)?.copy(acting = false, actionError = e.toUserFriendlyMessage("Action failed. Check connection."))
