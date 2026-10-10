@@ -1,5 +1,6 @@
 package `in`.raahi.app.ui.screens.home
 
+import `in`.raahi.app.network.AlertDto
 import `in`.raahi.app.network.AiStatusDto
 import `in`.raahi.app.network.CarHealthDto
 import `in`.raahi.app.network.FuelSummaryDto
@@ -100,6 +101,15 @@ internal fun tickerItems(vehicle: VehicleDto?, ch: CarHealthDto?, m: HomeMetrics
         )
     }
     fuelPriceText(vehicle, m.fuelPrice, zone)?.let { add(it) }
+    when (val alerts = m.roadAlerts) {
+        Load.Loading -> Unit
+        is Load.Failed -> Unit
+        is Load.Ready -> alerts.value.take(3).forEach { alert ->
+            val kind = alert.type.replace('_', ' ').lowercase(Locale.ENGLISH)
+            val loc = alert.location?.takeIf { it.isNotBlank() }?.let { " · $it" } ?: ""
+            add("⚠️ Road alert: $kind — ${alert.message}$loc")
+        }
+    }
     ch?.score?.let { add("❤️ Car Health $it / 100") }
     ch?.maintenanceItems?.firstOrNull { it.status != "OK" }?.let { add("🔧 ${it.type}: ${it.detail}") }
 }

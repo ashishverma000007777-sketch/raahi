@@ -11,6 +11,7 @@ class HomeRepository @Inject constructor(private val api: RaahiApi) {
     suspend fun fuelSummary(): FuelSummaryDto = apiCall { api.fuelSummary() }
     suspend fun aiStatus(): AiStatusDto = apiCall { api.aiStatus() }
     suspend fun fuelRates(): List<FuelRateDto> = apiCall { api.fuelRates() }
+    suspend fun roadAlerts(): List<AlertDto> = apiCall { api.alerts() }
     suspend fun addFuelLog(req: CreateFuelLogRequest): FuelLogDto = apiCall { api.addFuelLog(req) }
     suspend fun notifications(): List<NotificationDto> = apiCall { api.notifications() }
     suspend fun markAllNotificationsRead() { apiCall { api.markAllNotificationsRead() } }

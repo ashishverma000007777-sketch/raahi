@@ -291,14 +291,14 @@ fun Ticker(items: List<String>, modifier: Modifier = Modifier) {
             ) {
                 Icon(
                     Icons.Outlined.WaterDrop,
-                    contentDescription = "Fuel prices",
+                    contentDescription = "Live updates",
                     tint = RaahiOrange,
                     modifier = Modifier.size(19.dp)
                 )
             }
             Column {
                 Text(
-                    "Fuel Prices",
+                    "Live Updates",
                     color = RaahiText,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
@@ -320,6 +320,7 @@ fun Ticker(items: List<String>, modifier: Modifier = Modifier) {
                 .background(Color(0xFFE9EDF3))
         )
 
+        val displayItems = items.ifEmpty { listOf("Live updates unavailable") }
         Row(
             modifier = Modifier
                 .weight(1f)
@@ -328,7 +329,7 @@ fun Ticker(items: List<String>, modifier: Modifier = Modifier) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            items.forEachIndexed { index, item ->
+            displayItems.forEachIndexed { index, item ->
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(7.dp)
@@ -352,7 +353,7 @@ fun Ticker(items: List<String>, modifier: Modifier = Modifier) {
                         }
                     }
                 }
-                if (index < items.lastIndex) {
+                if (index < displayItems.lastIndex) {
                     Box(
                         Modifier
                             .width(1.dp)

@@ -16,6 +16,7 @@ import `in`.raahi.app.data.LocationProvider
 import `in`.raahi.app.data.MechanicsRepository
 import `in`.raahi.app.data.HelperRepository
 import `in`.raahi.app.data.VehicleRepository
+import `in`.raahi.app.network.AlertDto
 import `in`.raahi.app.network.AiStatusDto
 import `in`.raahi.app.network.CarHealthDto
 import `in`.raahi.app.network.FuelRateDto
@@ -84,6 +85,7 @@ data class HomeMetrics(
     val ai: Load<AiStatusDto> = Load.Loading,
     val mechanics: NearbyMechanics = NearbyMechanics.Loading,
     val fuelPrice: FuelPrice? = null,
+    val roadAlerts: Load<List<AlertDto>> = Load.Loading,
 )
 
 private val ACTIVE_JOB_STATUSES = setOf("PENDING", "MATCHED", "ARRIVED", "IN_PROGRESS", "WORK_DONE")
@@ -374,6 +376,7 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch { runLoad({ homeRepository.summary() }) { r -> _metrics.update { it.copy(summary = r) } } }
         viewModelScope.launch { runLoad({ homeRepository.fuelSummary() }) { r -> _metrics.update { it.copy(fuel = r) } } }
         viewModelScope.launch { runLoad({ homeRepository.aiStatus() }) { r -> _metrics.update { it.copy(ai = r) } } }
+        viewModelScope.launch { runLoad({ homeRepository.roadAlerts() }) { r -> _metrics.update { it.copy(roadAlerts = r) } } }
         viewModelScope.launch { refreshLocationBased(hasLocationPermission) }
     }
 
