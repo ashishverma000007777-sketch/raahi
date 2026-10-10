@@ -105,11 +105,7 @@ class OsrmRoutingService @Inject constructor(
             }
         } catch (e: Exception) {
             Log.w("OsrmRoutingService", "Route request failed: ${e.message}")
-            return@withContext prevResult ?: RouteResult(
-                points = listOf(start, end),
-                distanceMeters = haversineMeters(start.lat, start.lng, end.lat, end.lng),
-                durationSeconds = (haversineMeters(start.lat, start.lng, end.lat, end.lng) / 8.33) // ~30 km/h approx
-            )
+            return@withContext prevResult
         }
     }
 

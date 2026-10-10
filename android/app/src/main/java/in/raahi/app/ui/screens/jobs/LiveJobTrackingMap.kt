@@ -36,6 +36,7 @@ private const val OSM_SOURCE_ID = "osm-raster-source"
 private const val OSM_LAYER_ID = "osm-raster-layer"
 
 private const val ROUTE_SOURCE_ID = "live-route-source"
+private const val ROUTE_CASING_LAYER_ID = "live-route-casing-layer"
 private const val ROUTE_LAYER_ID = "live-route-layer"
 
 private const val CUSTOMER_SOURCE_ID = "customer-loc-source"
@@ -43,6 +44,7 @@ private const val CUSTOMER_PULSE_LAYER_ID = "customer-loc-pulse"
 private const val CUSTOMER_LAYER_ID = "customer-loc-layer"
 
 private const val HELPER_SOURCE_ID = "helper-loc-source"
+private const val HELPER_PULSE_LAYER_ID = "helper-loc-pulse"
 private const val HELPER_GLOW_LAYER_ID = "helper-loc-glow"
 private const val HELPER_LAYER_ID = "helper-loc-layer"
 
@@ -52,9 +54,12 @@ private fun emptyStyleBuilder(): Style.Builder {
 }
 
 /**
- * High-performance, production-ready MapLibre live job tracking map.
- * Renders real OpenStreetMap raster tiles, distinct customer/helper markers,
- * and live OSRM polyline route geometry.
+ * High-performance, production-ready MapLibre live job tracking navigation map.
+ * Features:
+ * - Real OpenStreetMap raster tiles
+ * - Turn-by-turn navigation-quality route polyline with contrast casing
+ * - Directional GPS beacon for helper and destination marker for customer
+ * - Intelligent user gesture detection: frees camera when exploring and supports re-centering
  */
 @Composable
 fun LiveJobTrackingMap(
@@ -62,11 +67,23 @@ fun LiveJobTrackingMap(
     customerLocation: LatLng,
     helperLocation: LatLng? = null,
     routePoints: List<LatLng> = emptyList(),
+    isUserExploring: Boolean = false,
+    onUserExploringChange: (Boolean) -> Unit = {},
+    recenterTrigger: Int = 0,
     onMapReady: (MapLibreMap) -> Unit = {},
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val mapViewRef = remember { arrayOfNulls<MapView>(1) }
     var activeMap by remember { mutableStateOf<MapLibreMap?>(null) }
+    val latestExploring by rememberUpdatedState(isUserExploring)
+
+    LaunchedEffect(recenterTrigger) {
+        if (recenterTrigger > 0) {
+            activeMap?.let { map ->
+                adjustCamera(map, customerLocation, helperLocation)
+            }
+        }
+    }
 
     Box(modifier = modifier) {
         AndroidView<android.view.View>(
@@ -81,13 +98,21 @@ fun LiveJobTrackingMap(
                             activeMap = map
                             map.setStyle(emptyStyleBuilder()) { style ->
                                 addOsmRasterLayer(style)
-                                addRouteLayer(style, routePoints)
+                                addRouteLayers(style, routePoints)
                                 addCustomerMarkerLayer(style, customerLocation)
                                 addHelperMarkerLayer(style, helperLocation)
                             }
 
                             // Initial camera positioning
                             adjustCamera(map, customerLocation, helperLocation)
+
+                            // Detect user panning/zooming gestures so camera follow pauses gracefully
+                            map.addOnCameraMoveStartedListener { reason ->
+                                if (reason == MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) {
+                                    onUserExploringChange(true)
+                                }
+                            }
+
                             onMapReady(map)
                         }
                     }
@@ -129,7 +154,10 @@ fun LiveJobTrackingMap(
                         }
                     }
 
-                    adjustCamera(map, customerLocation, helperLocation)
+                    // Only auto-frame camera if user is not actively exploring the map
+                    if (!latestExploring) {
+                        adjustCamera(map, customerLocation, helperLocation)
+                    }
                 }
             }
         )
@@ -174,7 +202,7 @@ private fun adjustCamera(map: MapLibreMap, customer: LatLng, helper: LatLng?) {
                 .include(MlLatLng(customer.lat, customer.lng))
                 .include(MlLatLng(helper.lat, helper.lng))
                 .build()
-            map.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 140))
+            map.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 130))
         } else {
             map.animateCamera(
                 CameraUpdateFactory.newCameraPosition(
@@ -204,20 +232,33 @@ private fun addOsmRasterLayer(style: Style) {
     style.addLayer(RasterLayer(OSM_LAYER_ID, OSM_SOURCE_ID))
 }
 
-private fun addRouteLayer(style: Style, points: List<LatLng>) {
+private fun addRouteLayers(style: Style, points: List<LatLng>) {
     val initialCollection = if (points.size >= 2) {
         FeatureCollection.fromFeatures(listOf(Feature.fromGeometry(LineString.fromLngLats(points.map { Point.fromLngLat(it.lng, it.lat) }))))
     } else {
         FeatureCollection.fromFeatures(emptyList())
     }
     style.addSource(GeoJsonSource(ROUTE_SOURCE_ID, initialCollection))
+
+    // 1. Route Casing (dark border underneath for navigation clarity)
+    val casingLayer = LineLayer(ROUTE_CASING_LAYER_ID, ROUTE_SOURCE_ID)
+    casingLayer.setProperties(
+        lineColor("#B91C1C"),
+        lineWidth(8f),
+        lineCap(Property.LINE_CAP_ROUND),
+        lineJoin(Property.LINE_JOIN_ROUND),
+        lineOpacity(0.90f)
+    )
+    style.addLayer(casingLayer)
+
+    // 2. Main Navigation Polyline (Raahi automotive coral)
     val lineLayer = LineLayer(ROUTE_LAYER_ID, ROUTE_SOURCE_ID)
     lineLayer.setProperties(
-        lineColor("#FF4B3A"), // Raahi automotive coral accent
+        lineColor("#FF4B3A"),
         lineWidth(5f),
         lineCap(Property.LINE_CAP_ROUND),
         lineJoin(Property.LINE_JOIN_ROUND),
-        lineOpacity(0.92f)
+        lineOpacity(0.98f)
     )
     style.addLayer(lineLayer)
 }
@@ -227,20 +268,20 @@ private fun addCustomerMarkerLayer(style: Style, loc: LatLng) {
         GeoJsonSource(CUSTOMER_SOURCE_ID, Feature.fromGeometry(Point.fromLngLat(loc.lng, loc.lat)))
     )
 
-    // Outer soft pulse
+    // Outer soft pulse / destination beacon
     val pulseLayer = CircleLayer(CUSTOMER_PULSE_LAYER_ID, CUSTOMER_SOURCE_ID)
     pulseLayer.setProperties(
-        circleRadius(16f),
+        circleRadius(18f),
         circleColor("#00CFFF"),
-        circleOpacity(0.24f)
+        circleOpacity(0.22f)
     )
     style.addLayer(pulseLayer)
 
-    // Inner distinct blue dot
+    // Inner distinct destination point
     val circleLayer = CircleLayer(CUSTOMER_LAYER_ID, CUSTOMER_SOURCE_ID)
     circleLayer.setProperties(
-        circleRadius(7.5f),
-        circleColor("#00CFFF"),
+        circleRadius(8f),
+        circleColor("#0284C7"),
         circleStrokeWidth(2.5f),
         circleStrokeColor("#FFFFFF")
     )
@@ -255,19 +296,28 @@ private fun addHelperMarkerLayer(style: Style, loc: LatLng?) {
     }
     style.addSource(GeoJsonSource(HELPER_SOURCE_ID, initialCollection))
 
-    // Outer amber glow
+    // Outer radar pulse
+    val pulseLayer = CircleLayer(HELPER_PULSE_LAYER_ID, HELPER_SOURCE_ID)
+    pulseLayer.setProperties(
+        circleRadius(24f),
+        circleColor("#FF4B3A"),
+        circleOpacity(0.18f)
+    )
+    style.addLayer(pulseLayer)
+
+    // Mid navigational halo
     val glowLayer = CircleLayer(HELPER_GLOW_LAYER_ID, HELPER_SOURCE_ID)
     glowLayer.setProperties(
-        circleRadius(20f),
+        circleRadius(13f),
         circleColor("#FF4B3A"),
-        circleOpacity(0.24f)
+        circleOpacity(0.38f)
     )
     style.addLayer(glowLayer)
 
-    // Inner vehicle marker
+    // Inner vehicle navigation puck
     val markerLayer = CircleLayer(HELPER_LAYER_ID, HELPER_SOURCE_ID)
     markerLayer.setProperties(
-        circleRadius(9.5f),
+        circleRadius(8.5f),
         circleColor("#FF4B3A"),
         circleStrokeWidth(2.5f),
         circleStrokeColor("#FFFFFF")

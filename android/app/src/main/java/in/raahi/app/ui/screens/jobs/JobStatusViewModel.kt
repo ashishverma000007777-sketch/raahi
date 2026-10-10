@@ -101,8 +101,8 @@ class JobStatusViewModel @Inject constructor(
 
     private fun updateRoute(helperLat: Double, helperLng: Double) {
         val current = _state.value as? JobStatusUiState.Loaded ?: return
-        val customerLat = current.job.lat ?: return
-        val customerLng = current.job.lng ?: return
+        val customerLat = current.job.lat
+        val customerLng = current.job.lng
 
         viewModelScope.launch {
             val route = osrmRoutingService.getRoute(
@@ -126,7 +126,13 @@ class JobStatusViewModel @Inject constructor(
                 val current = _state.value
                 if (current is JobStatusUiState.Loaded && current.job.viewerRole == "HELPER" && current.job.status in LOCATION_SHARING_STATUSES) {
                     val fix = runCatching { locationProvider.getCurrentLocation() }.getOrNull()
-                    if (fix != null) webSocketClient.sendJobLocationUpdate(jobId, fix.lat, fix.lng)
+                    if (fix != null) {
+                        webSocketClient.sendJobLocationUpdate(jobId, fix.lat, fix.lng)
+                        _state.update {
+                            (it as? JobStatusUiState.Loaded)?.copy(liveLocation = fix.lat to fix.lng) ?: it
+                        }
+                        updateRoute(fix.lat, fix.lng)
+                    }
                 }
                 delay(LOCATION_SHARE_INTERVAL_MS)
             }
@@ -145,8 +151,18 @@ class JobStatusViewModel @Inject constructor(
                         JobStatusUiState.Loaded(job, liveLocation = liveLoc, route = prevRoute)
                     }
                     val currentLoaded = _state.value as? JobStatusUiState.Loaded
-                    currentLoaded?.liveLocation?.let { (lat, lng) ->
-                        updateRoute(lat, lng)
+                    if (currentLoaded?.liveLocation != null) {
+                        updateRoute(currentLoaded.liveLocation.first, currentLoaded.liveLocation.second)
+                    } else if (job.viewerRole == "HELPER" && job.status in LOCATION_SHARING_STATUSES) {
+                        viewModelScope.launch {
+                            val fix = runCatching { locationProvider.getCurrentLocation() }.getOrNull()
+                            if (fix != null) {
+                                _state.update {
+                                    (it as? JobStatusUiState.Loaded)?.copy(liveLocation = fix.lat to fix.lng) ?: it
+                                }
+                                updateRoute(fix.lat, fix.lng)
+                            }
+                        }
                     }
                 }
                 .onFailure { e ->

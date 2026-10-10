@@ -1,13 +1,16 @@
 package `in`.raahi.app.ui.screens.mechanics
 
-import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -17,6 +20,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Directions
@@ -33,9 +38,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -48,11 +54,20 @@ import `in`.raahi.app.ui.theme.*
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.maps.MapLibreMap
 
-/** Nearby Mechanics, restyled to the concept redesign — glass chips, glass bottom sheet,
- * gradient recenter FAB. Real map (MapLibre) and viewmodel logic unchanged. */
+/**
+ * Premium Google Maps-quality Mechanic Help & Discovery Map experience.
+ * Features:
+ * - Full-screen interactive MapLibre map with OpenStreetMap raster tiles
+ * - Floating search header & category filter chips
+ * - Bidirectional marker <-> list selection with animated highlight rings
+ * - Smooth draggable bottom sheet with collapsed peek and expanded states
+ * - Dedicated floating zoom (+/-) and GPS re-center controls
+ */
 @Composable
 fun MechanicsMapScreen(
-    onBack: () -> Unit, onMechanicClick: (userId: String) -> Unit, onNavigateTab: (RaahiTab) -> Unit,
+    onBack: () -> Unit,
+    onMechanicClick: (userId: String) -> Unit,
+    onNavigateTab: (RaahiTab) -> Unit,
     viewModel: MechanicsMapViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
@@ -63,132 +78,197 @@ fun MechanicsMapScreen(
 
     var selectedMechanic by remember { mutableStateOf<MechanicDto?>(null) }
     var selectedShop by remember { mutableStateOf<OsmMechanicShopDto?>(null) }
+    var isSheetExpanded by remember { mutableStateOf(false) }
 
     fun selectMechanic(m: MechanicDto) {
         selectedMechanic = m
         selectedShop = null
         if (m.lat != null && m.lng != null) {
-            map?.animateCamera(CameraUpdateFactory.newLatLngZoom(org.maplibre.android.geometry.LatLng(m.lat, m.lng), 15.0))
+            map?.animateCamera(CameraUpdateFactory.newLatLngZoom(org.maplibre.android.geometry.LatLng(m.lat, m.lng), 15.2))
         }
     }
 
     fun selectShop(s: OsmMechanicShopDto) {
         selectedShop = s
         selectedMechanic = null
-        map?.animateCamera(CameraUpdateFactory.newLatLngZoom(org.maplibre.android.geometry.LatLng(s.lat, s.lng), 15.0))
+        map?.animateCamera(CameraUpdateFactory.newLatLngZoom(org.maplibre.android.geometry.LatLng(s.lat, s.lng), 15.2))
     }
 
-    LaunchedEffect(permission.isGranted) { if (permission.isGranted) viewModel.start() }
+    LaunchedEffect(permission.isGranted) {
+        if (permission.isGranted) viewModel.start()
+    }
 
     Surface(modifier = Modifier.fillMaxSize(), color = RaahiBg) {
         Column(Modifier.fillMaxSize()) {
             Box(Modifier.weight(1f)) {
-                Column(Modifier.fillMaxSize()) {
-                    val loaded = state as? MechanicsMapUiState.Loaded
-                    val errorState = state as? MechanicsMapUiState.Error
-                    val currentError = loaded?.errorMessage ?: errorState?.message
-                    TopBar(
+                val loaded = state as? MechanicsMapUiState.Loaded
+                val errorState = state as? MechanicsMapUiState.Error
+                val defaultLoc = `in`.raahi.app.data.LatLng(28.6139, 77.2090)
+                val currentLoc = loaded?.userLocation ?: defaultLoc
+
+                val filteredMechanics = remember(loaded?.mechanics, selectedFilter) {
+                    applyFilter(loaded?.mechanics.orEmpty(), selectedFilter)
+                }
+                val shops = loaded?.shops.orEmpty()
+
+                // 1. Full-screen Background Map Canvas
+                MechanicsMapView(
+                    modifier = Modifier.fillMaxSize(),
+                    userLocation = currentLoc,
+                    mechanics = filteredMechanics,
+                    shops = shops,
+                    selectedMechanicId = selectedMechanic?.userId,
+                    selectedShopId = selectedShop?.id,
+                    onMechanicClick = { selectMechanic(it) },
+                    onShopClick = { selectShop(it) },
+                    onMapReady = { map = it },
+                )
+
+                // 2. Floating Top Header & Filter Chips
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.TopCenter)
+                        .padding(top = 10.dp)
+                ) {
+                    FloatingSearchHeader(
                         onBack = onBack,
                         onRefresh = viewModel::retry,
                         availableCount = loaded?.mechanics?.count { it.isAvailable } ?: 0,
                         totalCount = loaded?.mechanics?.size ?: 0,
-                        errorMessage = currentError
+                        errorMessage = loaded?.errorMessage ?: errorState?.message
                     )
 
                     val categories = remember(loaded?.mechanics) { deriveCategories(loaded?.mechanics.orEmpty()) }
-                    if (categories.size > 1) FilterChipRow(categories, selectedFilter) { selectedFilter = it }
+                    if (categories.size > 1) {
+                        Spacer(Modifier.height(8.dp))
+                        FloatingFilterChipRow(categories, selectedFilter) { selectedFilter = it }
+                    }
+                }
 
-                    when {
-                        !permission.isGranted -> PermissionNeededState(permission.request)
-                        state is MechanicsMapUiState.LocationUnavailable -> LocationUnavailableState(viewModel::start)
-                        state is MechanicsMapUiState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = RaahiOrange) }
-                        errorState != null -> {
-                            val defaultLoc = `in`.raahi.app.data.LatLng(28.6139, 77.2090)
-                            Box(Modifier.weight(1f).fillMaxWidth()) {
-                                MechanicsMapView(
-                                    modifier = Modifier.fillMaxSize(), userLocation = defaultLoc, mechanics = emptyList(),
-                                    onMechanicClick = { selectMechanic(it) }, onShopClick = { selectShop(it) }, onMapReady = { map = it },
+                // 3. Floating Map Controls (Zoom in, Zoom out, Recenter)
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 16.dp, bottom = if (selectedMechanic != null || selectedShop != null) 250.dp else 140.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Recenter FAB
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .shadow(4.dp, CircleShape, spotColor = Color(0x33000000))
+                            .background(Color.White, CircleShape)
+                            .border(1.dp, RaahiBorderSoft, CircleShape)
+                            .clickable {
+                                map?.animateCamera(
+                                    CameraUpdateFactory.newLatLngZoom(
+                                        org.maplibre.android.geometry.LatLng(currentLoc.lat, currentLoc.lng),
+                                        14.2
+                                    )
                                 )
-                                MapControls(
-                                    modifier = Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 16.dp),
-                                    onZoomIn = { map?.animateCamera(CameraUpdateFactory.zoomIn()) },
-                                    onZoomOut = { map?.animateCamera(CameraUpdateFactory.zoomOut()) },
-                                )
-                            }
-                            MechanicsBottomSheet(
-                                mechanics = emptyList(),
-                                shops = emptyList(),
-                                selectedMechanicId = selectedMechanic?.userId,
-                                selectedShopId = selectedShop?.id,
-                                errorMessage = errorState.message,
-                                onRetry = viewModel::retry,
-                                onMechanicClick = { selectMechanic(it) },
-                                onShopClick = { selectShop(it) },
-                                onCallPhone = { openPhoneDialer(context, it) },
-                                onGetDirections = { lat, lng, name -> openDirections(context, lat, lng, name) },
-                                onViewMechanicDetail = { onMechanicClick(it) },
-                                onRecenter = {
-                                    map?.animateCamera(CameraUpdateFactory.newLatLngZoom(org.maplibre.android.geometry.LatLng(defaultLoc.lat, defaultLoc.lng), 13.5))
-                                }
-                            )
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Outlined.MyLocation, contentDescription = "Recenter", tint = RaahiOrange, modifier = Modifier.size(20.dp))
+                    }
+
+                    // Zoom Controls
+                    Column(
+                        modifier = Modifier
+                            .shadow(4.dp, RoundedCornerShape(12.dp), spotColor = Color(0x22000000))
+                            .background(Color.White, RoundedCornerShape(12.dp))
+                            .border(1.dp, RaahiBorderSoft, RoundedCornerShape(12.dp))
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clickable { map?.animateCamera(CameraUpdateFactory.zoomIn()) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Outlined.Add, contentDescription = "Zoom In", tint = RaahiText, modifier = Modifier.size(18.dp))
                         }
-                        loaded != null -> {
-                            val filtered = remember(loaded.mechanics, selectedFilter) { applyFilter(loaded.mechanics, selectedFilter) }
-                            Box(Modifier.weight(1f).fillMaxWidth()) {
-                                MechanicsMapView(
-                                    modifier = Modifier.fillMaxSize(), userLocation = loaded.userLocation, mechanics = filtered,
-                                    shops = loaded.shops,
-                                    onMechanicClick = { selectMechanic(it) }, onShopClick = { selectShop(it) }, onMapReady = { map = it },
-                                )
-                                MapControls(
-                                    modifier = Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 16.dp),
-                                    onZoomIn = { map?.animateCamera(CameraUpdateFactory.zoomIn()) },
-                                    onZoomOut = { map?.animateCamera(CameraUpdateFactory.zoomOut()) },
-                                )
-                            }
+                        HorizontalDivider(color = RaahiBorderSoft, modifier = Modifier.width(38.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clickable { map?.animateCamera(CameraUpdateFactory.zoomOut()) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Outlined.Remove, contentDescription = "Zoom Out", tint = RaahiText, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                }
 
-                            // Selected item highlight preview above sheet if an item is selected
-                            if (selectedMechanic != null) {
-                                val m = selectedMechanic!!
-                                SelectedMechanicPreviewCard(
-                                    mechanic = m,
-                                    onCall = { openPhoneDialer(context, m.phone) },
-                                    onDirections = {
-                                        if (m.lat != null && m.lng != null) {
-                                            openDirections(context, m.lat, m.lng, m.shopName ?: m.name ?: "Mechanic")
-                                        }
-                                    },
-                                    onViewProfile = { onMechanicClick(m.userId) },
-                                    onDismiss = { selectedMechanic = null }
-                                )
-                            } else if (selectedShop != null) {
-                                val shop = selectedShop!!
-                                SelectedShopPreviewCard(
-                                    shop = shop,
-                                    onCall = { openPhoneDialer(context, shop.phone) },
-                                    onDirections = { openDirections(context, shop.lat, shop.lng, shop.name) },
-                                    onDismiss = { selectedShop = null }
-                                )
-                            }
-
-                            MechanicsBottomSheet(
-                                mechanics = filtered,
-                                shops = loaded.shops,
-                                selectedMechanicId = selectedMechanic?.userId,
-                                selectedShopId = selectedShop?.id,
-                                errorMessage = loaded.errorMessage,
-                                onRetry = viewModel::retry,
-                                onMechanicClick = { selectMechanic(it) },
-                                onShopClick = { selectShop(it) },
-                                onCallPhone = { openPhoneDialer(context, it) },
-                                onGetDirections = { lat, lng, name -> openDirections(context, lat, lng, name) },
-                                onViewMechanicDetail = { onMechanicClick(it) },
-                                onRecenter = {
-                                    map?.animateCamera(CameraUpdateFactory.newLatLngZoom(org.maplibre.android.geometry.LatLng(loaded.userLocation.lat, loaded.userLocation.lng), 13.5))
-                                }
+                // 4. Selected Mechanic Preview Card (Floating above bottom sheet)
+                if (selectedMechanic != null || selectedShop != null) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 110.dp)
+                    ) {
+                        if (selectedMechanic != null) {
+                            val m = selectedMechanic!!
+                            SelectedMechanicPreviewCard(
+                                mechanic = m,
+                                onCall = { openPhoneDialer(context, m.phone) },
+                                onDirections = {
+                                    if (m.lat != null && m.lng != null) {
+                                        openDirections(context, m.lat, m.lng, m.shopName ?: m.name ?: "Mechanic")
+                                    }
+                                },
+                                onViewProfile = { onMechanicClick(m.userId) },
+                                onDismiss = { selectedMechanic = null }
+                            )
+                        } else if (selectedShop != null) {
+                            val shop = selectedShop!!
+                            SelectedShopPreviewCard(
+                                shop = shop,
+                                onCall = { openPhoneDialer(context, shop.phone) },
+                                onDirections = { openDirections(context, shop.lat, shop.lng, shop.name) },
+                                onDismiss = { selectedShop = null }
                             )
                         }
                     }
+                }
+
+                // 5. Draggable Bottom Sheet with Nearby Mechanic Results
+                when {
+                    !permission.isGranted -> PermissionNeededCard(
+                        onRequest = permission.request,
+                        modifier = Modifier.align(Alignment.BottomCenter)
+                    )
+                    state is MechanicsMapUiState.LocationUnavailable -> LocationUnavailableCard(
+                        onRetry = viewModel::start,
+                        modifier = Modifier.align(Alignment.BottomCenter)
+                    )
+                    state is MechanicsMapUiState.Loading -> Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .background(Color.White, RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+                            .padding(24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = RaahiOrange)
+                    }
+                    else -> DraggableMechanicsBottomSheet(
+                        mechanics = filteredMechanics,
+                        shops = shops,
+                        selectedMechanicId = selectedMechanic?.userId,
+                        selectedShopId = selectedShop?.id,
+                        errorMessage = loaded?.errorMessage ?: errorState?.message,
+                        isExpanded = isSheetExpanded,
+                        onToggleExpand = { isSheetExpanded = !isSheetExpanded },
+                        onDragExpand = { isSheetExpanded = it },
+                        onRetry = viewModel::retry,
+                        onMechanicClick = { selectMechanic(it) },
+                        onShopClick = { selectShop(it) },
+                        onCallPhone = { openPhoneDialer(context, it) },
+                        onGetDirections = { lat, lng, name -> openDirections(context, lat, lng, name) },
+                        onViewMechanicDetail = { onMechanicClick(it) },
+                        modifier = Modifier.align(Alignment.BottomCenter)
+                    )
                 }
             }
             RaahiBottomNavBar(current = RaahiTab.MECHANICS, onSelect = onNavigateTab)
@@ -196,59 +276,97 @@ fun MechanicsMapScreen(
     }
 }
 
+// ------------------------------------------------------------------ Header & Controls
+
 @Composable
-private fun TopBar(onBack: () -> Unit, onRefresh: () -> Unit, availableCount: Int, totalCount: Int, errorMessage: String? = null) {
-    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back", tint = RaahiText) }
-        Column(Modifier.weight(1f)) {
-            Text("Nearby Mechanics", color = RaahiText, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, fontFamily = RaahiDisplayFont)
-            if (errorMessage != null) {
-                Text("Offline mode · Tap to retry", color = RaahiAmber, fontSize = 10.5.sp)
-            } else if (totalCount > 0) {
-                Text("$availableCount available · $totalCount total", color = RaahiTextDim, fontSize = 10.5.sp)
+private fun FloatingSearchHeader(
+    onBack: () -> Unit,
+    onRefresh: () -> Unit,
+    availableCount: Int,
+    totalCount: Int,
+    errorMessage: String? = null
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .shadow(6.dp, RoundedCornerShape(20.dp), spotColor = Color(0x26000000)),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = androidx.compose.foundation.BorderStroke(1.dp, RaahiBorderSoft)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back", tint = RaahiText)
+            }
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "Find a mechanic nearby",
+                    color = RaahiText,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = RaahiDisplayFont
+                )
+                if (errorMessage != null) {
+                    Text("Offline mode · Tap to retry", color = RaahiAmber, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                } else if (totalCount > 0) {
+                    Text("$availableCount open · $totalCount verified nearby", color = RaahiTextDim, fontSize = 11.sp)
+                } else {
+                    Text("Searching nearby road network…", color = RaahiTextDim, fontSize = 11.sp)
+                }
+            }
+            IconButton(onClick = onRefresh) {
+                Icon(Icons.Outlined.Refresh, contentDescription = "Refresh", tint = RaahiTextDim)
             }
         }
-        IconButton(onClick = onRefresh) { Icon(Icons.Outlined.Refresh, contentDescription = "Refresh", tint = RaahiTextDim) }
+    }
+}
+
+@Composable
+private fun FloatingFilterChipRow(categories: List<String>, selected: String, onSelect: (String) -> Unit) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        items(categories) { c ->
+            val active = c == selected
+            Box(
+                modifier = Modifier
+                    .shadow(3.dp, RoundedCornerShape(16.dp), spotColor = Color(0x18000000))
+                    .background(if (active) RaahiOrange else Color.White, RoundedCornerShape(16.dp))
+                    .border(1.dp, if (active) RaahiOrange else RaahiBorderSoft, RoundedCornerShape(16.dp))
+                    .clickable { onSelect(c) }
+                    .padding(horizontal = 14.dp, vertical = 6.dp)
+            ) {
+                Text(
+                    c,
+                    color = if (active) Color.White else RaahiText,
+                    fontSize = 12.sp,
+                    fontWeight = if (active) FontWeight.Bold else FontWeight.Medium
+                )
+            }
+        }
     }
 }
 
 private fun deriveCategories(mechanics: List<MechanicDto>): List<String> {
-    val tokens = mechanics.flatMap { it.specializations?.split(",", "·", "/") ?: emptyList() }.map { it.trim() }.filter { it.isNotEmpty() }.distinct().take(6)
+    val tokens = mechanics.flatMap { it.specializations?.split(",", "·", "/") ?: emptyList() }
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .distinct()
+        .take(6)
     return listOf("All") + tokens
 }
 
 private fun applyFilter(mechanics: List<MechanicDto>, filter: String): List<MechanicDto> =
     if (filter == "All") mechanics else mechanics.filter { it.specializations?.contains(filter, ignoreCase = true) == true }
 
-@Composable
-private fun FilterChipRow(categories: List<String>, selected: String, onSelect: (String) -> Unit) {
-    LazyRow(contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        items(categories) { c -> RaahiChip(c, c == selected) { onSelect(c) } }
-    }
-}
-
-@Composable
-private fun MapControls(modifier: Modifier = Modifier, onZoomIn: () -> Unit, onZoomOut: () -> Unit) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        RoundIconButton(Icons.Outlined.Add, onZoomIn)
-        RoundIconButton(Icons.Outlined.Remove, onZoomOut)
-    }
-}
-
-@Composable
-private fun RoundIconButton(icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .size(38.dp)
-            .shadow(elevation = 3.dp, shape = CircleShape, spotColor = Color(0x15000000))
-            .background(Color.White, CircleShape)
-            .border(1.dp, RaahiBorderSoft, CircleShape)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(icon, contentDescription = null, tint = RaahiText, modifier = Modifier.size(17.dp))
-    }
-}
+// ------------------------------------------------------------------ Selected Preview Cards
 
 @Composable
 private fun SelectedMechanicPreviewCard(
@@ -262,38 +380,38 @@ private fun SelectedMechanicPreviewCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp)
-            .shadow(6.dp, RoundedCornerShape(16.dp), spotColor = Color(0x33000000)),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = RaahiBg2),
+            .padding(horizontal = 16.dp)
+            .shadow(8.dp, RoundedCornerShape(18.dp), spotColor = Color(0x33000000)),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
         border = androidx.compose.foundation.BorderStroke(1.5.dp, RaahiOrange)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconBadge(
                     if (mechanic.specializations?.contains("SOS", ignoreCase = true) == true) Icons.Outlined.SupportAgent else RaahiIcons.Wrench,
-                    RaahiOrange,
-                    38.dp,
+                    if (mechanic.isAvailable) RaahiGreen else RaahiOrange,
+                    40.dp,
                     CircleShape
                 )
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            mechanic.shopName ?: mechanic.name ?: "Mechanic",
+                            mechanic.shopName ?: mechanic.name ?: "Verified Mechanic",
                             color = RaahiText,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
+                            fontSize = 14.5.sp,
                             maxLines = 1
                         )
                         Spacer(Modifier.width(6.dp))
-                        Icon(Icons.Outlined.Verified, contentDescription = "Verified", tint = RaahiCyan, modifier = Modifier.size(14.dp))
+                        Icon(Icons.Outlined.Verified, contentDescription = "Verified", tint = RaahiCyan, modifier = Modifier.size(15.dp))
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Outlined.Star, contentDescription = null, tint = RaahiAmber, modifier = Modifier.size(12.dp))
-                        Text(" ${"%.1f".format(mechanic.ratingAvg)}", color = RaahiTextDim, fontSize = 11.sp)
+                        Text(" ${"%.1f".format(mechanic.ratingAvg)}", color = RaahiTextDim, fontSize = 11.5.sp)
                         if (mechanic.distanceKm >= 0) {
-                            Text(" · ${"%.1f".format(mechanic.distanceKm)} km away", color = RaahiCyan, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                            Text(" · ${"%.1f".format(mechanic.distanceKm)} km away", color = RaahiOrange, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -315,7 +433,7 @@ private fun SelectedMechanicPreviewCard(
                         modifier = Modifier.weight(1f),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = RaahiGreen),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, RaahiGreen.copy(alpha = 0.5f))
+                        border = androidx.compose.foundation.BorderStroke(1.dp, RaahiGreen.copy(alpha = 0.6f))
                     ) {
                         Icon(Icons.Outlined.Phone, contentDescription = null, modifier = Modifier.size(15.dp))
                         Spacer(Modifier.width(4.dp))
@@ -324,10 +442,10 @@ private fun SelectedMechanicPreviewCard(
                 }
                 OutlinedButton(
                     onClick = onDirections,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1.1f),
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = RaahiOrange),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, RaahiOrange.copy(alpha = 0.5f))
+                    border = androidx.compose.foundation.BorderStroke(1.dp, RaahiOrange.copy(alpha = 0.6f))
                 ) {
                     Icon(Icons.Outlined.Directions, contentDescription = null, modifier = Modifier.size(15.dp))
                     Spacer(Modifier.width(4.dp))
@@ -359,19 +477,19 @@ private fun SelectedShopPreviewCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp)
-            .shadow(6.dp, RoundedCornerShape(16.dp), spotColor = Color(0x33000000)),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = RaahiBg2),
+            .padding(horizontal = 16.dp)
+            .shadow(8.dp, RoundedCornerShape(18.dp), spotColor = Color(0x33000000)),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
         border = androidx.compose.foundation.BorderStroke(1.5.dp, RaahiAmber)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconBadge(RaahiIcons.Wrench, RaahiAmber, 38.dp, CircleShape)
+                IconBadge(RaahiIcons.Wrench, RaahiAmber, 40.dp, CircleShape)
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(shop.name, color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1)
-                    Text("${"%.1f".format(shop.distanceKm)} km away · OSM repair shop", color = RaahiTextDim, fontSize = 11.sp)
+                    Text(shop.name, color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 14.5.sp, maxLines = 1)
+                    Text("${"%.1f".format(shop.distanceKm)} km away · OSM repair shop", color = RaahiTextDim, fontSize = 11.5.sp)
                 }
                 IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
                     Icon(Icons.Outlined.Close, contentDescription = "Close", tint = RaahiTextDim, modifier = Modifier.size(16.dp))
@@ -379,9 +497,9 @@ private fun SelectedShopPreviewCard(
             }
             if (!shop.address.isNullOrBlank()) {
                 Spacer(Modifier.height(6.dp))
-                Text(shop.address, color = RaahiTextDim, fontSize = 11.sp, maxLines = 2)
+                Text(shop.address, color = RaahiTextDim, fontSize = 11.5.sp, maxLines = 2)
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(12.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (!shop.phone.isNullOrBlank()) {
                     OutlinedButton(
@@ -389,7 +507,7 @@ private fun SelectedShopPreviewCard(
                         modifier = Modifier.weight(1f),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = RaahiGreen),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, RaahiGreen.copy(alpha = 0.5f))
+                        border = androidx.compose.foundation.BorderStroke(1.dp, RaahiGreen.copy(alpha = 0.6f))
                     ) {
                         Icon(Icons.Outlined.Phone, contentDescription = null, modifier = Modifier.size(15.dp))
                         Spacer(Modifier.width(4.dp))
@@ -398,7 +516,7 @@ private fun SelectedShopPreviewCard(
                 }
                 Button(
                     onClick = onDirections,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1.2f),
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange)
                 ) {
@@ -411,156 +529,159 @@ private fun SelectedShopPreviewCard(
     }
 }
 
+// ------------------------------------------------------------------ Draggable Bottom Sheet
+
 @Composable
-private fun MechanicsBottomSheet(
+private fun DraggableMechanicsBottomSheet(
     mechanics: List<MechanicDto>,
-    shops: List<OsmMechanicShopDto> = emptyList(),
-    selectedMechanicId: String? = null,
-    selectedShopId: String? = null,
-    errorMessage: String? = null,
-    onRetry: (() -> Unit)? = null,
+    shops: List<OsmMechanicShopDto>,
+    selectedMechanicId: String?,
+    selectedShopId: String?,
+    errorMessage: String?,
+    isExpanded: Boolean,
+    onToggleExpand: () -> Unit,
+    onDragExpand: (Boolean) -> Unit,
+    onRetry: () -> Unit,
     onMechanicClick: (MechanicDto) -> Unit,
-    onShopClick: (OsmMechanicShopDto) -> Unit = {},
-    onCallPhone: (String?) -> Unit = {},
-    onGetDirections: (Double, Double, String) -> Unit = { _, _, _ -> },
-    onViewMechanicDetail: (String) -> Unit = {},
-    onRecenter: () -> Unit
+    onShopClick: (OsmMechanicShopDto) -> Unit,
+    onCallPhone: (String?) -> Unit,
+    onGetDirections: (Double, Double, String) -> Unit,
+    onViewMechanicDetail: (String) -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    Column(modifier = Modifier.fillMaxWidth().background(RaahiBg2, RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp))) {
-        Box(Modifier.fillMaxWidth().padding(top = 10.dp), contentAlignment = Alignment.TopCenter) {
-            Box(Modifier.width(36.dp).height(4.dp).background(RaahiBorder, RaahiShapePill))
-        }
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-            val title = when {
-                errorMessage != null -> "Nearby Mechanics"
-                mechanics.isEmpty() && shops.isEmpty() -> "No mechanics or shops found"
-                mechanics.isEmpty() -> "${shops.size} nearby repair shops"
-                else -> "${mechanics.size} mechanics nearby"
-            }
-            Text(title, color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 12.5.sp, modifier = Modifier.weight(1f))
-            val openCount = mechanics.count { it.isAvailable }
-            if (mechanics.isNotEmpty()) {
-                Box(modifier = Modifier.background(RaahiGreen.copy(alpha = 0.14f), RaahiShapePill).padding(horizontal = 10.dp, vertical = 4.dp)) {
-                    Text("$openCount open", color = RaahiGreen, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .shadow(12.dp, RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp), spotColor = Color(0x33000000))
+            .pointerInput(Unit) {
+                detectVerticalDragGestures { _, dragAmount ->
+                    if (dragAmount < -15) onDragExpand(true)
+                    else if (dragAmount > 15) onDragExpand(false)
                 }
-                Spacer(Modifier.width(10.dp))
+            },
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .animateContentSize()
+        ) {
+            // Drag Handle & Header
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onToggleExpand)
+                    .padding(top = 8.dp),
+                contentAlignment = Alignment.TopCenter
+            ) {
+                Box(Modifier.width(38.dp).height(4.dp).background(RaahiBorder, RaahiShapePill))
             }
-            Box(modifier = Modifier.size(32.dp).background(RaahiBrandGradient, CircleShape).clickable(onClick = onRecenter), contentAlignment = Alignment.Center) {
-                Icon(Icons.Outlined.MyLocation, contentDescription = "Recenter", tint = Color.White, modifier = Modifier.size(16.dp))
-            }
-        }
-        when {
-            errorMessage != null -> UnavailableMechanicsState(errorMessage, onRetry = onRetry ?: {}, modifier = Modifier.height(150.dp))
-            mechanics.isEmpty() && shops.isEmpty() -> EmptyMechanicsState(Modifier.height(140.dp))
-            else -> LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onToggleExpand)
+                    .padding(horizontal = 18.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val title = when {
+                    errorMessage != null -> "Nearby Mechanics"
+                    mechanics.isEmpty() && shops.isEmpty() -> "No mechanics found nearby"
+                    mechanics.isEmpty() -> "${shops.size} repair shops nearby"
+                    else -> "${mechanics.size} mechanics nearby"
+                }
+                Text(
+                    title,
+                    color = RaahiText,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.5.sp,
+                    modifier = Modifier.weight(1f)
+                )
+
+                val openCount = mechanics.count { it.isAvailable }
                 if (mechanics.isNotEmpty()) {
-                    item { Text("Verified Raahi mechanics", color = RaahiTextDim, fontSize = 11.sp) }
-                    items(mechanics, key = { "verified-${it.userId}" }) { m ->
-                        val isSelected = m.userId == selectedMechanicId
-                        MechanicRow(
-                            m = m,
-                            isSelected = isSelected,
-                            onClick = { onMechanicClick(m) },
-                            onCall = { onCallPhone(m.phone) },
-                            onDirections = {
-                                if (m.lat != null && m.lng != null) {
-                                    onGetDirections(m.lat, m.lng, m.shopName ?: m.name ?: "Mechanic")
-                                }
-                            },
-                            onViewDetail = { onViewMechanicDetail(m.userId) }
-                        )
+                    Box(
+                        modifier = Modifier
+                            .background(RaahiGreen.copy(alpha = 0.12f), RaahiShapePill)
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Text("$openCount open", color = RaahiGreen, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
+                    Spacer(Modifier.width(8.dp))
                 }
-                if (shops.isNotEmpty()) {
-                    item { Text("Nearby repair shops · OSM · Unverified", color = RaahiAmber, fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp)) }
-                    items(shops, key = { "osm-${it.id}" }) { shop ->
-                        val isSelected = shop.id == selectedShopId
-                        RowCard(
-                            onClick = { onShopClick(shop) },
-                            modifier = if (isSelected) Modifier.border(1.5.dp, RaahiAmber, RoundedCornerShape(12.dp)) else Modifier
-                        ) {
-                            IconBadge(RaahiIcons.Wrench, RaahiAmber, 36.dp, CircleShape)
-                            Spacer(Modifier.width(10.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text(shop.name, color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 12.5.sp, maxLines = 2)
-                                if (!shop.address.isNullOrBlank()) Text(shop.address, color = RaahiTextDim, fontSize = 10.5.sp, maxLines = 2)
-                                if (!shop.phone.isNullOrBlank()) Text(shop.phone, color = RaahiCyan, fontSize = 11.sp)
+
+                IconButton(onClick = onToggleExpand, modifier = Modifier.size(32.dp)) {
+                    Icon(
+                        if (isExpanded) Icons.Filled.KeyboardArrowDown else Icons.Filled.KeyboardArrowUp,
+                        contentDescription = "Toggle List",
+                        tint = RaahiTextDim
+                    )
+                }
+            }
+
+            // Expanded List View
+            if (isExpanded) {
+                when {
+                    errorMessage != null -> UnavailableMechanicsState(errorMessage, onRetry = onRetry, modifier = Modifier.height(150.dp))
+                    mechanics.isEmpty() && shops.isEmpty() -> EmptyMechanicsState(Modifier.height(130.dp))
+                    else -> LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 340.dp),
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        if (mechanics.isNotEmpty()) {
+                            item {
+                                Text("Verified Raahi mechanics", color = RaahiTextDim, fontSize = 11.5.sp, fontWeight = FontWeight.Medium)
                             }
-                            Text("${"%.1f".format(shop.distanceKm)} km", color = RaahiTextDim, fontSize = 10.5.sp)
-                            IconButton(onClick = { onGetDirections(shop.lat, shop.lng, shop.name) }, modifier = Modifier.size(32.dp)) {
-                                Icon(Icons.Outlined.Directions, contentDescription = "Get directions", tint = RaahiOrange, modifier = Modifier.size(18.dp))
+                            items(mechanics, key = { "verified-${it.userId}" }) { m ->
+                                val isSelected = m.userId == selectedMechanicId
+                                MechanicRow(
+                                    m = m,
+                                    isSelected = isSelected,
+                                    onClick = { onMechanicClick(m) },
+                                    onCall = { onCallPhone(m.phone) },
+                                    onDirections = {
+                                        if (m.lat != null && m.lng != null) {
+                                            onGetDirections(m.lat, m.lng, m.shopName ?: m.name ?: "Mechanic")
+                                        }
+                                    },
+                                    onViewDetail = { onViewMechanicDetail(m.userId) }
+                                )
+                            }
+                        }
+
+                        if (shops.isNotEmpty()) {
+                            item {
+                                Text("Nearby repair shops · OSM", color = RaahiAmber, fontSize = 11.5.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 6.dp))
+                            }
+                            items(shops, key = { "osm-${it.id}" }) { shop ->
+                                val isSelected = shop.id == selectedShopId
+                                RowCard(
+                                    onClick = { onShopClick(shop) },
+                                    modifier = if (isSelected) Modifier.border(1.5.dp, RaahiAmber, RoundedCornerShape(12.dp)) else Modifier
+                                ) {
+                                    IconBadge(RaahiIcons.Wrench, RaahiAmber, 36.dp, CircleShape)
+                                    Spacer(Modifier.width(10.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(shop.name, color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1)
+                                        if (!shop.address.isNullOrBlank()) {
+                                            Text(shop.address, color = RaahiTextDim, fontSize = 11.sp, maxLines = 1)
+                                        }
+                                    }
+                                    Text("${"%.1f".format(shop.distanceKm)} km", color = RaahiTextDim, fontSize = 11.sp)
+                                    IconButton(onClick = { onGetDirections(shop.lat, shop.lng, shop.name) }, modifier = Modifier.size(32.dp)) {
+                                        Icon(Icons.Outlined.Directions, contentDescription = "Directions", tint = RaahiOrange, modifier = Modifier.size(18.dp))
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun UnavailableMechanicsState(message: String, onRetry: () -> Unit, modifier: Modifier = Modifier) {
-    Box(modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(Icons.Outlined.SearchOff, contentDescription = null, tint = RaahiAmber, modifier = Modifier.size(28.dp))
-            Spacer(Modifier.height(8.dp))
-            Text("Nearby mechanics unavailable", color = RaahiText, fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp)
-            Spacer(Modifier.height(4.dp))
-            Text(message, color = RaahiTextDim, fontSize = 11.5.sp, textAlign = TextAlign.Center)
-            Spacer(Modifier.height(12.dp))
-            Button(
-                onClick = onRetry,
-                colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
-            ) {
-                Text("Retry", fontSize = 12.sp)
-            }
-        }
-    }
-}
-
-@Composable
-private fun PermissionNeededState(onRequest: () -> Unit) {
-    Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(Icons.Outlined.LocationOff, contentDescription = null, tint = RaahiRed, modifier = Modifier.size(34.dp))
-            Spacer(Modifier.height(12.dp))
-            Text("Location permission needed to find mechanics near you", color = RaahiText, textAlign = TextAlign.Center, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(16.dp))
-            Button(onClick = onRequest, colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange)) { Text("Allow location") }
-        }
-    }
-}
-
-@Composable
-private fun LocationUnavailableState(onRetry: () -> Unit) {
-    Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(Icons.Outlined.LocationOff, contentDescription = null, tint = RaahiTextDim, modifier = Modifier.size(34.dp))
-            Spacer(Modifier.height(12.dp))
-            Text("Couldn't get your location. Check GPS is on.", color = RaahiText, textAlign = TextAlign.Center, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(16.dp))
-            Button(onClick = onRetry, colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange)) { Text("Retry") }
-        }
-    }
-}
-
-@Composable
-private fun ErrorState(message: String, onRetry: () -> Unit) {
-    Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(message, color = RaahiTextDim, textAlign = TextAlign.Center)
-            Spacer(Modifier.height(12.dp))
-            Button(onClick = onRetry, colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange)) { Text("Retry") }
-        }
-    }
-}
-
-@Composable
-private fun EmptyMechanicsState(modifier: Modifier = Modifier) {
-    Column(modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Spacer(Modifier.height(8.dp))
-        Text("No verified mechanics nearby yet", color = RaahiText, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp)
     }
 }
 
@@ -574,30 +695,177 @@ private fun MechanicRow(
     onViewDetail: () -> Unit = {}
 ) {
     val isSos = m.specializations?.contains("SOS", ignoreCase = true) == true
-    RowCard(
-        onClick = onClick,
-        modifier = if (isSelected) Modifier.border(1.5.dp, RaahiOrange, RoundedCornerShape(12.dp)) else Modifier
-    ) {
-        IconBadge(if (isSos) Icons.Outlined.SupportAgent else RaahiIcons.Wrench, if (isSos) RaahiRed else RaahiGreen, 40.dp, CircleShape)
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            Text(m.shopName ?: m.name ?: "Mechanic", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 12.5.sp, maxLines = 1)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.Star, contentDescription = null, tint = RaahiAmber, modifier = Modifier.size(11.dp))
-                Text(" ${"%.1f".format(m.ratingAvg)}", color = RaahiTextDim, fontSize = 10.5.sp)
-                if (!m.specializations.isNullOrBlank()) Text(" · ${m.specializations}", color = RaahiTextDim, fontSize = 10.5.sp, maxLines = 1)
+    Column {
+        RowCard(
+            onClick = onClick,
+            modifier = if (isSelected) Modifier.border(1.5.dp, RaahiOrange, RoundedCornerShape(12.dp)) else Modifier
+        ) {
+            IconBadge(
+                if (isSos) Icons.Outlined.SupportAgent else RaahiIcons.Wrench,
+                if (m.isAvailable) RaahiGreen else RaahiRed,
+                38.dp,
+                CircleShape
+            )
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(m.shopName ?: m.name ?: "Mechanic", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1)
+                    Spacer(Modifier.width(4.dp))
+                    Icon(Icons.Outlined.Verified, contentDescription = "Verified", tint = RaahiCyan, modifier = Modifier.size(13.dp))
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.Star, contentDescription = null, tint = RaahiAmber, modifier = Modifier.size(11.dp))
+                    Text(" ${"%.1f".format(m.ratingAvg)}", color = RaahiTextDim, fontSize = 11.sp)
+                    if (!m.specializations.isNullOrBlank()) {
+                        Text(" · ${m.specializations}", color = RaahiTextDim, fontSize = 11.sp, maxLines = 1)
+                    }
+                }
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                if (m.distanceKm >= 0) {
+                    Text("${"%.1f".format(m.distanceKm)} km", color = RaahiOrange, fontWeight = FontWeight.Bold, fontSize = 12.sp, fontFamily = RaahiDisplayFont)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(6.dp).background(if (m.isAvailable) RaahiGreen else RaahiRed, CircleShape))
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        if (m.isAvailable) "Open" else "Closed",
+                        color = if (m.isAvailable) RaahiGreen else RaahiRed,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
         }
-        Column(horizontalAlignment = Alignment.End) {
-            if (m.distanceKm >= 0) Text("${"%.1f".format(m.distanceKm)} km", color = RaahiOrange, fontWeight = FontWeight.Bold, fontSize = 11.5.sp, fontFamily = RaahiDisplayFont)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(6.dp).background(if (m.isAvailable) RaahiGreen else RaahiRed, CircleShape))
-                Spacer(Modifier.width(4.dp))
-                Text(if (m.isAvailable) "Open" else "Closed", color = if (m.isAvailable) RaahiGreen else RaahiRed, fontSize = 9.5.sp, fontWeight = FontWeight.SemiBold)
+        if (isSelected) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (!m.phone.isNullOrBlank()) {
+                    OutlinedButton(
+                        onClick = onCall,
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = RaahiGreen),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, RaahiGreen.copy(alpha = 0.6f))
+                    ) {
+                        Icon(Icons.Outlined.Phone, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Call", fontSize = 11.sp)
+                    }
+                }
+                OutlinedButton(
+                    onClick = onDirections,
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = RaahiOrange),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, RaahiOrange.copy(alpha = 0.6f))
+                ) {
+                    Icon(Icons.Outlined.Directions, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Directions", fontSize = 11.sp)
+                }
+                Button(
+                    onClick = onViewDetail,
+                    modifier = Modifier.weight(1.1f),
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange)
+                ) {
+                    Text("Details", fontSize = 11.sp)
+                }
             }
         }
     }
 }
+
+// ------------------------------------------------------------------ States
+
+@Composable
+private fun UnavailableMechanicsState(message: String, onRetry: () -> Unit, modifier: Modifier = Modifier) {
+    Box(modifier.fillMaxWidth().padding(18.dp), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(Icons.Outlined.SearchOff, contentDescription = null, tint = RaahiAmber, modifier = Modifier.size(26.dp))
+            Spacer(Modifier.height(6.dp))
+            Text("Mechanics currently unavailable", color = RaahiText, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+            Spacer(Modifier.height(3.dp))
+            Text(message, color = RaahiTextDim, fontSize = 11.sp, textAlign = TextAlign.Center)
+            Spacer(Modifier.height(10.dp))
+            Button(
+                onClick = onRetry,
+                colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
+            ) {
+                Text("Retry", fontSize = 12.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptyMechanicsState(modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(Icons.Outlined.SearchOff, contentDescription = null, tint = RaahiTextDim, modifier = Modifier.size(26.dp))
+        Spacer(Modifier.height(6.dp))
+        Text("No verified mechanics nearby yet", color = RaahiText, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+        Text("Try expanding your search area or clear category filters.", color = RaahiTextDim, fontSize = 11.sp)
+    }
+}
+
+@Composable
+private fun PermissionNeededCard(onRequest: () -> Unit, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .shadow(12.dp, RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)),
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
+    ) {
+        Column(
+            modifier = Modifier.padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(Icons.Outlined.LocationOff, contentDescription = null, tint = RaahiRed, modifier = Modifier.size(32.dp))
+            Spacer(Modifier.height(10.dp))
+            Text("Location permission required", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            Spacer(Modifier.height(4.dp))
+            Text("Allow location access to discover nearby mechanics on the map.", color = RaahiTextDim, fontSize = 12.sp, textAlign = TextAlign.Center)
+            Spacer(Modifier.height(14.dp))
+            RaahiPrimaryButton("Allow location", onClick = onRequest)
+        }
+    }
+}
+
+@Composable
+private fun LocationUnavailableCard(onRetry: () -> Unit, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .shadow(12.dp, RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)),
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
+    ) {
+        Column(
+            modifier = Modifier.padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(Icons.Outlined.LocationOff, contentDescription = null, tint = RaahiTextDim, modifier = Modifier.size(32.dp))
+            Spacer(Modifier.height(10.dp))
+            Text("GPS Location unavailable", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            Spacer(Modifier.height(4.dp))
+            Text("Could not get your GPS position. Check if device location is turned on.", color = RaahiTextDim, fontSize = 12.sp, textAlign = TextAlign.Center)
+            Spacer(Modifier.height(14.dp))
+            RaahiPrimaryButton("Retry GPS", onClick = onRetry)
+        }
+    }
+}
+
+// ------------------------------------------------------------------ External Intent Helpers
 
 private fun openPhoneDialer(context: Context, phone: String?) {
     if (phone.isNullOrBlank()) return
