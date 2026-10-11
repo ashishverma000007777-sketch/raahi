@@ -52,6 +52,12 @@ fun MechanicsMapScreen(
     var mapInstance by remember { mutableStateOf<GoogleMap?>(null) }
     val context = LocalContext.current
 
+    LaunchedEffect(Unit) {
+        if (!permission.isGranted) {
+            permission.request()
+        }
+    }
+
     LaunchedEffect(permission.isGranted) {
         if (permission.isGranted) {
             viewModel.start()
@@ -178,6 +184,7 @@ private fun MechanicsLoadedContent(
                         val item = state.filteredItems.firstOrNull { it.id == id }
                         viewModel.selectItem(item)
                     },
+                    onCameraMoved = viewModel::onCameraMoved,
                     onMapReady = onMapReady,
                 )
 

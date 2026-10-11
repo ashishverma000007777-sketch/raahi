@@ -16,6 +16,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.MapView
+import com.google.android.gms.maps.MapsInitializer
 import com.google.android.gms.maps.model.BitmapDescriptor
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.Marker
@@ -31,6 +32,7 @@ fun MechanicsMapView(
     cameraTarget: LatLng?,
     cameraZoom: Double?,
     onSelect: (String) -> Unit,
+    onCameraMoved: () -> Unit = {},
     onMapReady: (GoogleMap) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -40,15 +42,30 @@ fun MechanicsMapView(
     var googleMap by remember { mutableStateOf<GoogleMap?>(null) }
     val markerMap = remember { mutableMapOf<String, Marker>() }
     var userLocationMarker by remember { mutableStateOf<Marker?>(null) }
+    var initialCameraPositioned by remember { mutableStateOf(false) }
 
-    val verifiedIcon = remember { createMechanicMarkerBitmap(isVerified = true, isSelected = false) }
-    val verifiedSelectedIcon = remember { createMechanicMarkerBitmap(isVerified = true, isSelected = true) }
-    val googleIcon = remember { createMechanicMarkerBitmap(isVerified = false, isSelected = false) }
-    val googleSelectedIcon = remember { createMechanicMarkerBitmap(isVerified = false, isSelected = true) }
-    val userDotIcon = remember { createUserDotBitmap() }
+    // Defer marker icon bitmap generation until Google Maps SDK is initialized and ready
+    val verifiedIcon = remember(googleMap) {
+        if (googleMap != null) createMechanicMarkerBitmap(isVerified = true, isSelected = false) else null
+    }
+    val verifiedSelectedIcon = remember(googleMap) {
+        if (googleMap != null) createMechanicMarkerBitmap(isVerified = true, isSelected = true) else null
+    }
+    val googleIcon = remember(googleMap) {
+        if (googleMap != null) createMechanicMarkerBitmap(isVerified = false, isSelected = false) else null
+    }
+    val googleSelectedIcon = remember(googleMap) {
+        if (googleMap != null) createMechanicMarkerBitmap(isVerified = false, isSelected = true) else null
+    }
+    val userDotIcon = remember(googleMap) {
+        if (googleMap != null) createUserDotBitmap() else null
+    }
 
     val mapView = remember {
         MapView(context).apply {
+            try {
+                MapsInitializer.initialize(context)
+            } catch (_: Exception) {}
             onCreate(Bundle())
         }
     }
@@ -71,30 +88,49 @@ fun MechanicsMapView(
         }
     }
 
-    // Camera animation when cameraTarget updates
+    // Initial camera positioning as soon as GoogleMap is bound and valid user location is available
+    LaunchedEffect(googleMap, userLocation) {
+        val map = googleMap ?: return@LaunchedEffect
+        val uLoc = userLocation ?: return@LaunchedEffect
+        if (!initialCameraPositioned && isValidLocation(uLoc)) {
+            val zoom = cameraZoom?.toFloat() ?: 14.5f
+            map.moveCamera(CameraUpdateFactory.newLatLngZoom(GoogleLatLng(uLoc.lat, uLoc.lng), zoom))
+            initialCameraPositioned = true
+        }
+    }
+
+    // Camera animation when cameraTarget explicitly updates (e.g. selection or recenter button)
     LaunchedEffect(googleMap, cameraTarget, cameraZoom) {
         val map = googleMap ?: return@LaunchedEffect
         val target = cameraTarget ?: return@LaunchedEffect
-        val zoom = cameraZoom?.toFloat() ?: 14.5f
-        map.animateCamera(CameraUpdateFactory.newLatLngZoom(GoogleLatLng(target.lat, target.lng), zoom))
+        if (isValidLocation(target)) {
+            val zoom = cameraZoom?.toFloat() ?: 14.5f
+            map.animateCamera(CameraUpdateFactory.newLatLngZoom(GoogleLatLng(target.lat, target.lng), zoom))
+            initialCameraPositioned = true
+        }
     }
 
     // Update user location marker
-    LaunchedEffect(googleMap, userLocation) {
+    LaunchedEffect(googleMap, userLocation, userDotIcon) {
         val map = googleMap ?: return@LaunchedEffect
         if (userLocation != null) {
             val uLatLng = GoogleLatLng(userLocation.lat, userLocation.lng)
-            if (userLocationMarker == null) {
-                userLocationMarker = map.addMarker(
-                    MarkerOptions()
-                        .position(uLatLng)
-                        .title("Your Location")
-                        .icon(userDotIcon)
-                        .anchor(0.5f, 0.5f)
-                        .zIndex(100f)
-                )
+            val currentMarker = userLocationMarker
+            if (currentMarker == null) {
+                val opts = MarkerOptions()
+                    .position(uLatLng)
+                    .title("Your Location")
+                    .anchor(0.5f, 0.5f)
+                    .zIndex(100f)
+                if (userDotIcon != null) {
+                    opts.icon(userDotIcon)
+                }
+                userLocationMarker = map.addMarker(opts)
             } else {
-                userLocationMarker?.position = uLatLng
+                currentMarker.position = uLatLng
+                if (userDotIcon != null) {
+                    currentMarker.setIcon(userDotIcon)
+                }
             }
         } else {
             userLocationMarker?.remove()
@@ -103,7 +139,7 @@ fun MechanicsMapView(
     }
 
     // Synchronize mechanic markers on the map
-    LaunchedEffect(googleMap, mechanics, selectedId) {
+    LaunchedEffect(googleMap, mechanics, selectedId, verifiedIcon, verifiedSelectedIcon, googleIcon, googleSelectedIcon) {
         val map = googleMap ?: return@LaunchedEffect
 
         val currentIds = mechanics.map { it.id }.toSet()
@@ -130,18 +166,21 @@ fun MechanicsMapView(
 
             val existingMarker = markerMap[item.id]
             if (existingMarker != null) {
-                existingMarker.setIcon(icon)
+                if (icon != null) {
+                    existingMarker.setIcon(icon)
+                }
                 existingMarker.zIndex = if (isSelected) 50f else 10f
             } else {
-                val marker = map.addMarker(
-                    MarkerOptions()
-                        .position(GoogleLatLng(item.lat, item.lng))
-                        .title(item.name)
-                        .snippet(item.address ?: item.specializations ?: "")
-                        .icon(icon)
-                        .anchor(0.5f, 0.5f)
-                        .zIndex(if (isSelected) 50f else 10f)
-                )
+                val opts = MarkerOptions()
+                    .position(GoogleLatLng(item.lat, item.lng))
+                    .title(item.name)
+                    .snippet(item.address ?: item.specializations ?: "")
+                    .anchor(0.5f, 0.5f)
+                    .zIndex(if (isSelected) 50f else 10f)
+                if (icon != null) {
+                    opts.icon(icon)
+                }
+                val marker = map.addMarker(opts)
                 if (marker != null) {
                     marker.tag = item.id
                     markerMap[item.id] = marker
@@ -158,6 +197,20 @@ fun MechanicsMapView(
                     map.uiSettings.isCompassEnabled = true
                     map.uiSettings.isMyLocationButtonEnabled = false
                     map.mapType = GoogleMap.MAP_TYPE_NORMAL
+
+                    // Immediately center on valid initial position if available to prevent default (0,0) viewport
+                    val initialLoc = cameraTarget ?: userLocation
+                    if (initialLoc != null && isValidLocation(initialLoc)) {
+                        val zoom = cameraZoom?.toFloat() ?: 14.5f
+                        map.moveCamera(CameraUpdateFactory.newLatLngZoom(GoogleLatLng(initialLoc.lat, initialLoc.lng), zoom))
+                        initialCameraPositioned = true
+                    }
+
+                    map.setOnCameraMoveStartedListener { reason ->
+                        if (reason == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE) {
+                            onCameraMoved()
+                        }
+                    }
 
                     map.setOnMarkerClickListener { marker ->
                         val id = marker.tag as? String
@@ -182,56 +235,71 @@ fun MechanicsMapView(
     )
 }
 
-private fun createUserDotBitmap(): BitmapDescriptor {
-    val size = 48
-    val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(bitmap)
-    val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+private fun createUserDotBitmap(): BitmapDescriptor? {
+    return try {
+        val size = 48
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
-    // Outer glow
-    paint.color = android.graphics.Color.parseColor("#3300CFFF")
-    canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
-
-    // White border ring
-    paint.color = android.graphics.Color.WHITE
-    canvas.drawCircle(size / 2f, size / 2f, 15f, paint)
-
-    // Inner bright cyan dot
-    paint.color = android.graphics.Color.parseColor("#00CFFF")
-    canvas.drawCircle(size / 2f, size / 2f, 11f, paint)
-
-    return BitmapDescriptorFactory.fromBitmap(bitmap)
-}
-
-private fun createMechanicMarkerBitmap(isVerified: Boolean, isSelected: Boolean): BitmapDescriptor {
-    val size = if (isSelected) 60 else 46
-    val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(bitmap)
-    val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-
-    val primaryColor = if (isVerified) {
-        android.graphics.Color.parseColor("#1B6BFF") // Raahi Verified Blue
-    } else {
-        android.graphics.Color.parseColor("#10B981") // Google Places Emerald
-    }
-
-    // Selection outer ring
-    if (isSelected) {
-        paint.color = android.graphics.Color.parseColor("#44FF6B35")
+        // Outer glow
+        paint.color = android.graphics.Color.parseColor("#3300CFFF")
         canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
+
+        // White border ring
+        paint.color = android.graphics.Color.WHITE
+        canvas.drawCircle(size / 2f, size / 2f, 15f, paint)
+
+        // Inner bright cyan dot
+        paint.color = android.graphics.Color.parseColor("#00CFFF")
+        canvas.drawCircle(size / 2f, size / 2f, 11f, paint)
+
+        BitmapDescriptorFactory.fromBitmap(bitmap)
+    } catch (_: Exception) {
+        null
     }
-
-    // Outer white halo
-    paint.color = android.graphics.Color.WHITE
-    canvas.drawCircle(size / 2f, size / 2f, (size / 2f) - (if (isSelected) 6f else 2f), paint)
-
-    // Main marker circle
-    paint.color = primaryColor
-    canvas.drawCircle(size / 2f, size / 2f, (size / 2f) - (if (isSelected) 10f else 6f), paint)
-
-    // Center indicator dot
-    paint.color = android.graphics.Color.WHITE
-    canvas.drawCircle(size / 2f, size / 2f, if (isSelected) 6f else 4f, paint)
-
-    return BitmapDescriptorFactory.fromBitmap(bitmap)
 }
+
+private fun createMechanicMarkerBitmap(isVerified: Boolean, isSelected: Boolean): BitmapDescriptor? {
+    return try {
+        val size = if (isSelected) 60 else 46
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+        val primaryColor = if (isVerified) {
+            android.graphics.Color.parseColor("#1B6BFF") // Raahi Verified Blue
+        } else {
+            android.graphics.Color.parseColor("#10B981") // Google Places Emerald
+        }
+
+        // Selection outer ring
+        if (isSelected) {
+            paint.color = android.graphics.Color.parseColor("#44FF6B35")
+            canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
+        }
+
+        // Outer white halo
+        paint.color = android.graphics.Color.WHITE
+        canvas.drawCircle(size / 2f, size / 2f, (size / 2f) - (if (isSelected) 6f else 2f), paint)
+
+        // Main marker circle
+        paint.color = primaryColor
+        canvas.drawCircle(size / 2f, size / 2f, (size / 2f) - (if (isSelected) 10f else 6f), paint)
+
+        // Center indicator dot
+        paint.color = android.graphics.Color.WHITE
+        canvas.drawCircle(size / 2f, size / 2f, if (isSelected) 6f else 4f, paint)
+
+        BitmapDescriptorFactory.fromBitmap(bitmap)
+    } catch (_: Exception) {
+        null
+    }
+}
+
+private fun isValidLocation(loc: LatLng?): Boolean {
+    return loc != null && loc.lat.isFinite() && loc.lng.isFinite() &&
+        !(loc.lat == 0.0 && loc.lng == 0.0) &&
+        loc.lat in -90.0..90.0 && loc.lng in -180.0..180.0
+}
+

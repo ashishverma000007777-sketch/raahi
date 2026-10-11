@@ -96,21 +96,21 @@ class MechanicsMapViewModel @Inject constructor(
 
             // 1. First try cached fast GPS
             val cached = locationProvider.getLastKnownGpsLocation()
-            if (cached != null) {
+            if (cached != null && (cached.lat != 0.0 || cached.lng != 0.0)) {
                 loadNearby(cached)
                 return@launch
             }
 
             // 2. Request fresh real hardware GPS fix
             val fresh = locationProvider.getRealGpsLocation(freshTimeoutMs = 7000L)
-            if (fresh != null) {
+            if (fresh != null && (fresh.lat != 0.0 || fresh.lng != 0.0)) {
                 loadNearby(fresh)
                 return@launch
             }
 
             // 3. Fallback to standard location provider
             val fallback = locationProvider.getCurrentLocation()
-            if (fallback != null) {
+            if (fallback != null && (fallback.lat != 0.0 || fallback.lng != 0.0)) {
                 loadNearby(fallback)
             } else {
                 _state.value = MechanicsMapUiState.LocationUnavailable
@@ -126,12 +126,25 @@ class MechanicsMapViewModel @Inject constructor(
                 ?: locationProvider.getLastKnownGpsLocation()
                 ?: current.userLocation
 
-            _state.value = current.copy(
-                isRecentering = false,
-                userLocation = fresh,
-                cameraTarget = fresh,
-                cameraZoom = 14.5,
-            )
+            val distMoved = haversineDistanceKm(current.userLocation.lat, current.userLocation.lng, fresh.lat, fresh.lng)
+            if (distMoved > 0.15) {
+                // User moved noticeably; refresh nearby mechanics around fresh coordinates
+                loadNearby(fresh, isRecentering = true)
+            } else {
+                _state.value = current.copy(
+                    isRecentering = false,
+                    userLocation = fresh,
+                    cameraTarget = fresh,
+                    cameraZoom = 14.5,
+                )
+            }
+        }
+    }
+
+    fun onCameraMoved() {
+        val current = _state.value as? MechanicsMapUiState.Loaded ?: return
+        if (current.cameraTarget != null || current.cameraZoom != null) {
+            _state.value = current.copy(cameraTarget = null, cameraZoom = null)
         }
     }
 
@@ -285,8 +298,8 @@ class MechanicsMapViewModel @Inject constructor(
                 sourceFilter = currentSourceFilter,
                 viewMode = current?.viewMode ?: MechanicsViewMode.MAP,
                 isRecentering = false,
-                cameraTarget = if (isRecentering) location else current?.cameraTarget,
-                cameraZoom = if (isRecentering) 14.5 else current?.cameraZoom,
+                cameraTarget = if (isRecentering || current == null) location else current.cameraTarget,
+                cameraZoom = if (isRecentering || current == null) 14.5 else current.cameraZoom,
             )
         }
     }
