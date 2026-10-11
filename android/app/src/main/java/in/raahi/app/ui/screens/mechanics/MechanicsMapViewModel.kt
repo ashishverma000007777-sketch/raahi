@@ -3,7 +3,6 @@ package `in`.raahi.app.ui.screens.mechanics
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import `in`.raahi.app.data.AuthRepository
 import `in`.raahi.app.data.GooglePlaceResult
 import `in`.raahi.app.data.GooglePlacesProvider
 import `in`.raahi.app.data.GooglePlacesStatus
@@ -11,7 +10,6 @@ import `in`.raahi.app.data.LatLng
 import `in`.raahi.app.data.LocationProvider
 import `in`.raahi.app.data.MechanicsRepository
 import `in`.raahi.app.network.MechanicDto
-import `in`.raahi.app.network.OsmMechanicShopDto
 import `in`.raahi.app.network.toUserFriendlyMessage
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,11 +24,10 @@ enum class MechanicsViewMode { MAP, LIST }
 enum class MechanicSourceFilter(val label: String) {
     ALL("All Sources"),
     VERIFIED("Verified Raahi"),
-    COMMUNITY_OSM("Community (OSM)"),
     GOOGLE_PLACES("Google Places"),
 }
 
-enum class MechanicSource { VERIFIED, OSM_COMMUNITY, GOOGLE_PLACES }
+enum class MechanicSource { VERIFIED, GOOGLE_PLACES }
 
 data class UnifiedMechanicItem(
     val id: String,
@@ -47,19 +44,18 @@ data class UnifiedMechanicItem(
     val specializations: String?,
     val source: MechanicSource,
     val rawMechanic: MechanicDto? = null,
-    val rawOsmShop: OsmMechanicShopDto? = null,
     val rawGooglePlace: GooglePlaceResult? = null,
 )
 
 sealed class MechanicsMapUiState {
     data object Loading : MechanicsMapUiState()
     data object LocationUnavailable : MechanicsMapUiState()
+    data class Error(val message: String) : MechanicsMapUiState()
     data class Loaded(
         val userLocation: LatLng,
         val mechanics: List<MechanicDto>,
         val errorMessage: String? = null,
         val isRefreshing: Boolean = false,
-        val shops: List<OsmMechanicShopDto> = emptyList(),
         val googlePlaces: List<GooglePlaceResult> = emptyList(),
         val googlePlacesNotice: String? = null,
         val allItems: List<UnifiedMechanicItem> = emptyList(),
@@ -73,126 +69,105 @@ sealed class MechanicsMapUiState {
         val cameraTarget: LatLng? = null,
         val cameraZoom: Double? = null,
     ) : MechanicsMapUiState()
-    data class Error(val message: String) : MechanicsMapUiState()
 }
 
 @HiltViewModel
 class MechanicsMapViewModel @Inject constructor(
-    private val locationProvider: LocationProvider,
     private val mechanicsRepository: MechanicsRepository,
-    private val authRepository: AuthRepository,
+    private val locationProvider: LocationProvider,
     private val googlePlacesProvider: GooglePlacesProvider,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<MechanicsMapUiState>(MechanicsMapUiState.Loading)
     val state: StateFlow<MechanicsMapUiState> = _state.asStateFlow()
 
-    private var lastLocation: LatLng? = null
+    init {
+        acquireLocationAndLoad()
+    }
 
-    /**
-     * Initializes or restarts location resolution.
-     * Always acquires the real device GPS position; never uses hardcoded Delhi coordinates.
-     */
-    fun start() {
-        if (!authRepository.hasAuthToken()) return
-        val current = _state.value as? MechanicsMapUiState.Loaded
-        if (current == null) {
-            _state.value = MechanicsMapUiState.Loading
-        }
+    fun start() = acquireLocationAndLoad()
+    fun retry() = refresh()
+    fun selectCategory(category: String) = setCategory(category)
+    fun selectSourceFilter(filter: MechanicSourceFilter) = setSourceFilter(filter)
+
+    fun acquireLocationAndLoad() {
         viewModelScope.launch {
-            val location = runCatching { locationProvider.getRealGpsLocation() }.getOrNull()
-            if (location == null) {
-                if (lastLocation == null) {
-                    _state.value = MechanicsMapUiState.LocationUnavailable
-                    return@launch
-                }
-            } else {
-                lastLocation = location
-            }
+            _state.value = MechanicsMapUiState.Loading
 
-            val targetLocation = lastLocation ?: location
-            if (targetLocation == null) {
-                _state.value = MechanicsMapUiState.LocationUnavailable
+            // 1. First try cached fast GPS
+            val cached = locationProvider.getLastKnownGpsLocation()
+            if (cached != null) {
+                loadNearby(cached)
                 return@launch
             }
 
-            loadNearby(targetLocation, isRecentering = true)
-        }
-    }
-
-    fun retry() {
-        start()
-    }
-
-    /**
-     * Re-queries fresh GPS fix and centers the map camera directly over the user.
-     * Updates nearby mechanics if user has moved.
-     */
-    fun recenter() {
-        val current = _state.value as? MechanicsMapUiState.Loaded
-        viewModelScope.launch {
-            if (current != null) {
-                _state.value = current.copy(isRecentering = true)
+            // 2. Request fresh real hardware GPS fix
+            val fresh = locationProvider.getRealGpsLocation(freshTimeoutMs = 7000L)
+            if (fresh != null) {
+                loadNearby(fresh)
+                return@launch
             }
-            val fresh = runCatching { locationProvider.getRealGpsLocation(freshTimeoutMs = 5000L) }.getOrNull()
-            val loc = fresh ?: lastLocation ?: current?.userLocation
-            if (loc != null) {
-                lastLocation = loc
-                if (current != null) {
-                    val distMoved = haversineDistanceKm(current.userLocation.lat, current.userLocation.lng, loc.lat, loc.lng)
-                    if (distMoved > 0.15) {
-                        // User moved noticeably; refresh search at new coordinates
-                        loadNearby(loc, isRecentering = false)
-                    } else {
-                        // Center camera to user's confirmed position
-                        _state.value = current.copy(
-                            userLocation = loc,
-                            isRecentering = false,
-                            cameraTarget = loc,
-                            cameraZoom = 14.5,
-                        )
-                    }
-                } else {
-                    loadNearby(loc, isRecentering = false)
-                }
+
+            // 3. Fallback to standard location provider
+            val fallback = locationProvider.getCurrentLocation()
+            if (fallback != null) {
+                loadNearby(fallback)
             } else {
-                if (current != null) {
-                    _state.value = current.copy(isRecentering = false)
-                } else {
-                    _state.value = MechanicsMapUiState.LocationUnavailable
-                }
+                _state.value = MechanicsMapUiState.LocationUnavailable
             }
         }
     }
 
-    fun onCameraMoved() {
+    fun recenter() {
         val current = _state.value as? MechanicsMapUiState.Loaded ?: return
-        if (current.cameraTarget != null || current.cameraZoom != null) {
-            _state.value = current.copy(cameraTarget = null, cameraZoom = null)
+        viewModelScope.launch {
+            _state.value = current.copy(isRecentering = true)
+            val fresh = locationProvider.getRealGpsLocation(freshTimeoutMs = 5000L)
+                ?: locationProvider.getLastKnownGpsLocation()
+                ?: current.userLocation
+
+            _state.value = current.copy(
+                isRecentering = false,
+                userLocation = fresh,
+                cameraTarget = fresh,
+                cameraZoom = 14.5,
+            )
         }
-    }
-
-    fun setSearchQuery(query: String) {
-        val current = _state.value as? MechanicsMapUiState.Loaded ?: return
-        val filtered = filterItems(current.allItems, query, current.selectedCategory, current.sourceFilter)
-        _state.value = current.copy(searchQuery = query, filteredItems = filtered)
-    }
-
-    fun selectCategory(category: String) {
-        val current = _state.value as? MechanicsMapUiState.Loaded ?: return
-        val filtered = filterItems(current.allItems, current.searchQuery, category, current.sourceFilter)
-        _state.value = current.copy(selectedCategory = category, filteredItems = filtered)
-    }
-
-    fun selectSourceFilter(source: MechanicSourceFilter) {
-        val current = _state.value as? MechanicsMapUiState.Loaded ?: return
-        val filtered = filterItems(current.allItems, current.searchQuery, current.selectedCategory, source)
-        _state.value = current.copy(sourceFilter = source, filteredItems = filtered)
     }
 
     fun setViewMode(mode: MechanicsViewMode) {
         val current = _state.value as? MechanicsMapUiState.Loaded ?: return
         _state.value = current.copy(viewMode = mode)
+    }
+
+    fun setSearchQuery(query: String) {
+        val current = _state.value as? MechanicsMapUiState.Loaded ?: return
+        val filtered = filterItems(current.allItems, query, current.selectedCategory, current.sourceFilter)
+        _state.value = current.copy(
+            searchQuery = query,
+            filteredItems = filtered,
+            selectedItem = if (current.selectedItem != null && filtered.any { it.id == current.selectedItem.id }) current.selectedItem else null
+        )
+    }
+
+    fun setCategory(category: String) {
+        val current = _state.value as? MechanicsMapUiState.Loaded ?: return
+        val filtered = filterItems(current.allItems, current.searchQuery, category, current.sourceFilter)
+        _state.value = current.copy(
+            selectedCategory = category,
+            filteredItems = filtered,
+            selectedItem = if (current.selectedItem != null && filtered.any { it.id == current.selectedItem.id }) current.selectedItem else null
+        )
+    }
+
+    fun setSourceFilter(filter: MechanicSourceFilter) {
+        val current = _state.value as? MechanicsMapUiState.Loaded ?: return
+        val filtered = filterItems(current.allItems, current.searchQuery, current.selectedCategory, filter)
+        _state.value = current.copy(
+            sourceFilter = filter,
+            filteredItems = filtered,
+            selectedItem = if (current.selectedItem != null && filtered.any { it.id == current.selectedItem.id }) current.selectedItem else null
+        )
     }
 
     fun selectItem(item: UnifiedMechanicItem?) {
@@ -213,17 +188,14 @@ class MechanicsMapViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            // Concurrent fetch: Verified Raahi mechanics, OSM Community leads, Google Places
+            // Concurrent fetch: Verified Raahi mechanics and Google Places
             val mechanicsDeferred = async { runCatching { mechanicsRepository.nearby(location.lat, location.lng) } }
-            val shopsDeferred = async { runCatching { mechanicsRepository.nearbyShops(location.lat, location.lng) } }
             val placesDeferred = async { runCatching { googlePlacesProvider.searchNearbyAutoRepair(location.lat, location.lng) } }
 
             val mechanicsResult = mechanicsDeferred.await()
-            val shopsResult = shopsDeferred.await()
             val placesResult = placesDeferred.await()
 
             val mechanics = mechanicsResult.getOrDefault(emptyList())
-            val shops = shopsResult.getOrDefault(emptyList())
 
             var googlePlaces = emptyList<GooglePlaceResult>()
             var googleNotice: String? = null
@@ -234,17 +206,9 @@ class MechanicsMapViewModel @Inject constructor(
             }
 
             val error = when {
-                mechanicsResult.isFailure && shopsResult.isFailure ->
-                    mechanicsResult.exceptionOrNull()?.toUserFriendlyMessage(
-                        "Nearby mechanics and repair shops unavailable. Please check your connection."
-                    )
-                shopsResult.isFailure ->
-                    shopsResult.exceptionOrNull()?.toUserFriendlyMessage(
-                        "Imported community repair shops could not load. Please retry."
-                    )
                 mechanicsResult.isFailure ->
                     mechanicsResult.exceptionOrNull()?.toUserFriendlyMessage(
-                        "Verified Raahi mechanics unavailable. Community repair shops may still be shown."
+                        "Verified Raahi mechanics unavailable. Please check your connection."
                     )
                 else -> null
             }
@@ -276,36 +240,13 @@ class MechanicsMapViewModel @Inject constructor(
                 )
             }
 
-            // 2. OSM Community repair shops
-            for (s in shops) {
-                if (!s.lat.isFinite() || !s.lng.isFinite()) continue
-                val dist = if (s.distanceKm >= 0) s.distanceKm else haversineDistanceKm(location.lat, location.lng, s.lat, s.lng)
-                unifiedList.add(
-                    UnifiedMechanicItem(
-                        id = "osm-${s.id}",
-                        name = s.name,
-                        subtitle = "Community Record (OSM)",
-                        address = s.address,
-                        phone = s.phone,
-                        lat = s.lat,
-                        lng = s.lng,
-                        distanceKm = dist,
-                        rating = null,
-                        isAvailable = true,
-                        specializations = "Repair / Garage",
-                        source = MechanicSource.OSM_COMMUNITY,
-                        rawOsmShop = s,
-                    )
-                )
-            }
-
-            // 3. Genuine Google Places results (if available)
+            // 2. Genuine Google Places results (if available)
             for (gp in googlePlaces) {
                 unifiedList.add(
                     UnifiedMechanicItem(
                         id = "google-${gp.id}",
                         name = gp.name,
-                        subtitle = "Google Places Verified",
+                        subtitle = "Google Places",
                         address = gp.address,
                         phone = null,
                         lat = gp.lat,
@@ -321,33 +262,31 @@ class MechanicsMapViewModel @Inject constructor(
                 )
             }
 
+            // Sort by distance
             unifiedList.sortBy { it.distanceKm }
 
-            val prevQuery = current?.searchQuery.orEmpty()
-            val prevCategory = current?.selectedCategory ?: "All"
-            val prevSourceFilter = current?.sourceFilter ?: MechanicSourceFilter.ALL
-            val prevViewMode = current?.viewMode ?: MechanicsViewMode.MAP
-
-            val filtered = filterItems(unifiedList, prevQuery, prevCategory, prevSourceFilter)
+            val currentQuery = current?.searchQuery.orEmpty()
+            val currentCategory = current?.selectedCategory ?: "All"
+            val currentSourceFilter = current?.sourceFilter ?: MechanicSourceFilter.ALL
+            val filtered = filterItems(unifiedList, currentQuery, currentCategory, currentSourceFilter)
 
             _state.value = MechanicsMapUiState.Loaded(
                 userLocation = location,
                 mechanics = mechanics,
-                shops = shops,
+                errorMessage = error,
+                isRefreshing = false,
                 googlePlaces = googlePlaces,
                 googlePlacesNotice = googleNotice,
                 allItems = unifiedList,
                 filteredItems = filtered,
-                selectedItem = null,
-                searchQuery = prevQuery,
-                selectedCategory = prevCategory,
-                sourceFilter = prevSourceFilter,
-                viewMode = prevViewMode,
-                errorMessage = error,
-                isRefreshing = false,
+                selectedItem = current?.selectedItem?.let { sel -> unifiedList.firstOrNull { it.id == sel.id } },
+                searchQuery = currentQuery,
+                selectedCategory = currentCategory,
+                sourceFilter = currentSourceFilter,
+                viewMode = current?.viewMode ?: MechanicsViewMode.MAP,
                 isRecentering = false,
-                cameraTarget = if (isRecentering || current == null) location else null,
-                cameraZoom = if (isRecentering || current == null) 14.0 else null,
+                cameraTarget = if (isRecentering) location else current?.cameraTarget,
+                cameraZoom = if (isRecentering) 14.5 else current?.cameraZoom,
             )
         }
     }
@@ -356,40 +295,53 @@ class MechanicsMapViewModel @Inject constructor(
         items: List<UnifiedMechanicItem>,
         query: String,
         category: String,
-        source: MechanicSourceFilter,
+        sourceFilter: MechanicSourceFilter,
     ): List<UnifiedMechanicItem> {
+        val q = query.trim().lowercase()
         return items.filter { item ->
-            // Source filter
-            val matchesSource = when (source) {
+            val matchesSource = when (sourceFilter) {
                 MechanicSourceFilter.ALL -> true
                 MechanicSourceFilter.VERIFIED -> item.source == MechanicSource.VERIFIED
-                MechanicSourceFilter.COMMUNITY_OSM -> item.source == MechanicSource.OSM_COMMUNITY
                 MechanicSourceFilter.GOOGLE_PLACES -> item.source == MechanicSource.GOOGLE_PLACES
             }
             if (!matchesSource) return@filter false
 
-            // Category filter
+            val matchesQuery = if (q.isEmpty()) true else {
+                item.name.lowercase().contains(q) ||
+                    (item.address?.lowercase()?.contains(q) == true) ||
+                    (item.specializations?.lowercase()?.contains(q) == true) ||
+                    (item.subtitle?.lowercase()?.contains(q) == true)
+            }
+            if (!matchesQuery) return@filter false
+
             val matchesCategory = when (category) {
                 "All" -> true
-                "SOS / Towing" -> item.specializations?.contains("SOS", ignoreCase = true) == true ||
-                    item.specializations?.contains("tow", ignoreCase = true) == true
                 "Puncture" -> item.specializations?.contains("puncture", ignoreCase = true) == true ||
                     item.name.contains("puncture", ignoreCase = true)
-                "Electric" -> item.specializations?.contains("electric", ignoreCase = true) == true ||
-                    item.specializations?.contains("battery", ignoreCase = true) == true
                 "Garage" -> item.specializations?.contains("garage", ignoreCase = true) == true ||
-                    item.name.contains("garage", ignoreCase = true) || item.name.contains("motors", ignoreCase = true)
-                else -> item.specializations?.contains(category, ignoreCase = true) == true
+                    item.specializations?.contains("engine", ignoreCase = true) == true ||
+                    item.name.contains("garage", ignoreCase = true) ||
+                    item.name.contains("motor", ignoreCase = true) ||
+                    item.name.contains("service", ignoreCase = true)
+                "Electrical" -> item.specializations?.contains("electric", ignoreCase = true) == true ||
+                    item.specializations?.contains("battery", ignoreCase = true) == true ||
+                    item.name.contains("battery", ignoreCase = true) ||
+                    item.name.contains("electric", ignoreCase = true)
+                "Towing" -> item.specializations?.contains("tow", ignoreCase = true) == true ||
+                    item.name.contains("tow", ignoreCase = true) ||
+                    item.name.contains("crane", ignoreCase = true)
+                else -> true
             }
-            if (!matchesCategory) return@filter false
+            matchesCategory
+        }
+    }
 
-            // Search query
-            if (query.isBlank()) return@filter true
-            val q = query.trim().lowercase()
-            item.name.lowercase().contains(q) ||
-                (item.address?.lowercase()?.contains(q) == true) ||
-                (item.specializations?.lowercase()?.contains(q) == true) ||
-                (item.phone?.contains(q) == true)
+    fun refresh() {
+        val loc = (_state.value as? MechanicsMapUiState.Loaded)?.userLocation
+        if (loc != null) {
+            loadNearby(loc)
+        } else {
+            acquireLocationAndLoad()
         }
     }
 
@@ -398,6 +350,7 @@ class MechanicsMapViewModel @Inject constructor(
         val dLat = Math.toRadians(lat2 - lat1)
         val dLon = Math.toRadians(lon2 - lon1)
         val a = sin(dLat / 2).pow(2) + cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) * sin(dLon / 2).pow(2)
-        return r * 2 * atan2(sqrt(a), sqrt(1 - a))
+        val c = 2 * atan2(sqrt(a), sqrt(1 - a))
+        return (r * c * 10.0).roundToInt() / 10.0
     }
 }

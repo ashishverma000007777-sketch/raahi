@@ -1,9 +1,9 @@
 package `in`.raahi.app.ui.screens.mechanics
 
 import `in`.raahi.app.data.GooglePlaceResult
+import `in`.raahi.app.data.GoogleRoutesProvider
 import `in`.raahi.app.data.LatLng
 import `in`.raahi.app.network.MechanicDto
-import `in`.raahi.app.network.OsmMechanicShopDto
 import org.junit.Assert.*
 import org.junit.Test
 import kotlin.math.*
@@ -23,7 +23,7 @@ class MechanicsMapLogicTest {
     }
 
     @Test
-    fun testSourceSeparation() {
+    fun testSourceSeparationVerifiedAndGooglePlaces() {
         val verifiedMechanic = MechanicDto(
             userId = "u1",
             name = "Ramesh Verma",
@@ -35,18 +35,6 @@ class MechanicsMapLogicTest {
             lng = 76.7200,
             distanceKm = 1.2,
             ratingAvg = 4.8,
-        )
-
-        val osmShop = OsmMechanicShopDto(
-            id = "osm-12345",
-            name = "Gupta Puncture Works",
-            phone = "9812345678",
-            address = "Sector 70, Mohali",
-            lat = 30.7000,
-            lng = 76.7100,
-            osmUrl = null,
-            status = "NEW",
-            distanceKm = 1.5,
         )
 
         val googlePlace = GooglePlaceResult(
@@ -77,22 +65,6 @@ class MechanicsMapLogicTest {
             rawMechanic = verifiedMechanic,
         )
 
-        val oItem = UnifiedMechanicItem(
-            id = "osm-${osmShop.id}",
-            name = osmShop.name,
-            subtitle = "Community Record (OSM)",
-            address = osmShop.address,
-            phone = osmShop.phone,
-            lat = osmShop.lat,
-            lng = osmShop.lng,
-            distanceKm = osmShop.distanceKm,
-            rating = null,
-            isAvailable = true,
-            specializations = "Puncture / Repair",
-            source = MechanicSource.OSM_COMMUNITY,
-            rawOsmShop = osmShop,
-        )
-
         val gItem = UnifiedMechanicItem(
             id = "google-${googlePlace.id}",
             name = googlePlace.name,
@@ -111,11 +83,8 @@ class MechanicsMapLogicTest {
         )
 
         assertEquals(MechanicSource.VERIFIED, vItem.source)
-        assertEquals(MechanicSource.OSM_COMMUNITY, oItem.source)
         assertEquals(MechanicSource.GOOGLE_PLACES, gItem.source)
 
-        // Rating is honestly preserved: OSM has null rating (never fabricated)
-        assertNull("OSM community record must never have an invented rating", oItem.rating)
         assertEquals(4.8, vItem.rating!!, 0.01)
         assertEquals(4.5, gItem.rating!!, 0.01)
     }
@@ -132,48 +101,61 @@ class MechanicsMapLogicTest {
         val items = listOf(
             UnifiedMechanicItem(
                 id = "1", name = "Sharma Puncture Shop", subtitle = null, address = "Kharar Road",
-                phone = "9800000001", lat = 30.7, lng = 76.7, distanceKm = 1.0, rating = null,
+                phone = "9800000001", lat = 30.7, lng = 76.7, distanceKm = 1.0, rating = 4.2,
                 isAvailable = true, specializations = "Tyre Puncture, Wheel Alignment",
-                source = MechanicSource.OSM_COMMUNITY
+                source = MechanicSource.VERIFIED
             ),
             UnifiedMechanicItem(
                 id = "2", name = "Apex Electric Works", subtitle = null, address = "Phase 5",
-                phone = "9800000002", lat = 30.7, lng = 76.7, distanceKm = 2.0, rating = 4.7,
-                isAvailable = true, specializations = "Battery, Alternator, Electric Wiring",
-                source = MechanicSource.VERIFIED
+                phone = "9800000002", lat = 30.71, lng = 76.71, distanceKm = 2.5, rating = 4.6,
+                isAvailable = true, specializations = "Battery Replacement, Alternator, Wiring",
+                source = MechanicSource.GOOGLE_PLACES
             ),
             UnifiedMechanicItem(
-                id = "3", name = "National Garage & Towing", subtitle = null, address = "Phase 8",
-                phone = "9800000003", lat = 30.7, lng = 76.7, distanceKm = 3.0, rating = 4.2,
-                isAvailable = false, specializations = "Engine, Towing, 24x7 SOS",
+                id = "3", name = "Tricity Towing Assistance", subtitle = null, address = "Zirakpur Barrier",
+                phone = "9800000003", lat = 30.65, lng = 76.82, distanceKm = 8.0, rating = 4.0,
+                isAvailable = true, specializations = "24/7 Towing, Flatbed Crane",
                 source = MechanicSource.VERIFIED
-            )
+            ),
         )
 
-        // Category filter: Puncture
-        val punctureMatches = items.filter { it.name.contains("puncture", ignoreCase = true) || it.specializations?.contains("puncture", ignoreCase = true) == true }
-        assertEquals(1, punctureMatches.size)
-        assertEquals("1", punctureMatches[0].id)
+        // Filter: Puncture
+        val punctureItems = items.filter { it.specializations?.contains("puncture", ignoreCase = true) == true }
+        assertEquals(1, punctureItems.size)
+        assertEquals("Sharma Puncture Shop", punctureItems.first().name)
 
-        // Category filter: Electric
-        val electricMatches = items.filter { it.specializations?.contains("electric", ignoreCase = true) == true || it.specializations?.contains("battery", ignoreCase = true) == true }
-        assertEquals(1, electricMatches.size)
-        assertEquals("2", electricMatches[0].id)
+        // Filter: Electrical
+        val electricItems = items.filter { it.specializations?.contains("battery", ignoreCase = true) == true }
+        assertEquals(1, electricItems.size)
+        assertEquals("Apex Electric Works", electricItems.first().name)
 
-        // Category filter: SOS / Towing
-        val sosMatches = items.filter { it.specializations?.contains("SOS", ignoreCase = true) == true || it.specializations?.contains("tow", ignoreCase = true) == true }
-        assertEquals(1, sosMatches.size)
-        assertEquals("3", sosMatches[0].id)
+        // Filter: Search "towing"
+        val query = "towing"
+        val searchItems = items.filter { it.name.contains(query, ignoreCase = true) || it.specializations?.contains(query, ignoreCase = true) == true }
+        assertEquals(1, searchItems.size)
+        assertEquals("Tricity Towing Assistance", searchItems.first().name)
 
-        // Search query: phone
-        val phoneSearch = items.filter { it.phone?.contains("00000002") == true }
-        assertEquals(1, phoneSearch.size)
-        assertEquals("2", phoneSearch[0].id)
+        // Filter: Verified only
+        val verifiedOnly = items.filter { it.source == MechanicSource.VERIFIED }
+        assertEquals(2, verifiedOnly.size)
 
-        // Search query: address
-        val addressSearch = items.filter { it.address?.contains("Kharar", ignoreCase = true) == true }
-        assertEquals(1, addressSearch.size)
-        assertEquals("1", addressSearch[0].id)
+        // Filter: Google Places only
+        val googleOnly = items.filter { it.source == MechanicSource.GOOGLE_PLACES }
+        assertEquals(1, googleOnly.size)
+    }
+
+    @Test
+    fun testGoogleRoutesPolylineDecoder() {
+        // Standard test polyline string: "_p~iF~ps|U_ulLnnqC_mqNvxq`@" (points around (38.5, -120.2))
+        val encoded = "_p~iF~ps|U_ulLnnqC_mqNvxq`@"
+        val points = GoogleRoutesProvider.decodePolyline(encoded)
+        assertEquals(3, points.size)
+        assertEquals(38.5, points[0].latitude, 0.001)
+        assertEquals(-120.2, points[0].longitude, 0.001)
+        assertEquals(40.7, points[1].latitude, 0.001)
+        assertEquals(-120.95, points[1].longitude, 0.001)
+        assertEquals(43.252, points[2].latitude, 0.001)
+        assertEquals(-126.453, points[2].longitude, 0.001)
     }
 
     private fun haversineKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
@@ -181,6 +163,7 @@ class MechanicsMapLogicTest {
         val dLat = Math.toRadians(lat2 - lat1)
         val dLon = Math.toRadians(lon2 - lon1)
         val a = sin(dLat / 2).pow(2) + cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) * sin(dLon / 2).pow(2)
-        return r * 2 * atan2(sqrt(a), sqrt(1 - a))
+        val c = 2 * atan2(sqrt(a), sqrt(1 - a))
+        return (r * c * 10.0).roundToInt() / 10.0
     }
 }

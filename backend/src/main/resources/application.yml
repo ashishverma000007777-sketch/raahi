@@ -47,6 +47,8 @@ raahi:
   ai:
     provider: ${AI_PROVIDER:gemini}
     gemini-api-key: ${GEMINI_API_KEY:}   # backend-only, never sent to Android
+  google:
+    api-key: ${GOOGLE_MAPS_API_KEY:${GOOGLE_API_KEY:}}
   commission:
     rate: ${RAAHI_COMMISSION_RATE:0.10}          # 10% of the job amount, owed by the helper to Raahi
   cancellation:

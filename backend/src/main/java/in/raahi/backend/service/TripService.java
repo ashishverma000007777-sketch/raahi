@@ -294,7 +294,7 @@ public class TripService {
         double midLat = (startLat + destLat) / 2.0;
         double midLng = (startLng + destLng) / 2.0;
 
-        // 1. Fetch real Fuel stations near route via Overpass
+        // 1. Fetch real Fuel stations near route via Google Places
         try {
             List<PlacesProvider.Place> fuelStations = placesProvider.nearby("fuel", midLat, midLng, Math.min(30.0, totalDistanceKm / 2.0));
             int fuelCount = 0;
@@ -316,7 +316,7 @@ public class TripService {
                 fuelCount++;
             }
         } catch (Exception e) {
-            log.warn("Could not fetch OSM fuel stops: {}", e.getMessage());
+            log.warn("Could not fetch fuel stops: {}", e.getMessage());
         }
 
         // 2. Fetch real Dhabas / Food stops

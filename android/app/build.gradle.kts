@@ -88,10 +88,8 @@ dependencies {
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
     implementation("com.google.android.gms:play-services-location:21.3.0")
-    // MapLibre GL Native — OSS Mapbox GL fork, no API key needed for raw XYZ raster tiles.
-    // Published on Maven Central since v10+, so no extra repository entry needed beyond
-    // what settings.gradle.kts already declares.
-    implementation("org.maplibre.gl:android-sdk:11.5.2")
+    // Google Maps SDK for Android
+    implementation("com.google.android.gms:play-services-maps:18.2.0")
 
     implementation(platform("com.google.firebase:firebase-bom:33.1.2"))
     implementation("com.google.firebase:firebase-auth-ktx")

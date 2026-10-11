@@ -207,7 +207,7 @@ public class DailyController {
         return ApiResponse.ok(dto);
     }
 
-    // ---- Nearby Places (real OSM Overpass data, no fake fallback) ----
+    // ---- Nearby Places (real Google Places data, no fake fallback) ----
 
     @GetMapping("/places")
     public ApiResponse<List<PlaceDto>> places(@AuthenticationPrincipal AuthenticatedUser principal,

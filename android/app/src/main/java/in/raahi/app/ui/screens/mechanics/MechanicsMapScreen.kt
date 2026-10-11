@@ -35,8 +35,8 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import `in`.raahi.app.ui.components.*
 import `in`.raahi.app.ui.theme.*
-import org.maplibre.android.camera.CameraUpdateFactory
-import org.maplibre.android.maps.MapLibreMap
+import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.GoogleMap
 
 private val CATEGORIES = listOf("All", "Garage", "Puncture", "Electric", "SOS / Towing")
 
@@ -49,7 +49,7 @@ fun MechanicsMapScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val permission = rememberLocationPermissionState()
-    var mapInstance by remember { mutableStateOf<MapLibreMap?>(null) }
+    var mapInstance by remember { mutableStateOf<GoogleMap?>(null) }
     val context = LocalContext.current
 
     LaunchedEffect(permission.isGranted) {
@@ -94,7 +94,7 @@ private fun MechanicsLoadedContent(
     state: MechanicsMapUiState.Loaded,
     viewModel: MechanicsMapViewModel,
     onBack: () -> Unit,
-    onMapReady: (MapLibreMap) -> Unit,
+    onMapReady: (GoogleMap) -> Unit,
     onMechanicClick: (String) -> Unit,
     onZoomIn: () -> Unit,
     onZoomOut: () -> Unit,
@@ -127,7 +127,6 @@ private fun MechanicsLoadedContent(
             current = state.sourceFilter,
             onSelect = viewModel::selectSourceFilter,
             verifiedCount = state.allItems.count { it.source == MechanicSource.VERIFIED },
-            osmCount = state.allItems.count { it.source == MechanicSource.OSM_COMMUNITY },
             googleCount = state.allItems.count { it.source == MechanicSource.GOOGLE_PLACES },
         )
 
@@ -171,12 +170,12 @@ private fun MechanicsLoadedContent(
                 MechanicsMapView(
                     modifier = Modifier.fillMaxSize(),
                     userLocation = state.userLocation,
-                    items = state.filteredItems,
-                    selectedItem = state.selectedItem,
+                    mechanics = state.filteredItems,
+                    selectedId = state.selectedItem?.id,
                     cameraTarget = state.cameraTarget,
                     cameraZoom = state.cameraZoom,
-                    onCameraMoved = viewModel::onCameraMoved,
-                    onItemClick = { item ->
+                    onSelect = { id ->
+                        val item = state.filteredItems.firstOrNull { it.id == id }
                         viewModel.selectItem(item)
                     },
                     onMapReady = onMapReady,
@@ -377,7 +376,6 @@ private fun SourceFilterRow(
     current: MechanicSourceFilter,
     onSelect: (MechanicSourceFilter) -> Unit,
     verifiedCount: Int,
-    osmCount: Int,
     googleCount: Int,
 ) {
     LazyRow(
@@ -387,9 +385,8 @@ private fun SourceFilterRow(
         items(MechanicSourceFilter.entries.toTypedArray()) { filter ->
             val isSelected = filter == current
             val count = when (filter) {
-                MechanicSourceFilter.ALL -> verifiedCount + osmCount + googleCount
+                MechanicSourceFilter.ALL -> verifiedCount + googleCount
                 MechanicSourceFilter.VERIFIED -> verifiedCount
-                MechanicSourceFilter.COMMUNITY_OSM -> osmCount
                 MechanicSourceFilter.GOOGLE_PLACES -> googleCount
             }
             Box(
@@ -543,7 +540,6 @@ private fun MechanicPlaceCard(
                 // Category icon badge
                 val (badgeColor, iconVector) = when (item.source) {
                     MechanicSource.VERIFIED -> RaahiGreen to Icons.Outlined.VerifiedUser
-                    MechanicSource.OSM_COMMUNITY -> RaahiAmber to Icons.Outlined.Build
                     MechanicSource.GOOGLE_PLACES -> Color(0xFF4285F4) to Icons.Outlined.Place
                 }
 
@@ -574,8 +570,7 @@ private fun MechanicPlaceCard(
                         // Source tag
                         when (item.source) {
                             MechanicSource.VERIFIED -> SourceBadge("Verified", RaahiGreen)
-                            MechanicSource.OSM_COMMUNITY -> SourceBadge("Community", RaahiAmber)
-                            MechanicSource.GOOGLE_PLACES -> SourceBadge("Google", Color(0xFF4285F4))
+                            MechanicSource.GOOGLE_PLACES -> SourceBadge("Google Places", Color(0xFF4285F4))
                         }
                     }
 

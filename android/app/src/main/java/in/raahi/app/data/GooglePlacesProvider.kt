@@ -49,9 +49,16 @@ class GooglePlacesProvider @Inject constructor(
         .readTimeout(10, TimeUnit.SECONDS)
         .build()
 
-    // Configured API key from google-services / manifest
-    private val apiKey = "AIzaSyCExXcyh-3IKQnpIskMOZkzfgbiJETJB9g"
-    private val packageName = "com.raahi.app"
+    // Dynamically resolved from strings.xml / Android context
+    private val apiKey: String
+        get() = try {
+            val resId = context.resources.getIdentifier("google_maps_key", "string", context.packageName)
+            if (resId != 0) context.getString(resId) else ""
+        } catch (_: Exception) {
+            ""
+        }
+    private val packageName: String
+        get() = context.packageName
 
     suspend fun searchNearbyAutoRepair(
         lat: Double,
@@ -134,7 +141,7 @@ class GooglePlacesProvider @Inject constructor(
                 Log.w("GooglePlacesProvider", "Google Places API call returned $code: $errorMsg")
                 val userNotice = when {
                     code == 403 || errorMsg.contains("blocked", ignoreCase = true) ->
-                        "Google Places API (New) is not activated or restricted for this API key in Google Cloud Console. Showing OpenStreetMap and verified Raahi mechanics."
+                        "Google Places API (New) requires activation or billing in Google Cloud Console. Showing verified Raahi mechanics."
                     code == 400 -> "Google Places query parameter issue ($errorMsg)."
                     else -> "Google Places service unavailable ($errorMsg)."
                 }
@@ -143,7 +150,7 @@ class GooglePlacesProvider @Inject constructor(
         } catch (e: Exception) {
             Log.w("GooglePlacesProvider", "Google Places network check failed: ${e.message}")
             GooglePlacesStatus.Unavailable(
-                "Unable to connect to Google Places API (${e.javaClass.simpleName}). Showing verified Raahi mechanics and OSM leads."
+                "Unable to connect to Google Places API (${e.javaClass.simpleName}). Showing verified Raahi mechanics."
             )
         }
     }

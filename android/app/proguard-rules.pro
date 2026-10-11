@@ -14,9 +14,9 @@
 -keep class in.raahi.app.network.** { *; }
 -keep class in.raahi.app.data.** { *; }
 
-# MapLibre Native
--keep class org.maplibre.android.** { *; }
--dontwarn org.maplibre.android.**
+# Google Maps SDK for Android
+-keep class com.google.android.gms.maps.** { *; }
+-dontwarn com.google.android.gms.maps.**
 
 # Kotlin Coroutines & Flow
 -keepclassmembers class kotlinx.coroutines.** { *; }
