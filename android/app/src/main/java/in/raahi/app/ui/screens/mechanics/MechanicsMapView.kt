@@ -1,6 +1,6 @@
 package `in`.raahi.app.ui.screens.mechanics
-import android.util.Log
 
+import android.util.Log
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -8,10 +8,9 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import `in`.raahi.app.data.LatLng
-import `in`.raahi.app.network.MechanicDto
-import `in`.raahi.app.network.OsmMechanicShopDto
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
+import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.Point
@@ -30,20 +29,17 @@ import org.maplibre.android.geometry.LatLng as MlLatLng
 private const val OSM_SOURCE_ID = "osm-raster-source"
 private const val OSM_LAYER_ID = "osm-raster-layer"
 private const val USER_SOURCE_ID = "user-source"
+private const val USER_PULSE_LAYER_ID = "user-pulse-layer"
 private const val USER_LAYER_ID = "user-layer"
-private const val MECHANICS_SOURCE_ID = "mechanics-source"
-private const val MECHANICS_LAYER_ID = "mechanics-layer"
-private const val SHOPS_SOURCE_ID = "osm-shops-source"
-private const val SHOPS_LAYER_ID = "osm-shops-layer"
-private const val MECHANIC_ID_PROPERTY = "mechanicUserId"
-private const val AVAILABLE_PROPERTY = "available"
+private const val ITEMS_SOURCE_ID = "items-source"
+private const val ITEMS_LAYER_ID = "items-layer"
+private const val SELECTED_SOURCE_ID = "selected-item-source"
+private const val SELECTED_LAYER_ID = "selected-item-layer"
 
-/**
- * Raw XYZ raster tiles from tile.openstreetmap.org — same tile source the Flutter reference
- * used (flutter_map's TileLayer). No vector style / API key needed, which keeps this fully
- * within "MapLibre + OpenStreetMap" as specified rather than pulling in a hosted vector-style
- * provider that would need its own API key.
- */
+private const val ITEM_ID_PROP = "itemId"
+private const val SOURCE_PROP = "source"
+private const val AVAILABLE_PROP = "available"
+
 private fun emptyStyleBuilder(): Style.Builder {
     val styleJson = """{ "version": 8, "sources": {}, "layers": [] }"""
     return Style.Builder().fromJson(styleJson)
@@ -53,89 +49,96 @@ private fun emptyStyleBuilder(): Style.Builder {
 fun MechanicsMapView(
     modifier: Modifier = Modifier,
     userLocation: LatLng,
-    mechanics: List<MechanicDto>,
-    shops: List<OsmMechanicShopDto> = emptyList(),
-    onMechanicClick: (MechanicDto) -> Unit,
+    items: List<UnifiedMechanicItem>,
+    selectedItem: UnifiedMechanicItem? = null,
+    cameraTarget: LatLng? = null,
+    cameraZoom: Double? = null,
+    onCameraMoved: () -> Unit = {},
+    onItemClick: (UnifiedMechanicItem) -> Unit = {},
     onMapReady: (MapLibreMap) -> Unit = {},
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val mapViewRef = remember { arrayOfNulls<MapView>(1) }
-    // Keep the latest list for the click listener (the listener is registered once).
-    val latestMechanics by rememberUpdatedState(mechanics)
-    val latestShops by rememberUpdatedState(shops)
+    val latestItems by rememberUpdatedState(items)
+    var isMapFullyReady by remember { mutableStateOf(false) }
 
     AndroidView<android.view.View>(
         modifier = modifier,
         factory = { context ->
-          // Map creation can throw on devices without usable GL / native lib problems. A failed
-          // map must never take the whole app down: fall back to an empty view and keep the
-          // list UI below it working.
-          try {
-            MapLibre.getInstance(context.applicationContext)
-            MapView(context).also { mv ->
-                mapViewRef[0] = mv
-                mv.onCreate(null)
-                Log.d("RAAHI_MAP_DEBUG", "MapView onCreate")
-                var frameCount = 0
-                mv.addOnWillStartLoadingMapListener { Log.d("RAAHI_MAP_DEBUG", "WILL_START_LOADING_MAP") }
-                mv.addOnDidFinishLoadingMapListener { Log.d("RAAHI_MAP_DEBUG", "DID_FINISH_LOADING_MAP") }
-                mv.addOnDidFailLoadingMapListener { error -> Log.e("RAAHI_MAP_DEBUG", "DID_FAIL_LOADING_MAP: $error") }
-                mv.addOnDidFinishLoadingStyleListener { Log.d("RAAHI_MAP_DEBUG", "DID_FINISH_LOADING_STYLE") }
-                mv.addOnSourceChangedListener { source -> Log.d("RAAHI_MAP_DEBUG", "SOURCE_CHANGED: $source") }
-                mv.addOnTileActionListener { a, b, c, d, e, f, g -> Log.d("RAAHI_MAP_DEBUG", "TILE_ACTION: $a $b $c $d $e $f $g") }
-                mv.addOnShaderCompileFailedListener { a, b, c -> Log.e("RAAHI_MAP_DEBUG", "SHADER_COMPILE_FAILED: $a $b $c") }
-                mv.addOnDidFinishRenderingFrameListener { a, b, c ->
-                    frameCount++
-                    if (frameCount <= 3 || frameCount % 60 == 0) Log.d("RAAHI_MAP_DEBUG", "RENDER_FRAME #$frameCount fully=$a p1=$b p2=$c")
+            try {
+                MapLibre.getInstance(context.applicationContext)
+                MapView(context).also { mv ->
+                    mapViewRef[0] = mv
+                    mv.onCreate(null)
+                    mv.getMapAsync { map ->
+                        map.setStyle(emptyStyleBuilder()) { style ->
+                            addOsmRasterLayer(style)
+                            addUserLocationLayers(style, userLocation)
+                            addUnifiedItemsLayers(style, items)
+                            addSelectedItemLayer(style, selectedItem)
+                            isMapFullyReady = true
+                        }
+
+                        // Initialize camera strictly to user location with comfortable zoom
+                        map.cameraPosition = CameraPosition.Builder()
+                            .target(MlLatLng(userLocation.lat, userLocation.lng))
+                            .zoom(cameraZoom ?: 14.0)
+                            .build()
+
+                        map.addOnMapClickListener { point ->
+                            val screenPoint = map.projection.toScreenLocation(point)
+                            val features = map.queryRenderedFeatures(screenPoint, ITEMS_LAYER_ID)
+                            val clickedId = features.firstOrNull()?.getStringProperty(ITEM_ID_PROP)
+                            if (clickedId != null) {
+                                val match = latestItems.firstOrNull { it.id == clickedId }
+                                if (match != null) {
+                                    onItemClick(match)
+                                    return@addOnMapClickListener true
+                                }
+                            }
+                            false
+                        }
+                        onMapReady(map)
+                    }
                 }
-                Log.d("RAAHI_MAP_DEBUG", "MapView listeners registered")
-                mv.getMapAsync { map ->
-                    map.setStyle(emptyStyleBuilder()) { style ->
-                        addOsmRasterLayer(style)
-                        addUserLocationLayer(style, userLocation)
-                        addMechanicsLayer(style, mechanics)
-                        addOsmShopsLayer(style, shops)
-                    }
-                    map.cameraPosition = CameraPosition.Builder()
-                        .target(MlLatLng(userLocation.lat, userLocation.lng))
-                        .zoom(13.5)
-                        .build()
-                    map.addOnMapClickListener { point ->
-                        val screenPoint = map.projection.toScreenLocation(point)
-                        val features = map.queryRenderedFeatures(screenPoint, MECHANICS_LAYER_ID)
-                        val mechanicId = features.firstOrNull()?.getStringProperty(MECHANIC_ID_PROPERTY)
-                        val shopFeatures = map.queryRenderedFeatures(screenPoint, SHOPS_LAYER_ID)
-                        if (shopFeatures.isNotEmpty()) return@addOnMapClickListener true
-                        val mechanic = latestMechanics.firstOrNull { it.userId == mechanicId }
-                        if (mechanic != null) onMechanicClick(mechanic)
-                        mechanic != null
-                    }
-                    onMapReady(map)
+            } catch (t: Throwable) {
+                Log.e("MechanicsMapView", "MapLibre initialization failed: ${t.message}", t)
+                android.widget.TextView(context).apply {
+                    text = "Map preview unavailable: ${t.localizedMessage ?: "Renderer issue"}"
+                    setTextColor(android.graphics.Color.DKGRAY)
+                    textSize = 13f
+                    setPadding(24, 24, 24, 24)
                 }
             }
-          } catch (t: Throwable) {
-            Log.e("RAAHI_MAP_DEBUG", "MAP_INIT_FAILED: ${t.javaClass.name}: ${t.message}", t)
-            android.widget.TextView(context).apply {
-                text = "Map failed to initialize: ${t.javaClass.simpleName}\n${t.message ?: "No details"}"
-                setTextColor(android.graphics.Color.RED)
-                textSize = 13f
-                setPadding(16, 16, 16, 16)
-            }
-          }
         },
         update = { view ->
             val mv = view as? MapView ?: return@AndroidView
-            // Re-applied whenever the mechanics list or the user's location fix changes —
-            // MapLibre requires re-setting the GeoJSON data on the already-loaded style
-            // rather than rebuilding the whole style from scratch on every recomposition.
             mv.getMapAsync { map ->
                 val style = map.style ?: return@getMapAsync
-                (style.getSource(MECHANICS_SOURCE_ID) as? GeoJsonSource)
-                    ?.setGeoJson(mechanicsToFeatureCollection(mechanics))
+
+                // Update dynamic GeoJSON data without resetting base style
                 (style.getSource(USER_SOURCE_ID) as? GeoJsonSource)
                     ?.setGeoJson(Feature.fromGeometry(Point.fromLngLat(userLocation.lng, userLocation.lat)))
-                (style.getSource(SHOPS_SOURCE_ID) as? GeoJsonSource)
-                    ?.setGeoJson(osmShopsToFeatureCollection(shops))
+
+                (style.getSource(ITEMS_SOURCE_ID) as? GeoJsonSource)
+                    ?.setGeoJson(itemsToFeatureCollection(items))
+
+                (style.getSource(SELECTED_SOURCE_ID) as? GeoJsonSource)
+                    ?.setGeoJson(selectedItemToFeatureCollection(selectedItem))
+
+                // Smooth camera animation when cameraTarget is provided
+                if (cameraTarget != null) {
+                    val targetPos = MlLatLng(cameraTarget.lat, cameraTarget.lng)
+                    val zoom = cameraZoom ?: map.cameraPosition.zoom.coerceAtLeast(14.0)
+                    map.animateCamera(
+                        CameraUpdateFactory.newLatLngZoom(targetPos, zoom),
+                        700,
+                        object : MapLibreMap.CancelableCallback {
+                            override fun onFinish() { onCameraMoved() }
+                            override fun onCancel() { onCameraMoved() }
+                        }
+                    )
+                }
             }
         },
     )
@@ -145,14 +148,16 @@ fun MechanicsMapView(
         var destroyed = false
         val observer = LifecycleEventObserver { _, event ->
             if (destroyed) return@LifecycleEventObserver
-        Log.d("RAAHI_MAP_DEBUG", "LIFECYCLE_EVENT: $event")
             runCatching {
                 when (event) {
                     Lifecycle.Event.ON_START -> mv.onStart()
                     Lifecycle.Event.ON_RESUME -> mv.onResume()
                     Lifecycle.Event.ON_PAUSE -> mv.onPause()
                     Lifecycle.Event.ON_STOP -> mv.onStop()
-                    Lifecycle.Event.ON_DESTROY -> { destroyed = true; mv.onDestroy() }
+                    Lifecycle.Event.ON_DESTROY -> {
+                        destroyed = true
+                        mv.onDestroy()
+                    }
                     else -> {}
                 }
             }
@@ -160,9 +165,6 @@ fun MechanicsMapView(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
-            // Screen left composition (back / navigate away) while the Activity is still alive:
-            // the GL surface must still be torn down, otherwise reopening the screen leaks and
-            // can crash the native renderer.
             if (!destroyed) {
                 destroyed = true
                 runCatching { mv.onPause() }
@@ -180,84 +182,105 @@ private fun addOsmRasterLayer(style: Style) {
         "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
         "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
     )
-    tileSet.attribution = "© OpenStreetMap contributors, © CARTO"
+    tileSet.attribution = "© OpenStreetMap contributors"
     style.addSource(RasterSource(OSM_SOURCE_ID, tileSet, 256))
     style.addLayer(RasterLayer(OSM_LAYER_ID, OSM_SOURCE_ID))
 }
 
-private fun addUserLocationLayer(style: Style, userLocation: LatLng) {
+private fun addUserLocationLayers(style: Style, userLocation: LatLng) {
     style.addSource(
         GeoJsonSource(USER_SOURCE_ID, Feature.fromGeometry(Point.fromLngLat(userLocation.lng, userLocation.lat)))
     )
-    val userLayer = CircleLayer(USER_LAYER_ID, USER_SOURCE_ID)
-    // setProperties(...), not a fluent withProperties(...) — the latter isn't part of the
-    // base Layer API on org.maplibre.android.style.layers.Layer (verified by re-checking
-    // against the only Layer method this codebase can confirm elsewhere: constructor +
-    // setProperties is the documented pattern; withProperties was a genuine, unconfirmed
-    // guess caught during the final audit).
-    userLayer.setProperties(
-        circleRadius(8f),
+
+    // Outer subtle radar pulse ring
+    val pulseLayer = CircleLayer(USER_PULSE_LAYER_ID, USER_SOURCE_ID)
+    pulseLayer.setProperties(
+        circleRadius(18f),
         circleColor("#00CFFF"),
-        circleStrokeWidth(2.5f),
+        circleOpacity(0.20f),
+        circleStrokeWidth(1.5f),
+        circleStrokeColor("#00CFFF"),
+        circleStrokeOpacity(0.40f)
+    )
+    style.addLayer(pulseLayer)
+
+    // Inner bright user dot
+    val userLayer = CircleLayer(USER_LAYER_ID, USER_SOURCE_ID)
+    userLayer.setProperties(
+        circleRadius(8.5f),
+        circleColor("#00CFFF"),
+        circleStrokeWidth(3f),
         circleStrokeColor("#FFFFFF"),
     )
     style.addLayer(userLayer)
 }
 
-private fun addMechanicsLayer(style: Style, mechanics: List<MechanicDto>) {
-    style.addSource(GeoJsonSource(MECHANICS_SOURCE_ID, mechanicsToFeatureCollection(mechanics)))
-    val mechanicsLayer = CircleLayer(MECHANICS_LAYER_ID, MECHANICS_SOURCE_ID)
-    mechanicsLayer.setProperties(
-        circleRadius(9f),
-        // Green when available, red when not — same visual language as the Flutter
-        // reference's green/red pins, via a match expression on the per-feature
-        // "available" property instead of two separate layers.
+private fun addUnifiedItemsLayers(style: Style, items: List<UnifiedMechanicItem>) {
+    style.addSource(GeoJsonSource(ITEMS_SOURCE_ID, itemsToFeatureCollection(items)))
+    val layer = CircleLayer(ITEMS_LAYER_ID, ITEMS_SOURCE_ID)
+
+    // Distinct colors for sources:
+    // Verified Raahi -> Green (#22B573) / Red (#FF3D5A)
+    // Community OSM -> Warm Amber (#FFA45B)
+    // Google Places -> Google Blue (#4285F4)
+    layer.setProperties(
+        circleRadius(9.5f),
         circleColor(
             Expression.match(
-                Expression.get(AVAILABLE_PROPERTY),
-                Expression.color(android.graphics.Color.parseColor("#FF3D5A")), // default: not available
-                Expression.stop(true, Expression.color(android.graphics.Color.parseColor("#00E676"))), // available
+                Expression.get(SOURCE_PROP),
+                Expression.color(android.graphics.Color.parseColor("#FFA45B")), // fallback
+                Expression.stop(
+                    "VERIFIED",
+                    Expression.match(
+                        Expression.get(AVAILABLE_PROP),
+                        Expression.color(android.graphics.Color.parseColor("#FF3D5A")),
+                        Expression.stop(true, Expression.color(android.graphics.Color.parseColor("#22B573")))
+                    )
+                ),
+                Expression.stop("OSM_COMMUNITY", Expression.color(android.graphics.Color.parseColor("#FFA45B"))),
+                Expression.stop("GOOGLE_PLACES", Expression.color(android.graphics.Color.parseColor("#4285F4")))
             )
         ),
-        circleStrokeWidth(2f),
-        circleStrokeColor("#FFFFFF"),
-    )
-    style.addLayer(mechanicsLayer)
-}
-
-private fun addOsmShopsLayer(style: Style, shops: List<OsmMechanicShopDto>) {
-    style.addSource(GeoJsonSource(SHOPS_SOURCE_ID, osmShopsToFeatureCollection(shops)))
-    val layer = CircleLayer(SHOPS_LAYER_ID, SHOPS_SOURCE_ID)
-    layer.setProperties(
-        circleRadius(7f),
-        circleColor("#F59E0B"),
-        circleStrokeWidth(2f),
-        circleStrokeColor("#FFFFFF"),
+        circleStrokeWidth(2.5f),
+        circleStrokeColor("#FFFFFF")
     )
     style.addLayer(layer)
 }
 
-private fun osmShopsToFeatureCollection(shops: List<OsmMechanicShopDto>): FeatureCollection {
-    val features = shops.mapNotNull { shop ->
-        if (!shop.lat.isFinite() || !shop.lng.isFinite() ||
-            shop.lat !in -90.0..90.0 || shop.lng !in -180.0..180.0
+private fun addSelectedItemLayer(style: Style, selected: UnifiedMechanicItem?) {
+    style.addSource(GeoJsonSource(SELECTED_SOURCE_ID, selectedItemToFeatureCollection(selected)))
+    val selectedLayer = CircleLayer(SELECTED_LAYER_ID, SELECTED_SOURCE_ID)
+    selectedLayer.setProperties(
+        circleRadius(16f),
+        circleColor("#FF6B35"),
+        circleOpacity(0.25f),
+        circleStrokeWidth(3f),
+        circleStrokeColor("#FF6B35")
+    )
+    style.addLayer(selectedLayer)
+}
+
+private fun itemsToFeatureCollection(items: List<UnifiedMechanicItem>): FeatureCollection {
+    val features = items.mapNotNull { item ->
+        if (!item.lat.isFinite() || !item.lng.isFinite() ||
+            item.lat !in -90.0..90.0 || item.lng !in -180.0..180.0
         ) return@mapNotNull null
-        Feature.fromGeometry(Point.fromLngLat(shop.lng, shop.lat)).apply {
-            addStringProperty("osmShopId", shop.id)
-            addStringProperty("shopName", shop.name)
+
+        Feature.fromGeometry(Point.fromLngLat(item.lng, item.lat)).apply {
+            addStringProperty(ITEM_ID_PROP, item.id)
+            addStringProperty(SOURCE_PROP, item.source.name)
+            addBooleanProperty(AVAILABLE_PROP, item.isAvailable)
         }
     }
     return FeatureCollection.fromFeatures(features)
 }
 
-private fun mechanicsToFeatureCollection(mechanics: List<MechanicDto>): FeatureCollection {
-    val features = mechanics.mapNotNull { m ->
-        val lat = m.lat ?: return@mapNotNull null
-        val lng = m.lng ?: return@mapNotNull null
-        Feature.fromGeometry(Point.fromLngLat(lng, lat)).apply {
-            addStringProperty(MECHANIC_ID_PROPERTY, m.userId)
-            addBooleanProperty(AVAILABLE_PROPERTY, m.isAvailable)
-        }
+private fun selectedItemToFeatureCollection(selected: UnifiedMechanicItem?): FeatureCollection {
+    if (selected == null || !selected.lat.isFinite() || !selected.lng.isFinite()) {
+        return FeatureCollection.fromFeatures(emptyList())
     }
-    return FeatureCollection.fromFeatures(features)
+    val feature = Feature.fromGeometry(Point.fromLngLat(selected.lng, selected.lat)).apply {
+        addStringProperty(ITEM_ID_PROP, selected.id)
+    }
+    return FeatureCollection.fromFeatures(listOf(feature))
 }

@@ -98,6 +98,22 @@ private fun JobStatusBody(s: Loaded, vm: JobStatusViewModel, onDone: () -> Unit)
         Spacer(Modifier.height(14.dp))
         JobDetailsCard(job)
 
+        // LIVE_HELPER_TRACKING_MAP
+        if ((isRequester || isHelper) && job.status in setOf("MATCHED", "ARRIVED", "IN_PROGRESS")) {
+            Spacer(Modifier.height(14.dp))
+            LiveJobTrackingMap(
+                customerLat = job.lat,
+                customerLng = job.lng,
+                helperLocation = s.liveLocation,
+                helperName = if (isHelper) "You" else job.helperName,
+                jobStatus = job.status,
+                isHelperViewer = isHelper,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(260.dp),
+            )
+        }
+
         val otherName = if (isHelper) job.requesterName else job.helperName
         if (otherName != null) {
             Spacer(Modifier.height(14.dp))
