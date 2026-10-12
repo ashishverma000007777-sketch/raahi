@@ -24,11 +24,14 @@ public class RaahiWebSocketHandler extends TextWebSocketHandler {
 
     private final WebSocketSessionRegistry registry;
     private final JobRepository jobRepository;
+    private final in.raahi.backend.repository.UserRepository userRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public RaahiWebSocketHandler(WebSocketSessionRegistry registry, JobRepository jobRepository) {
+    public RaahiWebSocketHandler(WebSocketSessionRegistry registry, JobRepository jobRepository,
+                                 in.raahi.backend.repository.UserRepository userRepository) {
         this.registry = registry;
         this.jobRepository = jobRepository;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -79,6 +82,9 @@ public class RaahiWebSocketHandler extends TextWebSocketHandler {
     // named job, and the update goes only to the *other* participant.
     private void handleJobLocationUpdate(UUID senderId, JsonNode data) {
         String jobIdStr = data.path("job_id").asText(null);
+        if (jobIdStr == null) {
+            jobIdStr = data.path("jobId").asText(null);
+        }
         if (jobIdStr == null) return;
 
         UUID jobId;
@@ -106,8 +112,20 @@ public class RaahiWebSocketHandler extends TextWebSocketHandler {
 
         double lat = data.path("lat").asDouble();
         double lng = data.path("lng").asDouble();
+
+        // Update helper's last known location on User entity so it persists across refreshes and REST calls
+        if (senderIsHelper && helperId != null) {
+            userRepository.findById(helperId).ifPresent(h -> {
+                h.setLastLat(lat);
+                h.setLastLng(lng);
+                h.setLastLocationAt(java.time.Instant.now());
+                userRepository.save(h);
+            });
+        }
+
+        // Send with both jobId and job_id keys for guaranteed client compatibility
         registry.sendToUser(recipientId, "job:helper_location",
-                Map.of("jobId", jobIdStr, "lat", lat, "lng", lng));
+                Map.of("jobId", jobIdStr, "job_id", jobIdStr, "lat", lat, "lng", lng));
     }
 
     private UUID userIdOf(WebSocketSession session) {

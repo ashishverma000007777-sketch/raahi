@@ -4,11 +4,13 @@ import in.raahi.backend.dto.ApiResponse;
 import in.raahi.backend.dto.JobDtos.*;
 import in.raahi.backend.entity.HelperApplication;
 import in.raahi.backend.entity.Job;
+import in.raahi.backend.entity.MechanicProfile;
 import in.raahi.backend.entity.User;
 import in.raahi.backend.exception.ApiException;
 import in.raahi.backend.notification.NotificationService;
 import in.raahi.backend.repository.HelperApplicationRepository;
 import in.raahi.backend.repository.JobRepository;
+import in.raahi.backend.repository.MechanicProfileRepository;
 import in.raahi.backend.repository.UserRepository;
 import in.raahi.backend.security.AuthenticatedUser;
 import in.raahi.backend.security.RateLimiter;
@@ -22,6 +24,7 @@ import in.raahi.backend.service.JobStateMachine;
 import in.raahi.backend.service.SubscriptionPolicy;
 import in.raahi.backend.websocket.WebSocketSessionRegistry;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -65,14 +68,17 @@ public class JobController {
     private final WebSocketSessionRegistry sessionRegistry;
     private final NotificationService notificationService;
     private final RateLimiter rateLimiter;
+    private final MechanicProfileRepository mechanicProfileRepository;
     private final double arrivalRadiusM;
 
+    @Autowired
     public JobController(JobRepository jobRepository, UserRepository userRepository,
                          SubscriptionPolicy subscriptionPolicy, HelperEligibilityService eligibility,
                          CommissionService commissionService, CancellationPolicyService cancellationPolicy,
                          JobHistoryService history, HelperApplicationRepository applicationRepository,
                          JdbcTemplate jdbc, WebSocketSessionRegistry sessionRegistry,
                          NotificationService notificationService, RateLimiter rateLimiter,
+                         MechanicProfileRepository mechanicProfileRepository,
                          @Value("${raahi.job.arrival-radius-m:200}") double arrivalRadiusM) {
         this.jobRepository = jobRepository;
         this.userRepository = userRepository;
@@ -86,7 +92,19 @@ public class JobController {
         this.sessionRegistry = sessionRegistry;
         this.notificationService = notificationService;
         this.rateLimiter = rateLimiter;
+        this.mechanicProfileRepository = mechanicProfileRepository;
         this.arrivalRadiusM = arrivalRadiusM;
+    }
+
+    public JobController(JobRepository jobRepository, UserRepository userRepository,
+                         SubscriptionPolicy subscriptionPolicy, HelperEligibilityService eligibility,
+                         CommissionService commissionService, CancellationPolicyService cancellationPolicy,
+                         JobHistoryService history, HelperApplicationRepository applicationRepository,
+                         JdbcTemplate jdbc, WebSocketSessionRegistry sessionRegistry,
+                         NotificationService notificationService, RateLimiter rateLimiter,
+                         double arrivalRadiusM) {
+        this(jobRepository, userRepository, subscriptionPolicy, eligibility, commissionService, cancellationPolicy,
+             history, applicationRepository, jdbc, sessionRegistry, notificationService, rateLimiter, null, arrivalRadiusM);
     }
 
     // ------------------------------------------------------------------ create / read
@@ -130,7 +148,22 @@ public class JobController {
         job = jobRepository.saveAndFlush(job);
 
         history.record(job, null, Job.Status.PENDING, requester.getId(), "REQUESTER", null, req.lat, req.lng, "request created");
-        return ApiResponse.ok(toDto(job, principal.userId(), null, null));
+        JobDto dto = toDto(job, principal.userId(), null, null);
+
+        if (mechanicProfileRepository != null) {
+            try {
+                List<MechanicProfile> nearby = mechanicProfileRepository.findNearby(req.lat, req.lng, 25.0);
+                for (MechanicProfile mp : nearby) {
+                    if (mp.getUser() != null && !mp.getUser().getId().equals(requester.getId())) {
+                        sessionRegistry.sendToUser(mp.getUser().getId(), "job:new_request", dto);
+                        notificationService.send(mp.getUser(), "New Roadside Assistance Request",
+                                "Someone needs help with " + (req.problemType != null ? req.problemType : "vehicle") + " nearby.",
+                                Map.of("jobId", job.getId().toString(), "type", "job_new_request"));
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+        return ApiResponse.ok(dto);
     }
 
     @GetMapping
@@ -221,6 +254,43 @@ public class JobController {
 
         push(job, job.getRequester(), "Helper found!", helper.getName() + " accepted your roadside help request.");
         return ApiResponse.ok(toDto(job, principal.userId(), null, null));
+    }
+
+    @PostMapping("/{id}/decline")
+    @Transactional
+    public ApiResponse<Object> decline(@AuthenticationPrincipal AuthenticatedUser principal, @PathVariable UUID id) {
+        Job job = jobRepository.findByIdWithParticipants(id)
+                .orElseThrow(() -> ApiException.notFound("JOB_NOT_FOUND", "Job not found"));
+        history.record(job, job.getStatus(), job.getStatus(), principal.userId(), "HELPER", null, null, null, "helper declined request");
+        return ApiResponse.ok(Map.of("success", true));
+    }
+
+    @PostMapping("/{id}/location")
+    @Transactional
+    public ApiResponse<Object> updateLocation(@AuthenticationPrincipal AuthenticatedUser principal,
+                                              @PathVariable UUID id,
+                                              @Valid @RequestBody LocationUpdateRequest req) {
+        Job job = jobRepository.findByIdWithParticipants(id)
+                .orElseThrow(() -> ApiException.notFound("JOB_NOT_FOUND", "Job not found"));
+        requireAssignedHelper(job, principal);
+
+        User helper = job.getHelper();
+        helper.setLastLat(req.lat);
+        helper.setLastLng(req.lng);
+        helper.setLastLocationAt(Instant.now());
+        userRepository.save(helper);
+
+        Map<String, Object> payload = Map.of(
+                "jobId", job.getId().toString(),
+                "job_id", job.getId().toString(),
+                "helperId", helper.getId().toString(),
+                "lat", req.lat,
+                "lng", req.lng,
+                "timestamp", System.currentTimeMillis()
+        );
+        sessionRegistry.sendToUser(job.getRequester().getId(), "job:helper_location", payload);
+
+        return ApiResponse.ok(Map.of("success", true));
     }
 
     /**
@@ -528,6 +598,8 @@ public class JobController {
             dto.helperTotalHelps = j.getHelper().getTotalHelps() == null ? 0 : j.getHelper().getTotalHelps();
             dto.helperVerified = j.getHelper().isVerified();
             dto.helperPhone = (viewerIsRequester || viewerIsHelper) ? j.getHelper().getPhone() : null;
+            dto.helperLat = j.getHelper().getLastLat();
+            dto.helperLng = j.getHelper().getLastLng();
         }
         dto.requesterPhone = viewerIsHelper ? j.getRequester().getPhone() : null;
         // Arrival OTP: only the requester, and only while the helper is still on the way.
@@ -541,6 +613,11 @@ public class JobController {
         dto.paymentMode = j.getPaymentMode();
         dto.rated = j.isRated();
         dto.distanceKm = distanceKm == null ? null : CommissionMath.round2(distanceKm);
+        if (j.getReqLat() != null && j.getReqLng() != null && mechanicProfileRepository != null) {
+            try {
+                dto.nearbyHelperCount = mechanicProfileRepository.findNearby(j.getReqLat(), j.getReqLng(), 25.0).size();
+            } catch (Exception ignored) {}
+        }
         if (viewerIsHelper && j.getStatus() == Job.Status.COMPLETED) {
             double amt = j.getFinalAmount() != null ? j.getFinalAmount() : (j.getRewardAmount() == null ? 0.0 : j.getRewardAmount());
             dto.commissionAmount = commission != null ? commission : CommissionMath.commission(amt, commissionService.rate());

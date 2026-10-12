@@ -73,6 +73,19 @@ public class JobDtos {
         public Double commissionAmount;    // only for the helper once COMPLETED
         public Double distanceKm;          // only on the open-requests list
         public String createdAt;
+        public Double helperLat;
+        public Double helperLng;
+        public Integer nearbyHelperCount;
+    }
+
+    public static class LocationUpdateRequest {
+        @NotNull(message = "lat is required")
+        @DecimalMin(value = "-90.0") @DecimalMax(value = "90.0")
+        public Double lat;
+
+        @NotNull(message = "lng is required")
+        @DecimalMin(value = "-180.0") @DecimalMax(value = "180.0")
+        public Double lng;
     }
 
     public static class ArriveRequest {
