@@ -91,11 +91,12 @@ fun MyJobsScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .shadow(2.dp, RoundedCornerShape(20.dp), spotColor = Color(0x10000000))
-                                .background(Color.White, RoundedCornerShape(20.dp))
+                                .background(RaahiGlass, RoundedCornerShape(20.dp))
                                 .border(1.dp, RaahiBorderSoft, RoundedCornerShape(20.dp))
                                 .padding(24.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
+
                             Box(
                                 modifier = Modifier
                                     .size(48.dp)
@@ -141,11 +142,12 @@ fun MyJobsScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .shadow(2.dp, RoundedCornerShape(20.dp), spotColor = Color(0x10000000))
-                                        .background(Color.White, RoundedCornerShape(20.dp))
+                                        .background(RaahiGlass, RoundedCornerShape(20.dp))
                                         .border(1.dp, RaahiBorderSoft, RoundedCornerShape(20.dp))
                                         .padding(28.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
+
                                     Box(
                                         modifier = Modifier
                                             .size(52.dp)
@@ -217,7 +219,7 @@ private fun MyJobsSkeleton() {
                 modifier = Modifier
                     .fillMaxWidth()
                     .shadow(1.dp, RoundedCornerShape(18.dp), spotColor = Color(0x0C000000))
-                    .background(Color.White, RoundedCornerShape(18.dp))
+                    .background(RaahiGlass, RoundedCornerShape(18.dp))
                     .border(1.dp, RaahiBorderSoft, RoundedCornerShape(18.dp))
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -272,10 +274,11 @@ private fun MyJobRow(job: JobDto, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .shadow(elevation = 2.dp, shape = RoundedCornerShape(20.dp), spotColor = Color(0x10000000))
-            .background(Color.White, RoundedCornerShape(20.dp))
+            .background(RaahiGlass, RoundedCornerShape(20.dp))
             .border(1.dp, RaahiBorderSoft, RoundedCornerShape(20.dp))
             .clickable(onClick = onClick)
             .padding(16.dp),
+
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(

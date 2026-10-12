@@ -51,6 +51,14 @@ class JobsRepository @Inject constructor(private val api: RaahiApi) {
         apiCall { api.cancelJob(id, CancelRequest(reason)) }
     }
 
+    suspend fun declineJob(id: String) {
+        apiCall { api.declineJob(id) }
+    }
+
+    suspend fun updateLocation(id: String, lat: Double, lng: Double) {
+        apiCall { api.updateJobLocation(id, `in`.raahi.app.network.JobLocationUpdateRequest(lat, lng)) }
+    }
+
     suspend fun report(id: String, message: String) {
         apiCall { api.reportJob(id, ReportRequest(message)) }
     }

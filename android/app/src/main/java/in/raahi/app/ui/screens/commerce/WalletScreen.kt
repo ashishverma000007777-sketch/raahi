@@ -37,13 +37,17 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 import java.text.NumberFormat
 import java.util.Locale
+import `in`.raahi.app.ui.theme.*
 
-private val WalletInk = Color(0xFF202A35)
-private val WalletMuted = Color(0xFF77818D)
-private val WalletCanvas = Color(0xFFFAF7F2)
+private val WalletInk: Color
+    @Composable get() = RaahiText
+private val WalletMuted: Color
+    @Composable get() = RaahiTextDim
+private val WalletCanvas: Color
+    @Composable get() = RaahiBg
 private val WalletGreen = Color(0xFF16845B)
 private val WalletRed = Color(0xFFCB4A4A)
-private val WalletOrange = Color(0xFFE87932)
+private val WalletOrange = RaahiOrange
 
 private fun walletMoney(value: Double?): String =
     NumberFormat.getCurrencyInstance(Locale("en", "IN")).format(value ?: 0.0)
@@ -104,21 +108,26 @@ fun WalletScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("Payments & Wallet", fontWeight = FontWeight.Bold)
+                        Text("Payments & Wallet", fontWeight = FontWeight.Bold, color = WalletInk)
                         Text("Your earnings, transparently", fontSize = 12.sp, color = WalletMuted)
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back", tint = WalletInk)
                     }
                 },
                 actions = {
                     IconButton(onClick = { viewModel.refresh() }) {
-                        Icon(Icons.Outlined.Refresh, contentDescription = "Refresh wallet")
+                        Icon(Icons.Outlined.Refresh, contentDescription = "Refresh wallet", tint = WalletInk)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = WalletCanvas)
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = WalletCanvas,
+                    titleContentColor = WalletInk,
+                    navigationIconContentColor = WalletInk,
+                    actionIconContentColor = WalletInk
+                )
             )
         }
     ) { padding ->
@@ -135,7 +144,7 @@ fun WalletScreen(
             ) {
                 Icon(Icons.Outlined.Refresh, null, tint = WalletOrange, modifier = Modifier.size(42.dp))
                 Spacer(Modifier.height(12.dp))
-                Text("Wallet unavailable", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text("Wallet unavailable", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = WalletInk)
                 Text(state.error, color = WalletMuted)
                 Spacer(Modifier.height(16.dp))
                 Button(onClick = { viewModel.refresh() }) { Text("Try again") }
@@ -154,7 +163,7 @@ fun WalletScreen(
                             WalletCard {
                                 Icon(Icons.Outlined.Lock, null, tint = WalletOrange, modifier = Modifier.size(32.dp))
                                 Spacer(Modifier.height(12.dp))
-                                Text("Wallet unlocks after approval", fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                                Text("Wallet unlocks after approval", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = WalletInk)
                                 Spacer(Modifier.height(6.dp))
                                 Text(
                                     "Your helper application status: ${status?.applicationStatus ?: "Unavailable"}. Earnings and commission details appear here once your helper account is approved.",
@@ -171,7 +180,7 @@ fun WalletScreen(
                         item {
                             WalletCard(
                                 modifier = Modifier.fillMaxWidth(),
-                                color = WalletInk
+                                color = if (RaahiIsDark) RaahiBg2 else Color(0xFF202A35)
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Outlined.AccountBalanceWallet, null, tint = Color.White)
@@ -208,16 +217,16 @@ fun WalletScreen(
 
                         item {
                             WalletCard {
-                                Text("Commission limit", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                Text("Commission limit", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WalletInk)
                                 Spacer(Modifier.height(10.dp))
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Column(Modifier.weight(1f)) {
                                         Text("Allowed outstanding", color = WalletMuted, fontSize = 12.sp)
-                                        Text("₹50", fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                                        Text("₹50", fontSize = 21.sp, fontWeight = FontWeight.Bold, color = WalletInk)
                                     }
                                     Column(horizontalAlignment = Alignment.End) {
                                         Text("Commission rate", color = WalletMuted, fontSize = 12.sp)
-                                        Text("${((commission?.rate ?: status?.commissionRate ?: 0.10) * 100).toInt()}%", fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                                        Text("${((commission?.rate ?: status?.commissionRate ?: 0.10) * 100).toInt()}%", fontSize = 21.sp, fontWeight = FontWeight.Bold, color = WalletInk)
                                     }
                                 }
                                 Spacer(Modifier.height(10.dp))
@@ -232,9 +241,9 @@ fun WalletScreen(
                                     Spacer(Modifier.height(10.dp))
                                     Surface(
                                         color = when {
-                                            due >= 50.0 -> Color(0xFFFFE8E8)
-                                            due >= 40.0 -> Color(0xFFFFF0E0)
-                                            else -> Color(0xFFFFF7DF)
+                                            due >= 50.0 -> if (RaahiIsDark) Color(0xFF3A1C1C) else Color(0xFFFFE8E8)
+                                            due >= 40.0 -> if (RaahiIsDark) Color(0xFF3A2B18) else Color(0xFFFFF0E0)
+                                            else -> if (RaahiIsDark) Color(0xFF38321B) else Color(0xFFFFF7DF)
                                         },
                                         shape = RoundedCornerShape(12.dp)
                                     ) {
@@ -242,8 +251,8 @@ fun WalletScreen(
                                             warning,
                                             color = when {
                                                 due >= 50.0 -> WalletRed
-                                                due >= 40.0 -> Color(0xFF9A5419)
-                                                else -> Color(0xFF856515)
+                                                due >= 40.0 -> if (RaahiIsDark) Color(0xFFFFB74D) else Color(0xFF9A5419)
+                                                else -> if (RaahiIsDark) Color(0xFFFFD54F) else Color(0xFF856515)
                                             },
                                             modifier = Modifier.padding(12.dp),
                                             fontSize = 12.sp,
@@ -288,7 +297,7 @@ fun WalletScreen(
                                 WalletCard {
                                     Icon(Icons.Outlined.ReceiptLong, null, tint = WalletMuted, modifier = Modifier.size(30.dp))
                                     Spacer(Modifier.height(8.dp))
-                                    Text("No transactions yet", fontWeight = FontWeight.SemiBold)
+                                    Text("No transactions yet", fontWeight = FontWeight.SemiBold, color = WalletInk)
                                     Text("Your commission and payment entries will appear here.", color = WalletMuted, fontSize = 13.sp)
                                 }
                             }
@@ -309,12 +318,16 @@ fun WalletScreen(
     if (showPaymentInfo) {
         AlertDialog(
             onDismissRequest = { showPaymentInfo = false },
-            title = { Text("Online payment coming soon") },
+            containerColor = RaahiBg2,
+            title = { Text("Online payment coming soon", color = RaahiText, fontWeight = FontWeight.Bold) },
             text = {
-                Text("Secure payment settlement will be enabled after the payment gateway is configured. No payment has been taken and your outstanding balance has not changed.")
+                Text(
+                    "Secure payment settlement will be enabled after the payment gateway is configured. No payment has been taken and your outstanding balance has not changed.",
+                    color = RaahiTextDim
+                )
             },
             confirmButton = {
-                TextButton(onClick = { showPaymentInfo = false }) { Text("Got it") }
+                TextButton(onClick = { showPaymentInfo = false }) { Text("Got it", color = RaahiOrange, fontWeight = FontWeight.Bold) }
             }
         )
     }
@@ -323,13 +336,14 @@ fun WalletScreen(
 @Composable
 private fun WalletCard(
     modifier: Modifier = Modifier,
-    color: Color = Color.White,
+    color: Color = RaahiGlass,
     content: @Composable ColumnScope.() -> Unit
 ) {
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(22.dp),
         color = color,
+        border = androidx.compose.foundation.BorderStroke(1.dp, RaahiBorderSoft),
         shadowElevation = 1.dp
     ) {
         Column(Modifier.padding(18.dp), content = content)
@@ -340,8 +354,9 @@ private fun WalletCard(
 private fun WalletMetric(label: String, value: String, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier,
-        color = Color.White,
+        color = RaahiGlass,
         shape = RoundedCornerShape(18.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, RaahiBorderSoft),
         shadowElevation = 1.dp
     ) {
         Column(Modifier.padding(15.dp)) {
@@ -365,7 +380,12 @@ private fun WalletLedgerRow(entry: LedgerEntryDto) {
         isCommission -> WalletRed
         else -> WalletInk
     }
-    Surface(color = Color.White, shape = RoundedCornerShape(18.dp), shadowElevation = 1.dp) {
+    Surface(
+        color = RaahiGlass,
+        shape = RoundedCornerShape(18.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, RaahiBorderSoft),
+        shadowElevation = 1.dp
+    ) {
         Row(
             Modifier.fillMaxWidth().padding(14.dp),
             verticalAlignment = Alignment.CenterVertically

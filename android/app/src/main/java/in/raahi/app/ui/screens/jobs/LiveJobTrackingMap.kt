@@ -37,6 +37,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.MapView
+import com.google.android.gms.maps.MapsInitializer
 import com.google.android.gms.maps.model.*
 import `in`.raahi.app.data.GoogleRouteData
 import `in`.raahi.app.data.GoogleRoutesProvider
@@ -80,14 +81,21 @@ fun LiveJobTrackingMap(
     var routesStatus by remember { mutableStateOf<GoogleRoutesStatus>(GoogleRoutesStatus.Idle) }
     var activeRouteData by remember { mutableStateOf<GoogleRouteData?>(null) }
 
-    val customerIcon = remember { createCustomerMarkerBitmap() }
-    val helperIcon = remember { createHelperMarkerBitmap() }
-
     // MapView instance with lifecycle
     val mapView = remember {
+        try {
+            MapsInitializer.initialize(context.applicationContext)
+        } catch (_: Exception) {}
         MapView(context).apply {
             onCreate(Bundle())
         }
+    }
+
+    val customerIcon = remember(googleMap) {
+        if (googleMap != null) createCustomerMarkerBitmap() else null
+    }
+    val helperIcon = remember(googleMap) {
+        if (googleMap != null) createHelperMarkerBitmap() else null
     }
 
     DisposableEffect(lifecycleOwner, mapView) {
@@ -131,38 +139,38 @@ fun LiveJobTrackingMap(
     }
 
     // Update map markers and polyline when data changes
-    LaunchedEffect(googleMap, customerLatLng, helperLatLng, activeRouteData) {
+    LaunchedEffect(googleMap, customerLatLng, helperLatLng, activeRouteData, customerIcon, helperIcon) {
         val map = googleMap ?: return@LaunchedEffect
 
         // Customer marker
         if (customerMarker == null) {
-            customerMarker = map.addMarker(
-                MarkerOptions()
-                    .position(customerLatLng)
-                    .title("Breakdown Location")
-                    .snippet("Customer awaiting assistance")
-                    .icon(customerIcon)
-                    .anchor(0.5f, 0.5f)
-            )
+            val options = MarkerOptions()
+                .position(customerLatLng)
+                .title("Breakdown Location")
+                .snippet("Customer awaiting assistance")
+                .anchor(0.5f, 0.5f)
+            customerIcon?.let { options.icon(it) }
+            customerMarker = map.addMarker(options)
         } else {
             customerMarker?.position = customerLatLng
+            customerIcon?.let { customerMarker?.setIcon(it) }
         }
 
         // Helper marker
         if (helperLatLng != null) {
             val label = helperName?.ifBlank { "Helper" } ?: "Helper"
             if (helperMarker == null) {
-                helperMarker = map.addMarker(
-                    MarkerOptions()
-                        .position(helperLatLng)
-                        .title(if (isHelperViewer) "You" else label)
-                        .snippet("Live Tracking")
-                        .icon(helperIcon)
-                        .anchor(0.5f, 0.5f)
-                )
+                val options = MarkerOptions()
+                    .position(helperLatLng)
+                    .title(if (isHelperViewer) "You" else label)
+                    .snippet("Live Tracking")
+                    .anchor(0.5f, 0.5f)
+                helperIcon?.let { options.icon(it) }
+                helperMarker = map.addMarker(options)
             } else {
                 helperMarker?.position = helperLatLng
                 helperMarker?.title = if (isHelperViewer) "You" else label
+                helperIcon?.let { helperMarker?.setIcon(it) }
             }
         } else {
             helperMarker?.remove()
@@ -182,6 +190,20 @@ fun LiveJobTrackingMap(
                 )
             } else {
                 routePolyline?.points = route.points
+            }
+        } else if (helperLatLng != null) {
+            // Straight line connection while Google Routes loads or as fallback
+            val fallbackLine = listOf(helperLatLng, customerLatLng)
+            if (routePolyline == null) {
+                routePolyline = map.addPolyline(
+                    PolylineOptions()
+                        .addAll(fallbackLine)
+                        .color(android.graphics.Color.parseColor("#99FF6B35"))
+                        .width(8f)
+                        .geodesic(true)
+                )
+            } else {
+                routePolyline?.points = fallbackLine
             }
         } else {
             routePolyline?.remove()
@@ -214,6 +236,9 @@ fun LiveJobTrackingMap(
             factory = {
                 mapView.apply {
                     getMapAsync { map ->
+                        try {
+                            MapsInitializer.initialize(context.applicationContext)
+                        } catch (_: Exception) {}
                         map.uiSettings.isZoomControlsEnabled = false
                         map.uiSettings.isCompassEnabled = true
                         map.uiSettings.isMyLocationButtonEnabled = false
@@ -234,7 +259,7 @@ fun LiveJobTrackingMap(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(10.dp))
-                    .background(Color.White.copy(alpha = 0.94f))
+                    .background(RaahiBg2.copy(alpha = 0.95f))
                     .border(1.dp, RaahiBorderSoft, RoundedCornerShape(10.dp))
                     .padding(horizontal = 12.dp, vertical = 7.dp)
             ) {
@@ -243,15 +268,42 @@ fun LiveJobTrackingMap(
                         modifier = Modifier
                             .size(8.dp)
                             .clip(CircleShape)
-                            .background(if (helperLatLng != null) RaahiGreen else RaahiOrange)
+                            .background(
+                                when {
+                                    jobStatus == "PENDING" -> RaahiAmber
+                                    helperLatLng != null -> RaahiGreen
+                                    else -> RaahiOrange
+                                }
+                            )
                     )
                     Spacer(Modifier.width(7.dp))
                     Text(
                         text = when {
-                            helperLatLng != null && activeRouteData != null ->
-                                "ETA ${activeRouteData!!.formattedEta} · ${activeRouteData!!.distanceKm} km"
-                            helperLatLng != null -> "Helper en route · Live GPS"
-                            else -> "Connecting to helper GPS..."
+                            jobStatus == "PENDING" -> "Searching for nearby helpers · Your location"
+                            isHelperViewer -> {
+                                if (helperLatLng != null) {
+                                    if (activeRouteData != null) {
+                                        "Your GPS is active · ETA to customer ${activeRouteData!!.formattedEta} · ${activeRouteData!!.distanceKm} km"
+                                    } else {
+                                        "Your GPS is active · En route to customer"
+                                    }
+                                } else {
+                                    "Acquiring your GPS location..."
+                                }
+                            }
+                            else -> {
+                                if (helperLatLng != null) {
+                                    if (activeRouteData != null) {
+                                        "Helper en route · ETA ${activeRouteData!!.formattedEta} · ${activeRouteData!!.distanceKm} km"
+                                    } else {
+                                        "Helper location is live · Heading to your breakdown"
+                                    }
+                                } else if (jobStatus == "MATCHED") {
+                                    "Helper accepted · Connecting to live GPS..."
+                                } else {
+                                    "Waiting for helper location..."
+                                }
+                            }
                         },
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
@@ -292,7 +344,7 @@ fun LiveJobTrackingMap(
                 modifier = Modifier
                     .size(38.dp)
                     .clip(CircleShape)
-                    .background(Color.White)
+                    .background(RaahiBg2)
                     .border(1.dp, RaahiBorderSoft, CircleShape)
                     .clickable {
                         val map = googleMap ?: return@clickable
@@ -323,52 +375,64 @@ fun LiveJobTrackingMap(
     }
 }
 
-private fun createCustomerMarkerBitmap(): BitmapDescriptor {
-    val size = 52
-    val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(bitmap)
-    val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+private fun createCustomerMarkerBitmap(): BitmapDescriptor? {
+    return runCatching {
+        val size = 52
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
-    // Outer glow
-    paint.color = android.graphics.Color.parseColor("#33FF3B30")
-    canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
+        // Outer glow
+        paint.color = android.graphics.Color.parseColor("#33FF3B30")
+        canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
 
-    // Outer ring
-    paint.color = android.graphics.Color.WHITE
-    canvas.drawCircle(size / 2f, size / 2f, 18f, paint)
+        // Outer ring
+        paint.color = android.graphics.Color.WHITE
+        canvas.drawCircle(size / 2f, size / 2f, 18f, paint)
 
-    // Inner breakdown red circle
-    paint.color = android.graphics.Color.parseColor("#FF3B30")
-    canvas.drawCircle(size / 2f, size / 2f, 14f, paint)
+        // Inner breakdown red circle
+        paint.color = android.graphics.Color.parseColor("#FF3B30")
+        canvas.drawCircle(size / 2f, size / 2f, 14f, paint)
 
-    // Center dot
-    paint.color = android.graphics.Color.WHITE
-    canvas.drawCircle(size / 2f, size / 2f, 5f, paint)
+        // Center dot
+        paint.color = android.graphics.Color.WHITE
+        canvas.drawCircle(size / 2f, size / 2f, 5f, paint)
 
-    return BitmapDescriptorFactory.fromBitmap(bitmap)
+        BitmapDescriptorFactory.fromBitmap(bitmap)
+    }.getOrElse {
+        runCatching {
+            BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)
+        }.getOrNull()
+    }
 }
 
-private fun createHelperMarkerBitmap(): BitmapDescriptor {
-    val size = 52
-    val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(bitmap)
-    val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+private fun createHelperMarkerBitmap(): BitmapDescriptor? {
+    return runCatching {
+        val size = 52
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
-    // Outer glow
-    paint.color = android.graphics.Color.parseColor("#3300C853")
-    canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
+        // Outer glow
+        paint.color = android.graphics.Color.parseColor("#3300C853")
+        canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
 
-    // Outer ring
-    paint.color = android.graphics.Color.WHITE
-    canvas.drawCircle(size / 2f, size / 2f, 18f, paint)
+        // Outer ring
+        paint.color = android.graphics.Color.WHITE
+        canvas.drawCircle(size / 2f, size / 2f, 18f, paint)
 
-    // Inner vehicle green circle
-    paint.color = android.graphics.Color.parseColor("#00C853")
-    canvas.drawCircle(size / 2f, size / 2f, 14f, paint)
+        // Inner vehicle green circle
+        paint.color = android.graphics.Color.parseColor("#00C853")
+        canvas.drawCircle(size / 2f, size / 2f, 14f, paint)
 
-    // Center dot
-    paint.color = android.graphics.Color.WHITE
-    canvas.drawCircle(size / 2f, size / 2f, 5f, paint)
+        // Center dot
+        paint.color = android.graphics.Color.WHITE
+        canvas.drawCircle(size / 2f, size / 2f, 5f, paint)
 
-    return BitmapDescriptorFactory.fromBitmap(bitmap)
+        BitmapDescriptorFactory.fromBitmap(bitmap)
+    }.getOrElse {
+        runCatching {
+            BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)
+        }.getOrNull()
+    }
 }

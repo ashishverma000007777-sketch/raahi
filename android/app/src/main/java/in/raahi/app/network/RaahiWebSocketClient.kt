@@ -23,6 +23,7 @@ sealed class WsEvent {
     data class JobStatusChange(val jobId: String, val status: String) : WsEvent()
     data class JobHelperLocation(val jobId: String, val lat: Double, val lng: Double) : WsEvent()
     data class SosNearbyAlert(val sosId: String, val lat: Double, val lng: Double) : WsEvent()
+    data class JobNewRequest(val job: JobDto) : WsEvent()
 }
 
 enum class WsConnectionState { DISCONNECTED, CONNECTING, CONNECTED }
@@ -64,7 +65,7 @@ class RaahiWebSocketClient @Inject constructor(
 
     private suspend fun openSocket(baseHttpUrl: String) {
         val token = tokenManager.getToken() ?: return
-        val wsUrl = toWsUrl(baseHttpUrl)
+        val wsUrl = toWsUrl(baseHttpUrl, token)
         _connectionState.tryEmit(WsConnectionState.CONNECTING)
 
         // Close any existing socket to prevent connection leaks
@@ -108,7 +109,7 @@ class RaahiWebSocketClient @Inject constructor(
     }
 
     fun sendJobLocationUpdate(jobId: String, lat: Double, lng: Double) {
-        val payload = """{"event":"job:location_update","data":{"job_id":"$jobId","lat":$lat,"lng":$lng}}"""
+        val payload = """{"event":"job:location_update","data":{"jobId":"$jobId","job_id":"$jobId","lat":$lat,"lng":$lng}}"""
         socket?.send(payload)
     }
 
@@ -126,12 +127,22 @@ class RaahiWebSocketClient @Inject constructor(
         val event = root.get("event")?.asString ?: return null
         val data = root.getAsJsonObject("data") ?: return null
         when (event) {
-            "job:status_change" -> WsEvent.JobStatusChange(
-                jobId = data.get("jobId").asString, status = data.get("status").asString,
-            )
-            "job:helper_location" -> WsEvent.JobHelperLocation(
-                jobId = data.get("jobId").asString, lat = data.get("lat").asDouble, lng = data.get("lng").asDouble,
-            )
+            "job:status_change" -> {
+                val jId = (data.get("jobId") ?: data.get("job_id"))?.asString ?: return null
+                WsEvent.JobStatusChange(
+                    jobId = jId, status = data.get("status").asString,
+                )
+            }
+            "job:helper_location" -> {
+                val jId = (data.get("jobId") ?: data.get("job_id"))?.asString ?: return null
+                WsEvent.JobHelperLocation(
+                    jobId = jId, lat = data.get("lat").asDouble, lng = data.get("lng").asDouble,
+                )
+            }
+            "job:new_request" -> {
+                val job = gson.fromJson(data, JobDto::class.java)
+                WsEvent.JobNewRequest(job)
+            }
             "sos:nearby_alert" -> WsEvent.SosNearbyAlert(
                 sosId = data.get("sosId").asString, lat = data.get("lat").asDouble, lng = data.get("lng").asDouble,
             )
@@ -139,10 +150,11 @@ class RaahiWebSocketClient @Inject constructor(
         }
     }.getOrNull()
 
-    private fun toWsUrl(baseHttpUrl: String): String {
+    private fun toWsUrl(baseHttpUrl: String, token: String? = null): String {
         val httpUrl = baseHttpUrl.toHttpUrl()
         val scheme = if (httpUrl.isHttps) "wss" else "ws"
         val portPart = if ((httpUrl.isHttps && httpUrl.port != 443) || (!httpUrl.isHttps && httpUrl.port != 80)) ":${httpUrl.port}" else ""
-        return "$scheme://${httpUrl.host}$portPart/ws"
+        val tokenParam = if (!token.isNullOrBlank()) "?token=$token" else ""
+        return "$scheme://${httpUrl.host}$portPart/ws$tokenParam"
     }
 }

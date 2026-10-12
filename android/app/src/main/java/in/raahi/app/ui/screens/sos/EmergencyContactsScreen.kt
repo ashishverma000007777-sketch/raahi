@@ -1,6 +1,7 @@
 package `in`.raahi.app.ui.screens.sos
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -33,22 +34,22 @@ fun EmergencyContactsScreen(
     var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
 
-    Surface(modifier = Modifier.fillMaxSize(), color = Color(0xFFFAF7F2)) {
+    Surface(modifier = Modifier.fillMaxSize(), color = RaahiBg) {
         Column(Modifier.fillMaxSize()) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = RaahiTextPrimary) }
-                Text("Emergency Contacts", color = Color(0xFF252525), fontSize = 21.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Text("Emergency Contacts", color = RaahiTextPrimary, fontSize = 21.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
             }
 
             Text(
                 "Stored only on this device. Used to send an SOS text if you tap \"alert my contacts\".",
-                color = Color(0xFF77716B), fontSize = 12.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
+                color = RaahiTextMuted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
             )
 
-            Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp).background(Color.White, RoundedCornerShape(20.dp)).padding(16.dp)) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp).background(RaahiGlass, RoundedCornerShape(20.dp)).border(1.dp, RaahiBorderSoft, RoundedCornerShape(20.dp)).padding(16.dp)) {
                 OutlinedTextField(
                     value = name, onValueChange = { name = it }, label = { Text("Name") },
                     singleLine = true, modifier = Modifier.fillMaxWidth(), colors = contactFieldColors(),
@@ -95,10 +96,10 @@ fun EmergencyContactsScreen(
 @Composable
 private fun ContactRow(contact: EmergencyContact, onRemove: () -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(18.dp)).padding(16.dp),
+        modifier = Modifier.fillMaxWidth().background(RaahiGlass, RoundedCornerShape(18.dp)).border(1.dp, RaahiBorderSoft, RoundedCornerShape(18.dp)).padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(42.dp).background(Color(0xFFFFF0E8), CircleShape), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(42.dp).background(RaahiSelectionBg, CircleShape), contentAlignment = Alignment.Center) {
             Icon(Icons.Filled.Person, contentDescription = null, tint = RaahiOrangeAccent, modifier = Modifier.size(20.dp))
         }
         Spacer(Modifier.width(12.dp))
@@ -114,5 +115,7 @@ private fun ContactRow(contact: EmergencyContact, onRemove: () -> Unit) {
 private fun contactFieldColors() = OutlinedTextFieldDefaults.colors(
     focusedTextColor = RaahiTextPrimary, unfocusedTextColor = RaahiTextPrimary,
     focusedBorderColor = RaahiOrangeAccent, unfocusedBorderColor = RaahiCardBorder,
+    focusedContainerColor = RaahiGlass, unfocusedContainerColor = RaahiGlass,
     cursorColor = RaahiOrangeAccent,
 )
+

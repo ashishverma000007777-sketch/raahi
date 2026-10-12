@@ -188,7 +188,7 @@ class MechanicsMapViewModel @Inject constructor(
         _state.value = current.copy(
             selectedItem = item,
             cameraTarget = item?.let { LatLng(it.lat, it.lng) },
-            cameraZoom = if (item != null) 15.0 else null,
+            cameraZoom = if (item != null) 16.0 else null,
         )
     }
 
@@ -255,20 +255,22 @@ class MechanicsMapViewModel @Inject constructor(
 
             // 2. Genuine Google Places results (if available)
             for (gp in googlePlaces) {
+                val specs = getSpecializationsFromTypes(gp.primaryType, gp.types, gp.name)
+                val sub = if (gp.id.startsWith("osm-")) "OpenStreetMap Directory" else "Google Places"
                 unifiedList.add(
                     UnifiedMechanicItem(
                         id = "google-${gp.id}",
                         name = gp.name,
-                        subtitle = "Google Places",
+                        subtitle = sub,
                         address = gp.address,
-                        phone = null,
+                        phone = gp.phone,
                         lat = gp.lat,
                         lng = gp.lng,
                         distanceKm = gp.distanceKm,
                         rating = gp.rating,
                         ratingCount = gp.userRatingCount,
                         isAvailable = gp.isOpenNow ?: true,
-                        specializations = "Auto Service",
+                        specializations = specs,
                         source = MechanicSource.GOOGLE_PLACES,
                         rawGooglePlace = gp,
                     )
@@ -304,6 +306,26 @@ class MechanicsMapViewModel @Inject constructor(
         }
     }
 
+    private fun getSpecializationsFromTypes(primaryType: String?, types: List<String>, name: String): String {
+        val lowerName = name.lowercase()
+        return when {
+            types.contains("tire_shop") || lowerName.contains("puncture") || lowerName.contains("tyre") || lowerName.contains("tire") ->
+                "Puncture & Tyres"
+            primaryType == "gas_station" || types.contains("gas_station") ->
+                "Fuel Station & Service Center"
+            types.contains("electronics_store") || lowerName.contains("battery") || lowerName.contains("electric") ->
+                "Auto Electric & Battery"
+            lowerName.contains("tow") || lowerName.contains("crane") || lowerName.contains("recovery") ->
+                "Towing & Roadside Assistance"
+            lowerName.contains("wash") ->
+                "Car Wash & Detailing"
+            lowerName.contains("parts") || types.contains("auto_parts_store") ->
+                "Auto Parts & Accessories"
+            else ->
+                "Car Repair & Garage"
+        }
+    }
+
     private fun filterItems(
         items: List<UnifiedMechanicItem>,
         query: String,
@@ -330,19 +352,45 @@ class MechanicsMapViewModel @Inject constructor(
             val matchesCategory = when (category) {
                 "All" -> true
                 "Puncture" -> item.specializations?.contains("puncture", ignoreCase = true) == true ||
-                    item.name.contains("puncture", ignoreCase = true)
+                    item.specializations?.contains("tyre", ignoreCase = true) == true ||
+                    item.specializations?.contains("tire", ignoreCase = true) == true ||
+                    item.name.contains("puncture", ignoreCase = true) ||
+                    item.name.contains("tyre", ignoreCase = true) ||
+                    item.name.contains("tire", ignoreCase = true) ||
+                    item.name.contains("wheel", ignoreCase = true) ||
+                    item.rawGooglePlace?.types?.contains("tire_shop") == true
                 "Garage" -> item.specializations?.contains("garage", ignoreCase = true) == true ||
                     item.specializations?.contains("engine", ignoreCase = true) == true ||
+                    item.specializations?.contains("repair", ignoreCase = true) == true ||
+                    item.specializations?.contains("service", ignoreCase = true) == true ||
+                    item.specializations?.contains("workshop", ignoreCase = true) == true ||
                     item.name.contains("garage", ignoreCase = true) ||
                     item.name.contains("motor", ignoreCase = true) ||
-                    item.name.contains("service", ignoreCase = true)
-                "Electrical" -> item.specializations?.contains("electric", ignoreCase = true) == true ||
+                    item.name.contains("service", ignoreCase = true) ||
+                    item.name.contains("repair", ignoreCase = true) ||
+                    item.name.contains("auto", ignoreCase = true) ||
+                    item.name.contains("car", ignoreCase = true) ||
+                    item.name.contains("workshop", ignoreCase = true) ||
+                    item.rawGooglePlace?.types?.contains("car_repair") == true
+                "Electric" -> item.specializations?.contains("electric", ignoreCase = true) == true ||
                     item.specializations?.contains("battery", ignoreCase = true) == true ||
+                    item.specializations?.contains("wiring", ignoreCase = true) == true ||
                     item.name.contains("battery", ignoreCase = true) ||
-                    item.name.contains("electric", ignoreCase = true)
-                "Towing" -> item.specializations?.contains("tow", ignoreCase = true) == true ||
+                    item.name.contains("electric", ignoreCase = true) ||
+                    item.name.contains("wiring", ignoreCase = true) ||
+                    item.name.contains("electronics", ignoreCase = true) ||
+                    item.rawGooglePlace?.types?.contains("electronics_store") == true
+                "SOS / Towing" -> item.specializations?.contains("tow", ignoreCase = true) == true ||
+                    item.specializations?.contains("crane", ignoreCase = true) == true ||
+                    item.specializations?.contains("recovery", ignoreCase = true) == true ||
+                    item.specializations?.contains("breakdown", ignoreCase = true) == true ||
+                    item.specializations?.contains("sos", ignoreCase = true) == true ||
                     item.name.contains("tow", ignoreCase = true) ||
-                    item.name.contains("crane", ignoreCase = true)
+                    item.name.contains("crane", ignoreCase = true) ||
+                    item.name.contains("recovery", ignoreCase = true) ||
+                    item.name.contains("emergency", ignoreCase = true) ||
+                    item.name.contains("roadside", ignoreCase = true) ||
+                    item.source == MechanicSource.VERIFIED
                 else -> true
             }
             matchesCategory

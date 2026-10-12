@@ -40,13 +40,14 @@ class DrivingTrackingService : Service() {
         const val ACTION_STOP = "in.raahi.app.driving.STOP"
         const val EVENT_DRIVING_DETECTED = "in.raahi.app.driving.DETECTED"
         const val EVENT_DISTANCE_UPDATED = "in.raahi.app.driving.DISTANCE_UPDATED"
+        const val EVENT_STATUS_CHANGED = "in.raahi.app.driving.STATUS_CHANGED"
 
         private const val CHANNEL_ID = "raahi_driving_tracking_silent_v3"
         private const val ALERT_CHANNEL_ID = "raahi_driving_alerts_high"
         private const val NOTIFICATION_ID = 7401
         private const val PREFS = "raahi_driving_tracking"
-        private const val SPEED_THRESHOLD_MPS = 3.3f // approximately 12 km/h
-        private const val DETECT_DURATION_MS = 30_000L
+        private const val SPEED_THRESHOLD_MPS = 2.78f // > 10 km/h (2.78 m/s)
+        private const val DETECT_DURATION_MS = 60_000L // continuous for ~60s
         private const val DECLINE_COOLDOWN_MS = 2 * 60 * 60 * 1000L
         private const val SYNC_INTERVAL_MS = 10 * 60 * 1000L
     }
@@ -65,6 +66,7 @@ class DrivingTrackingService : Service() {
     private var lowSpeedSince = 0L
     private var stationarySince = 0L
     private var stationaryAnchor: Location? = null
+    private var alertSoundJob: kotlinx.coroutines.Job? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -103,6 +105,8 @@ class DrivingTrackingService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> {
+                stopAlertSound()
+                getSystemService(NotificationManager::class.java).cancel(7402)
                 // TRIP_SUMMARY_GUARD_PATCH
                 postTripSummaryNotification()
                 // TRIP_STOP_STATE_RESET_PATCH
@@ -115,23 +119,36 @@ class DrivingTrackingService : Service() {
                 lowSpeedSince = 0L
                 stationarySince = 0L
                 stationaryAnchor = null
+                getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                    .putBoolean("is_driving_confirmed", false)
+                    .putBoolean("is_service_running", false)
+                    .apply()
+                sendBroadcast(Intent(EVENT_STATUS_CHANGED).setPackage(packageName))
                 stopLocationUpdates()
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
                 return START_NOT_STICKY
             }
             ACTION_DECLINE -> {
+                stopAlertSound()
+                getSystemService(NotificationManager::class.java).cancel(7402)
                 // DECLINE_REARM_PATCH: honour cooldown, then allow future detection again.
                 getSharedPreferences(PREFS, MODE_PRIVATE).edit()
-                    .putLong("declined_at", System.currentTimeMillis()).apply()
+                    .putLong("declined_at", System.currentTimeMillis())
+                    .putBoolean("is_driving_confirmed", false)
+                    .apply()
                 confirmed = false
                 promptSent = false
                 movingSince = 0L
                 distanceSinceLastFix = 0f
                 lastFix = null
+                sendBroadcast(Intent(EVENT_STATUS_CHANGED).setPackage(packageName))
                 return START_NOT_STICKY
             }
+
             ACTION_CONFIRM -> {
+                stopAlertSound()
+                getSystemService(NotificationManager::class.java).cancel(7402)
                 // TRIP_START_CHECKPOINT_PATCH
                 val tripPrefs = getSharedPreferences(PREFS, MODE_PRIVATE)
                 tripPrefs.edit()
@@ -147,6 +164,8 @@ class DrivingTrackingService : Service() {
                         tripPrefs.getLong("confirmed_distance_m", 0L)
                     )
                     .putBoolean("trip_summary_pending", true)
+                    .putBoolean("is_driving_confirmed", true)
+                    .putBoolean("is_service_running", true)
                     .apply()
 
                 // TRIP_DISTANCE_RESET_PATCH
@@ -159,6 +178,7 @@ class DrivingTrackingService : Service() {
                 trackingPaused = false
                 lowSpeedSince = 0L
                 stationarySince = 0L
+                sendBroadcast(Intent(EVENT_STATUS_CHANGED).setPackage(packageName))
 
                 // Lock the vehicle selected at trip confirmation time.
                 val confirmedTripStartedAt = tripPrefs.getLong("trip_started_at", 0L)
@@ -199,9 +219,18 @@ class DrivingTrackingService : Service() {
             }
             ACTION_START -> {
                 if (!hasLocationPermission()) {
+                    getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                        .putBoolean("is_service_running", false)
+                        .putBoolean("is_driving_confirmed", false)
+                        .apply()
+                    sendBroadcast(Intent(EVENT_STATUS_CHANGED).setPackage(packageName))
                     stopSelf()
                     return START_NOT_STICKY
                 }
+                getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                    .putBoolean("is_service_running", true)
+                    .apply()
+                sendBroadcast(Intent(EVENT_STATUS_CHANGED).setPackage(packageName))
                 startForegroundCompat()
                 beginLocationUpdates()
                 return START_NOT_STICKY
@@ -210,6 +239,7 @@ class DrivingTrackingService : Service() {
                 stopSelf()
                 return START_NOT_STICKY
             }
+
         }
     }
 
@@ -461,10 +491,16 @@ class DrivingTrackingService : Service() {
         stationarySince = 0L
         stationaryAnchor = null
         lastFix = null
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+            .putBoolean("is_driving_confirmed", false)
+            .putBoolean("is_service_running", false)
+            .apply()
+        sendBroadcast(Intent(EVENT_STATUS_CHANGED).setPackage(packageName))
         stopLocationUpdates()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
+
 
     private fun maybeSyncOdometer(totalDistanceMeters: Long) {
         val now = System.currentTimeMillis()
@@ -521,30 +557,101 @@ class DrivingTrackingService : Service() {
         }
     }
 
+    private fun startAlertSound() {
+        stopAlertSound()
+        alertSoundJob = serviceScope.launch {
+            val toneGenerator = runCatching {
+                android.media.ToneGenerator(android.media.AudioManager.STREAM_ALARM, 80)
+            }.getOrNull()
+            try {
+                // Repeat alert chime every 3 seconds for up to 30 seconds max (10 times)
+                repeat(10) {
+                    if (!promptSent || confirmed) return@launch
+                    toneGenerator?.startTone(android.media.ToneGenerator.TONE_PROP_BEEP2, 350)
+                    delay(3000L)
+                }
+            } finally {
+                toneGenerator?.release()
+            }
+        }
+    }
+
+    private fun stopAlertSound() {
+        alertSoundJob?.cancel()
+        alertSoundJob = null
+    }
+
     private fun postDrivingAlert() {
+        val yesIntent = Intent(this, DrivingTrackingService::class.java).setAction(ACTION_CONFIRM)
+        val yesPendingIntent = PendingIntent.getService(
+            this,
+            7405,
+            yesIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
+        )
+
+        val noIntent = Intent(this, DrivingTrackingService::class.java).setAction(ACTION_DECLINE)
+        val noPendingIntent = PendingIntent.getService(
+            this,
+            7406,
+            noIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
+        )
+
         val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
             ?.putExtra("show_driving_confirmation", true)
-            ?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            ?: return
+            ?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
 
-        val pendingIntent = PendingIntent.getActivity(
-            this,
-            7402,
-            launchIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        val notification = Notification.Builder(this, ALERT_CHANNEL_ID)
+        val pendingIntent = launchIntent?.let {
+            PendingIntent.getActivity(
+                this,
+                7402,
+                it,
+                PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
+            )
+        }
+
+        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Notification.Builder(this, ALERT_CHANNEL_ID)
+        } else {
+            @Suppress("DEPRECATION")
+            Notification.Builder(this)
+        }
+
+        val notification = builder
             .setSmallIcon(android.R.drawable.ic_menu_directions)
             .setContentTitle("Are you driving your car?")
-            .setContentText("Tap to confirm. Raahi will track distance only after you agree.")
-            .setCategory(Notification.CATEGORY_REMINDER)
+            .setContentText("Raahi detected vehicle motion. Confirm to track distance.")
+            .setCategory(Notification.CATEGORY_ALARM)
             .setPriority(Notification.PRIORITY_HIGH)
-            .setDefaults(Notification.DEFAULT_SOUND or Notification.DEFAULT_VIBRATE)
             .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
+            .apply {
+                if (pendingIntent != null) setContentIntent(pendingIntent)
+            }
+            .addAction(
+                Notification.Action.Builder(
+                    null,
+                    "Yes, I'm driving",
+                    yesPendingIntent
+                ).build()
+            )
+            .addAction(
+                Notification.Action.Builder(
+                    null,
+                    "No, not now",
+                    noPendingIntent
+                ).build()
+            )
             .build()
 
         getSystemService(NotificationManager::class.java).notify(7402, notification)
+
+        // Overlay prompt if overlay permission is granted
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && android.provider.Settings.canDrawOverlays(this) && launchIntent != null) {
+            runCatching { startActivity(launchIntent) }
+        }
+
+        startAlertSound()
     }
 
     private fun stopLocationUpdates() {
@@ -553,10 +660,17 @@ class DrivingTrackingService : Service() {
     }
 
     override fun onDestroy() {
+        stopAlertSound()
         stopLocationUpdates()
         serviceScope.cancel()
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+            .putBoolean("is_service_running", false)
+            .putBoolean("is_driving_confirmed", false)
+            .apply()
+        sendBroadcast(Intent(EVENT_STATUS_CHANGED).setPackage(packageName))
         super.onDestroy()
     }
+
 
     override fun onBind(intent: Intent?): IBinder? = null
 }

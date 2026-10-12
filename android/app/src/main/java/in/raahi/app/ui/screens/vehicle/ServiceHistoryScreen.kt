@@ -1,6 +1,7 @@
 package `in`.raahi.app.ui.screens.vehicle
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -93,7 +94,7 @@ fun ServiceHistoryScreen(onBack: () -> Unit, viewModel: ServiceHistoryViewModel 
 @Composable
 private fun ServiceRecordCard(r: ServiceRecordDto) {
     Column(
-        modifier = Modifier.fillMaxWidth().background(Color.White, RaahiShapeLarge).padding(18.dp)
+        modifier = Modifier.fillMaxWidth().background(RaahiGlass, RaahiShapeLarge).border(1.dp, RaahiBorderSoft, RaahiShapeLarge).padding(18.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(modifier = Modifier.size(40.dp).background(RaahiSelectionBg, CircleShape), contentAlignment = Alignment.Center) {

@@ -44,6 +44,7 @@ fun VehicleSetupScreen(
     onDone: () -> Unit,
     onBack: (() -> Unit)? = null,
     isEditing: Boolean = false,
+    vehicleId: String? = null,
     viewModel: VehicleSetupViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
@@ -73,7 +74,7 @@ fun VehicleSetupScreen(
 
     var validationError by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(Unit) { if (isEditing) viewModel.loadForEdit() }
+    LaunchedEffect(Unit) { if (isEditing) viewModel.loadForEdit(vehicleId) }
     LaunchedEffect(prefill) {
         prefill?.let { v ->
             brand = v.brand; model = v.model; variant = v.variant.orEmpty()
@@ -126,7 +127,8 @@ fun VehicleSetupScreen(
                         tyreReplacedOdometerKm = tyreReplacedOdometerKm.toIntOrNull(),
                         batteryReplacedDate = batteryReplacedDate.ifBlank { null },
                         batteryReplacedOdometerKm = batteryReplacedOdometerKm.toIntOrNull(),
-                    )
+                    ),
+                    vehicleId = vehicleId
                 )
             }
         }
@@ -260,7 +262,7 @@ fun VehicleSetupScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
-                        .background(Color.White)
+                        .background(RaahiGlass)
                         .border(1.dp, RaahiBorderSoft, RoundedCornerShape(16.dp))
                         .clickable { showOptional = !showOptional }
                         .padding(horizontal = 16.dp, vertical = 15.dp),
@@ -423,7 +425,7 @@ private fun SelectableField(
             .fillMaxWidth()
             .height(56.dp)
             .shadow(elevation = 1.dp, shape = RaahiShapeMedium, spotColor = Color(0x0C000000))
-            .background(if (enabled) Color.White else Color(0xFFF8F5EE), RaahiShapeMedium)
+            .background(if (enabled) RaahiGlass else RaahiBg2, RaahiShapeMedium)
             .border(
                 1.dp,
                 if (value.isNotBlank()) RaahiSelectionBorder else RaahiBorderSoft,
@@ -480,8 +482,8 @@ private fun RaahiLightTextField(
         colors = OutlinedTextFieldDefaults.colors(
             focusedTextColor = RaahiText,
             unfocusedTextColor = RaahiText,
-            focusedContainerColor = Color.White,
-            unfocusedContainerColor = Color.White,
+            focusedContainerColor = RaahiGlass,
+            unfocusedContainerColor = RaahiGlass,
             focusedBorderColor = RaahiOrange,
             unfocusedBorderColor = RaahiBorder,
             cursorColor = RaahiOrange,
@@ -505,7 +507,7 @@ private fun FuelTypeSelector(selected: String, onSelect: (String) -> Unit) {
                         if (active) Modifier.shadow(elevation = 4.dp, shape = RaahiShapePill, spotColor = RaahiOrange)
                         else Modifier
                     )
-                    .background(if (active) RaahiOrange else Color.White, RaahiShapePill)
+                    .background(if (active) RaahiOrange else RaahiGlass, RaahiShapePill)
                     .border(1.dp, if (active) RaahiOrange else RaahiBorder, RaahiShapePill)
                     .clickable { onSelect(type) }
                     .padding(horizontal = 16.dp, vertical = 9.dp),

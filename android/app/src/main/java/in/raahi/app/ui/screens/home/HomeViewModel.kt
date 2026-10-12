@@ -106,6 +106,7 @@ class HomeViewModel @Inject constructor(
     private val helperRepository: HelperRepository,
     private val webSocketClient: RaahiWebSocketClient,
     private val tripRepository: `in`.raahi.app.data.TripRepository,
+    private val incomingJobAlertManager: `in`.raahi.app.data.IncomingJobAlertManager,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<HomeUiState>(HomeUiState.Loading)
@@ -123,14 +124,13 @@ class HomeViewModel @Inject constructor(
     private val _helperError = MutableStateFlow<String?>(null)
     val helperError: StateFlow<String?> = _helperError.asStateFlow()
 
-    private val _incomingRequest = MutableStateFlow<JobDto?>(null)
-    val incomingRequest: StateFlow<JobDto?> = _incomingRequest.asStateFlow()
+    val incomingRequest: StateFlow<JobDto?> = incomingJobAlertManager.incomingJob
     private var incomingPollingJob: Job? = null
     private val seenIncomingRequestIds = mutableSetOf<String>()
     private var incomingRequestsSeeded = false
 
     fun dismissIncomingRequest() {
-        _incomingRequest.value = null
+        incomingJobAlertManager.dismissAlert()
     }
 
     private fun syncIncomingRequestPolling(status: `in`.raahi.app.network.HelperStatusDto) {
@@ -158,8 +158,7 @@ class HomeViewModel @Inject constructor(
                             val newRequest = requests.firstOrNull { it.id !in seenIncomingRequestIds }
                             seenIncomingRequestIds.addAll(ids)
                             if (newRequest != null) {
-                                _incomingRequest.value = newRequest
-                                playIncomingRequestSound()
+                                incomingJobAlertManager.triggerAlert(newRequest)
                             }
                             if (seenIncomingRequestIds.size > 500) {
                                 seenIncomingRequestIds.clear()
@@ -173,23 +172,6 @@ class HomeViewModel @Inject constructor(
                     // Keep polling after a temporary network failure.
                 }
                 delay(15_000)
-            }
-        }
-    }
-
-    private fun playIncomingRequestSound() {
-        viewModelScope.launch {
-            val tone = runCatching {
-                ToneGenerator(AudioManager.STREAM_NOTIFICATION, 80)
-            }.getOrNull() ?: return@launch
-
-            try {
-                repeat(3) {
-                    tone.startTone(ToneGenerator.TONE_PROP_BEEP, 140)
-                    delay(260)
-                }
-            } finally {
-                tone.release()
             }
         }
     }

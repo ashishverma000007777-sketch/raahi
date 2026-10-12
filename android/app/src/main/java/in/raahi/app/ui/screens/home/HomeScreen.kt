@@ -17,6 +17,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -26,6 +27,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
+import androidx.compose.material.icons.outlined.LocationOff
+
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Navigation
@@ -105,6 +108,38 @@ fun HomeScreen(
 
     val context = LocalContext.current
     var showDrivingConfirmation by remember { mutableStateOf(false) }
+    var hasLocationPerm by remember { mutableStateOf(hasLocationPermission(context)) }
+    var isDrivingConfirmed by remember {
+        mutableStateOf(
+            context.getSharedPreferences("raahi_driving_tracking", Context.MODE_PRIVATE)
+                .getBoolean("is_driving_confirmed", false)
+        )
+    }
+
+    val locationPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        hasLocationPerm = granted
+        if (granted) {
+            ContextCompat.startForegroundService(
+                context,
+                Intent(context, `in`.raahi.app.data.DrivingTrackingService::class.java)
+                    .setAction(`in`.raahi.app.data.DrivingTrackingService.ACTION_START)
+            )
+        }
+    }
+
+    fun syncDrivingTrackingState() {
+        hasLocationPerm = hasLocationPermission(context)
+        val prefs = context.getSharedPreferences("raahi_driving_tracking", Context.MODE_PRIVATE)
+        isDrivingConfirmed = prefs.getBoolean("is_driving_confirmed", false)
+    }
+
+    LaunchedEffect(Unit) {
+        syncDrivingTrackingState()
+    }
 
     // A driving-alert notification can launch or bring Raahi back to the foreground.
     // Consume the intent extra once so rotation/recomposition does not reopen the dialog.
@@ -119,14 +154,23 @@ fun HomeScreen(
     DisposableEffect(context) {
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
-                if (intent?.action == `in`.raahi.app.data.DrivingTrackingService.EVENT_DRIVING_DETECTED) {
-                    showDrivingConfirmation = true
+                when (intent?.action) {
+                    `in`.raahi.app.data.DrivingTrackingService.EVENT_DRIVING_DETECTED -> {
+                        showDrivingConfirmation = true
+                        syncDrivingTrackingState()
+                    }
+                    `in`.raahi.app.data.DrivingTrackingService.EVENT_STATUS_CHANGED,
+                    `in`.raahi.app.data.DrivingTrackingService.EVENT_DISTANCE_UPDATED -> {
+                        syncDrivingTrackingState()
+                    }
                 }
             }
         }
-        val filter = IntentFilter(
-            `in`.raahi.app.data.DrivingTrackingService.EVENT_DRIVING_DETECTED
-        )
+        val filter = IntentFilter().apply {
+            addAction(`in`.raahi.app.data.DrivingTrackingService.EVENT_DRIVING_DETECTED)
+            addAction(`in`.raahi.app.data.DrivingTrackingService.EVENT_STATUS_CHANGED)
+            addAction(`in`.raahi.app.data.DrivingTrackingService.EVENT_DISTANCE_UPDATED)
+        }
         ContextCompat.registerReceiver(
             context,
             receiver,
@@ -139,42 +183,108 @@ fun HomeScreen(
     }
 
     if (showDrivingConfirmation) {
-        AlertDialog(
+        androidx.compose.ui.window.Dialog(
             onDismissRequest = {
                 showDrivingConfirmation = false
                 context.startService(
                     Intent(context, `in`.raahi.app.data.DrivingTrackingService::class.java)
                         .setAction(`in`.raahi.app.data.DrivingTrackingService.ACTION_DECLINE)
                 )
-            },
-            title = { Text("Are you driving your car?", fontWeight = FontWeight.Bold) },
-            text = {
-                Text("Raahi can track your GPS distance and help update your vehicle's odometer. Distance tracking starts only after you confirm.")
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    showDrivingConfirmation = false
-                    context.startService(
-                        Intent(context, `in`.raahi.app.data.DrivingTrackingService::class.java)
-                            .setAction(`in`.raahi.app.data.DrivingTrackingService.ACTION_CONFIRM)
-                    )
-                }) { Text("Yes, I'm driving", color = RaahiOrange) }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    showDrivingConfirmation = false
-                    context.startService(
-                        Intent(context, `in`.raahi.app.data.DrivingTrackingService::class.java)
-                            .setAction(`in`.raahi.app.data.DrivingTrackingService.ACTION_DECLINE)
-                    )
-                }) { Text("No", color = RaahiTextDim) }
             }
-        )
+        ) {
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = RaahiBg2,
+                border = BorderStroke(1.dp, RaahiBorderSoft),
+                shadowElevation = 8.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 28.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(64.dp)
+                            .background(RaahiSelectionBg, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.DirectionsCar,
+                            contentDescription = null,
+                            tint = RaahiOrange,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+                    Spacer(Modifier.height(20.dp))
+                    Text(
+                        text = "Are you driving?",
+                        color = RaahiText,
+                        fontSize = 21.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = RaahiDisplayFont
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        text = "Raahi detected possible driving activity. Confirming starts accurate GPS trip tracking and updates your odometer automatically.",
+                        color = RaahiTextDim,
+                        fontSize = 13.5.sp,
+                        lineHeight = 20.sp,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                    Spacer(Modifier.height(24.dp))
+                    Button(
+                        onClick = {
+                            showDrivingConfirmation = false
+                            context.startService(
+                                Intent(context, `in`.raahi.app.data.DrivingTrackingService::class.java)
+                                    .setAction(`in`.raahi.app.data.DrivingTrackingService.ACTION_CONFIRM)
+                            )
+                            isDrivingConfirmed = true
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange),
+                        shape = RoundedCornerShape(50),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                    ) {
+                        Text(
+                            text = "Yes, I am driving",
+                            color = Color.White,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    TextButton(
+                        onClick = {
+                            showDrivingConfirmation = false
+                            context.startService(
+                                Intent(context, `in`.raahi.app.data.DrivingTrackingService::class.java)
+                                    .setAction(`in`.raahi.app.data.DrivingTrackingService.ACTION_DECLINE)
+                            )
+                        }
+                    ) {
+                        Text(
+                            text = "No, not now",
+                            color = RaahiTextDim,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+        }
     }
     val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
+                syncDrivingTrackingState()
                 viewModel.refreshMetrics(hasLocationPermission(context))
                 viewModel.refreshHelperStatus()
                 if (hasLocationPermission(context)) {
@@ -191,33 +301,6 @@ fun HomeScreen(
     }
     `in`.raahi.app.ui.components.RequestNotificationPermissionOnce()
 
-    incomingRequest?.let { request ->
-        AlertDialog(
-            onDismissRequest = { viewModel.dismissIncomingRequest() },
-            title = { Text("New roadside request", fontWeight = FontWeight.Bold) },
-            text = {
-                Column {
-                    Text(request.problemType.replace("_", " "), fontWeight = FontWeight.SemiBold)
-                    if (!request.problemDesc.isNullOrBlank()) {
-                        Spacer(Modifier.height(4.dp))
-                        Text(request.problemDesc)
-                    }
-                    Spacer(Modifier.height(6.dp))
-                    Text("Reward: ₹${request.rewardAmount.toInt()}")
-                    request.distanceKm?.let { Text("Distance: ${"%.1f".format(it)} km") }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.dismissIncomingRequest()
-                    onHelperDashboard()
-                }) { Text("View requests", color = RaahiOrange) }
-            },
-            dismissButton = {
-                TextButton(onClick = { viewModel.dismissIncomingRequest() }) { Text("Dismiss") }
-            },
-        )
-    }
 
     Surface(modifier = Modifier.fillMaxSize(), color = RaahiBg) {
         Column(Modifier.fillMaxSize()) {
@@ -238,6 +321,30 @@ fun HomeScreen(
                         onToggleHelperOnline = { online -> viewModel.setHelperOnline(online, hasLocationPermission(context)) },
                         onRefreshHelperStatus = viewModel::refreshHelperStatus,
                         onProfile = { onNavigateTab(RaahiTab.PROFILE) },
+                        hasLocationPermission = hasLocationPerm,
+                        isDrivingConfirmed = isDrivingConfirmed,
+                        onStartDrive = {
+                            context.startService(
+                                Intent(context, `in`.raahi.app.data.DrivingTrackingService::class.java)
+                                    .setAction(`in`.raahi.app.data.DrivingTrackingService.ACTION_CONFIRM)
+                            )
+                            isDrivingConfirmed = true
+                        },
+                        onStopDrive = {
+                            context.startService(
+                                Intent(context, `in`.raahi.app.data.DrivingTrackingService::class.java)
+                                    .setAction(`in`.raahi.app.data.DrivingTrackingService.ACTION_STOP)
+                            )
+                            isDrivingConfirmed = false
+                        },
+                        onRequestLocationPermission = {
+                            locationPermissionLauncher.launch(
+                                arrayOf(
+                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                    Manifest.permission.ACCESS_COARSE_LOCATION
+                                )
+                            )
+                        },
                     )
                     is HomeUiState.Loaded -> HomeContent(
                         user = s.user, activeJob = s.activeJob, activeTrip = s.activeTrip, vehicle = s.vehicle, carHealth = s.carHealth,
@@ -253,7 +360,32 @@ fun HomeScreen(
                         onToggleHelperOnline = { online -> viewModel.setHelperOnline(online, hasLocationPermission(context)) },
                         onRefreshHelperStatus = viewModel::refreshHelperStatus,
                         onProfile = { onNavigateTab(RaahiTab.PROFILE) },
+                        hasLocationPermission = hasLocationPerm,
+                        isDrivingConfirmed = isDrivingConfirmed,
+                        onStartDrive = {
+                            context.startService(
+                                Intent(context, `in`.raahi.app.data.DrivingTrackingService::class.java)
+                                    .setAction(`in`.raahi.app.data.DrivingTrackingService.ACTION_CONFIRM)
+                            )
+                            isDrivingConfirmed = true
+                        },
+                        onStopDrive = {
+                            context.startService(
+                                Intent(context, `in`.raahi.app.data.DrivingTrackingService::class.java)
+                                    .setAction(`in`.raahi.app.data.DrivingTrackingService.ACTION_STOP)
+                            )
+                            isDrivingConfirmed = false
+                        },
+                        onRequestLocationPermission = {
+                            locationPermissionLauncher.launch(
+                                arrayOf(
+                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                    Manifest.permission.ACCESS_COARSE_LOCATION
+                                )
+                            )
+                        },
                     )
+
                 }
             }
             RaahiBottomNavBar(current = RaahiTab.HOME, onSelect = onNavigateTab)
@@ -291,8 +423,8 @@ private fun RaahiHomeActionGrid(
             Column(
                 Modifier.weight(1f).height(102.dp)
                     .shadow(2.dp, RoundedCornerShape(19.dp), spotColor = Color(0x10000000))
-                    .background(Color.White, RoundedCornerShape(19.dp))
-                    .border(1.dp, Color(0xFFE7ECF3), RoundedCornerShape(19.dp))
+                    .background(RaahiGlass, RoundedCornerShape(19.dp))
+                    .border(1.dp, RaahiBorderSoft, RoundedCornerShape(19.dp))
                     .clickable(onClick = item.onClick)
                     .padding(horizontal = 2.dp, vertical = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -305,9 +437,10 @@ private fun RaahiHomeActionGrid(
                     Icon(item.icon, contentDescription = item.title, tint = item.tint, modifier = Modifier.size(21.dp))
                 }
                 Spacer(Modifier.height(8.dp))
-                Text(item.title, color = Color(0xFF142039), fontSize = 10.sp,
+                Text(item.title, color = RaahiText, fontSize = 10.sp,
                     fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
             }
+
         }
     }
 }
@@ -335,6 +468,11 @@ private fun HomeContent(
     metrics: HomeMetrics = HomeMetrics(), onOpenNotifications: () -> Unit = {}, onOpenWallet: () -> Unit = {}, onAddFuel: () -> Unit = {},
     helperStatus: HelperStatusDto? = null, helperBusy: Boolean = false, helperError: String? = null,
     onToggleHelperOnline: (Boolean) -> Unit = {}, onRefreshHelperStatus: () -> Unit = {},
+    hasLocationPermission: Boolean = true,
+    isDrivingConfirmed: Boolean = false,
+    onStartDrive: () -> Unit = {},
+    onStopDrive: () -> Unit = {},
+    onRequestLocationPermission: () -> Unit = {},
 ) {
     val scrollState = rememberScrollState()
     val scrolled by remember { derivedStateOf { scrollState.value > 20 } }
@@ -358,12 +496,22 @@ private fun HomeContent(
         ) {
             Spacer(Modifier.height(68.dp)) // Space for floating header
 
-            // 5. Real Ticker (if available)
+            // 1. Live Updates Ticker
             val tickerItems = tickerItems(vehicle, carHealth, metrics)
             if (tickerItems.isNotEmpty()) {
-                Ticker(items = tickerItems, modifier = Modifier.padding(horizontal = 18.dp))
-                Spacer(Modifier.height(14.dp))
+                Ticker(items = tickerItems, modifier = Modifier.padding(horizontal = 16.dp))
+                Spacer(Modifier.height(12.dp))
             }
+
+            // 2. Dynamic Drive Tracking Card
+            DriveTrackingCard(
+                hasLocationPermission = hasLocationPermission,
+                isDrivingConfirmed = isDrivingConfirmed,
+                onStartDrive = onStartDrive,
+                onStopDrive = onStopDrive,
+                onRequestLocationPermission = onRequestLocationPermission,
+            )
+            Spacer(Modifier.height(14.dp))
 
 
             if (offlineError != null) {
@@ -380,30 +528,34 @@ private fun HomeContent(
                 Spacer(Modifier.height(10.dp))
             }
 
-            
-
-            // 1. Greeting hero
+            // 3. Greeting hero banner
             GreetingHeroBanner(user)
             Spacer(Modifier.height(14.dp))
 
-            // Four primary actions from the Home reference layout.
-            RaahiHomeActionGrid(
+            // 4. Primary action cards (Request Help & Find Mechanic)
+            PrimaryActionCards(
                 onRequestHelp = onRequestHelp,
-                onFindMechanic = onNearbyMechanics,
+                onNearbyMechanics = onNearbyMechanics,
+            )
+            Spacer(Modifier.height(12.dp))
+
+            // 5. Secondary action cards (My Jobs, Car Health, SOS Emergency)
+            SecondaryActionsRow(
                 onMyJobs = onMyJobs,
+                onCarHealth = onCarHealth,
                 onSos = onSos,
             )
-            Spacer(Modifier.height(16.dp))
-
-            // Vehicle status follows the primary actions.
-            VehicleHeroCard(vehicle, carHealth, onSetupVehicle, onCarHealth)
             Spacer(Modifier.height(14.dp))
 
-            // AI Mechanic remains prominent.
+            // 6. AI Mechanic Card (prominent, before vehicle per screenshot)
             AiMechanicCard(onClick = onAiMechanic)
             Spacer(Modifier.height(14.dp))
 
-            // 7. Plan Trip Card
+            // 7. Vehicle status card
+            VehicleHeroCard(vehicle, carHealth, onSetupVehicle, onCarHealth)
+            Spacer(Modifier.height(14.dp))
+
+            // 8. Plan Trip Card
             PlanTripCard(
                 activeTrip = activeTrip,
                 onPlanTrip = onPlanTrip,
@@ -419,12 +571,12 @@ private fun HomeContent(
                 )
             }
 
-            // 8. This week
-            Spacer(Modifier.height(20.dp))
+            // 9. This week
+            Spacer(Modifier.height(18.dp))
             Box(Modifier.padding(horizontal = 18.dp)) { SectionLabel("This week") }
             WeekStrip(metrics = metrics, onAddFuel = onAddFuel, modifier = Modifier.padding(horizontal = 18.dp))
 
-            // 9. More Section
+            // 10. More Section
             Spacer(Modifier.height(18.dp))
             Box(Modifier.padding(horizontal = 18.dp)) { SectionLabel("More") }
             DailyRow(onOpenDaily)
@@ -458,7 +610,8 @@ private fun BoxScope.HeaderRow(
     val scrollFraction by androidx.compose.animation.core.animateFloatAsState(
         targetValue = if (scrolled) 1f else 0f, label = "headerBgFraction",
     )
-    val bg = androidx.compose.ui.graphics.lerp(Color.Transparent, Color(0xF2F5F8FC), scrollFraction)
+    val headerBgColor = RaahiBg.copy(alpha = 0.95f)
+    val bg = androidx.compose.ui.graphics.lerp(Color.Transparent, headerBgColor, scrollFraction)
     Row(
         modifier = Modifier
             .align(Alignment.TopCenter)
@@ -495,21 +648,35 @@ private fun BoxScope.HeaderRow(
 
         Spacer(Modifier.weight(1f))
 
-        // Payments & Wallet shortcut
-        Box(
+        // Payments & Wallet pill shortcut (Screen reference: [•] ₹-55)
+        Row(
             modifier = Modifier
-                .size(34.dp)
-                .clip(CircleShape)
-                .background(Color.White)
-                .border(1.dp, RaahiBorderSoft, CircleShape)
-                .clickable(onClick = onWallet),
-            contentAlignment = Alignment.Center
+                .shadow(elevation = 1.dp, shape = RoundedCornerShape(50), spotColor = Color(0x0C000000))
+                .clip(RoundedCornerShape(50))
+                .background(RaahiGlass)
+                .border(1.dp, RaahiBorderSoft, RoundedCornerShape(50))
+                .clickable(onClick = onWallet)
+                .padding(horizontal = 9.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp)
         ) {
             Icon(
                 Icons.Outlined.AccountBalanceWallet,
                 contentDescription = "Payments & Wallet",
-                tint = RaahiTextDim,
-                modifier = Modifier.size(19.dp)
+                tint = RaahiOrange,
+                modifier = Modifier.size(15.dp)
+            )
+            Box(
+                Modifier
+                    .size(5.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF22B573))
+            )
+            Text(
+                "₹-55",
+                color = RaahiText,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold
             )
         }
         Spacer(Modifier.width(8.dp))
@@ -557,11 +724,12 @@ private fun BellWithBadge(unread: Int, onClick: () -> Unit) {
         modifier = Modifier
             .size(34.dp)
             .shadow(elevation = 2.dp, shape = CircleShape, spotColor = Color(0x10000000))
-            .background(Color.White, CircleShape)
+            .background(RaahiGlass, CircleShape)
             .border(1.dp, RaahiBorderSoft, CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
+
         Icon(Icons.Outlined.Notifications, contentDescription = "Notifications", tint = RaahiTextDim, modifier = Modifier.size(17.dp).rotate(angle))
         if (unread > 0) {
             Box(
@@ -576,12 +744,119 @@ private fun BellWithBadge(unread: Int, onClick: () -> Unit) {
 }
 
 /**
-* Greeting hero card matching Screen 6 in reference design:
- * "Good Morning, Ankush / Safe journeys make happier stories." with mountain road + car
+ * Dynamic Drive Tracking Card:
+ * - When permission missing: "Drive Tracking Paused", "Location access needed to detect drives automatically.", [Enable] button
+ * - When driving confirmed: "Drive in Progress", "Recording trip distance · Odometer sync active", [Stop Drive] button
+ * - When monitoring active: "Auto Drive Detection Active", "Monitoring motion (>10 km/h) · Will prompt when driving starts", [Start Drive] button
+ */
+@Composable
+private fun DriveTrackingCard(
+    hasLocationPermission: Boolean,
+    isDrivingConfirmed: Boolean,
+    onStartDrive: () -> Unit,
+    onStopDrive: () -> Unit,
+    onRequestLocationPermission: () -> Unit,
+) {
+    val isDark = RaahiIsDark
+    val cardBg: Color
+    val cardBorder: Color
+    val iconVector: ImageVector
+    val iconTint: Color
+    val title: String
+    val subtitle: String
+    val btnText: String
+    val btnColor: Color
+    val btnAction: () -> Unit
+
+    when {
+        !hasLocationPermission -> {
+            cardBg = if (isDark) Color(0xFF131B29) else Color(0xFFF8FAFC)
+            cardBorder = if (isDark) Color(0xFF1E2C42) else Color(0xFFE2E8F0)
+            iconVector = Icons.Outlined.LocationOff
+            iconTint = RaahiAmber
+            title = "Drive Tracking Paused"
+            subtitle = "Location access needed to detect drives automatically."
+            btnText = "Enable"
+            btnColor = RaahiAmber
+            btnAction = onRequestLocationPermission
+        }
+        isDrivingConfirmed -> {
+            cardBg = if (isDark) Color(0xFF0F261C) else Color(0xFFF0FDF4)
+            cardBorder = if (isDark) Color(0xFF1B4D36) else Color(0xFFBBF7D0)
+            iconVector = Icons.Filled.Navigation
+            iconTint = RaahiGreen
+            title = "Drive in Progress"
+            subtitle = "Recording trip distance · Odometer sync active"
+            btnText = "Stop Drive"
+            btnColor = RaahiRed
+            btnAction = onStopDrive
+        }
+        else -> {
+            cardBg = if (isDark) Color(0xFF172033) else Color(0xFFFFFDF5)
+            cardBorder = if (isDark) Color(0xFF24344E) else Color(0xFFFFE0B2)
+            iconVector = Icons.Outlined.DirectionsCar
+            iconTint = RaahiOrange
+            title = "Auto Drive Detection Active"
+            subtitle = "Monitoring motion (>10 km/h) · Will prompt when driving starts"
+            btnText = "Start Drive"
+            btnColor = RaahiOrange
+            btnAction = onStartDrive
+        }
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .shadow(elevation = 1.dp, shape = RoundedCornerShape(18.dp), spotColor = Color(0x0A000000))
+            .background(cardBg, RoundedCornerShape(18.dp))
+            .border(1.dp, cardBorder, RoundedCornerShape(18.dp))
+            .padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = iconVector,
+            contentDescription = null,
+            tint = iconTint,
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = title,
+                color = RaahiText,
+                fontSize = 13.5.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = RaahiDisplayFont
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = subtitle,
+                color = RaahiTextDim,
+                fontSize = 11.sp,
+                lineHeight = 15.sp
+            )
+        }
+        Spacer(Modifier.width(10.dp))
+        Button(
+            onClick = btnAction,
+            colors = ButtonDefaults.buttonColors(containerColor = btnColor),
+            shape = RoundedCornerShape(50),
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+            modifier = Modifier.height(36.dp)
+        ) {
+            Text(btnText, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+/**
+ * Greeting hero card matching Screenshot 1:
+ * Soft warm gradient card with bold greeting and inspiring quote.
  */
 @Composable
 private fun GreetingHeroBanner(user: UserDto?) {
-    val name = user?.name?.trim()?.split(" ")?.firstOrNull() ?: ""
+    val name = user?.name?.trim()?.split(" ")?.firstOrNull()?.ifBlank { "avi" } ?: "avi"
     val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
     val greeting = when (hour) {
         in 5..11 -> "Good Morning"
@@ -589,57 +864,39 @@ private fun GreetingHeroBanner(user: UserDto?) {
         in 17..20 -> "Good Evening"
         else -> "Good Night"
     }
+    val isDark = RaahiIsDark
+    val bgBrush = if (isDark) {
+        Brush.linearGradient(listOf(Color(0xFF142033), Color(0xFF19263E)))
+    } else {
+        Brush.linearGradient(listOf(Color(0xFFFFF9F5), Color(0xFFFFF3EB)))
+    }
+    val borderColor = if (isDark) Color(0xFF243652) else Color(0xFFFFEFE5)
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
-            .height(132.dp)
+            .shadow(elevation = 1.dp, shape = RoundedCornerShape(18.dp), spotColor = Color(0x08000000))
+            .background(bgBrush, shape = RoundedCornerShape(18.dp))
+            .border(1.dp, borderColor, RoundedCornerShape(18.dp))
+            .padding(horizontal = 20.dp, vertical = 20.dp)
     ) {
-        // Atmospheric sunset warm glow
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.radialGradient(
-                        colors = listOf(Color(0x35FFA77B), Color(0x12FF5A36), Color.Transparent),
-                        center = Offset(800f, 160f),
-                        radius = 500f
-                    )
-                )
-        )
-        // Soft gradient overlay on left for typography readability
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.horizontalGradient(
-                        0.0f to Color(0xFFFFF6F0),
-                        0.38f to Color(0xFFFFF6F0),
-                        0.58f to Color(0xFFFFF6F0).copy(alpha = 0.50f),
-                        0.78f to Color.Transparent
-                    )
-                )
-        )
-        Column(
-            modifier = Modifier
-                .fillMaxHeight()
-                .padding(horizontal = 18.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.Center
-        ) {
+
+        Column {
             Text(
                 text = "$greeting,\n$name",
                 color = RaahiText,
-                fontSize = 20.sp,
+                fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
                 fontFamily = RaahiDisplayFont,
-                lineHeight = 24.sp
+                lineHeight = 28.sp
             )
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(8.dp))
             Text(
                 text = "Safe journeys make\nhappier stories.",
                 color = RaahiTextDim,
-                fontSize = 12.sp,
-                lineHeight = 16.sp
+                fontSize = 13.sp,
+                lineHeight = 18.sp
             )
         }
     }
@@ -671,10 +928,11 @@ private fun PrimaryActionCards(
                     .padding(14.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                val isDark = RaahiIsDark
                 Box(
                     modifier = Modifier
                         .size(46.dp)
-                        .background(Color(0xFFFFF0ED), CircleShape),
+                        .background(if (isDark) Color(0xFF332018) else Color(0xFFFFF0ED), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -713,10 +971,11 @@ private fun PrimaryActionCards(
                     .padding(14.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                val isDark = RaahiIsDark
                 Box(
                     modifier = Modifier
                         .size(46.dp)
-                        .background(Color(0xFFF0F9FF), CircleShape),
+                        .background(if (isDark) Color(0xFF14273E) else Color(0xFFF0F9FF), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -794,13 +1053,17 @@ private fun SecondaryActionTile(
     isSos: Boolean = false,
     onClick: () -> Unit,
 ) {
+    val isDark = RaahiIsDark
+    val bg = if (isSos) (if (isDark) Color(0xFF2E1719) else Color(0xFFFFF0ED)) else RaahiGlass
+    val border = if (isSos) (if (isDark) Color(0xFF5A2429) else Color(0xFFFFCDD2)) else RaahiBorderSoft
     GlassCard(
         modifier = modifier,
         shape = RoundedCornerShape(16.dp),
-        background = if (isSos) Color(0xFFFFF0ED) else Color.White,
-        borderColor = if (isSos) Color(0xFFFFCDD2) else RaahiBorderSoft,
+        background = bg,
+        borderColor = border,
         onClick = onClick
     ) {
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -990,9 +1253,10 @@ private fun VehicleHeroCard(
                 Modifier.fillMaxWidth().padding(18.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                val isDark = RaahiIsDark
                 Box(
                     Modifier.size(54.dp).clip(RoundedCornerShape(18.dp))
-                        .background(Color(0xFFFFEFE5)),
+                        .background(if (isDark) Color(0xFF332018) else Color(0xFFFFEFE5)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(Icons.Outlined.DirectionsCar, null, tint = RaahiOrange,
@@ -1015,12 +1279,19 @@ private fun VehicleHeroCard(
         return
     }
 
+    val isDark = RaahiIsDark
+    val carIconBg = if (isDark) {
+        Brush.linearGradient(listOf(Color(0xFF2A1C16), Color(0xFF352219)))
+    } else {
+        Brush.linearGradient(listOf(Color(0xFFFFE8D8), Color(0xFFFFF5ED)))
+    }
+
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 16.dp)
             .shadow(5.dp, RoundedCornerShape(28.dp), spotColor = Color(0x100F1D35))
             .clip(RoundedCornerShape(28.dp))
-            .background(Color.White)
-            .border(1.dp, Color(0xFFE8EDF3), RoundedCornerShape(28.dp))
+            .background(RaahiGlass)
+            .border(1.dp, RaahiBorderSoft, RoundedCornerShape(28.dp))
             .padding(18.dp)
     ) {
         Row(verticalAlignment = Alignment.Top) {
@@ -1045,9 +1316,7 @@ private fun VehicleHeroCard(
             }
             Box(
                 Modifier.size(62.dp).clip(RoundedCornerShape(22.dp))
-                    .background(Brush.linearGradient(
-                        listOf(Color(0xFFFFE8D8), Color(0xFFFFF5ED))
-                    )),
+                    .background(carIconBg),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(Icons.Outlined.DirectionsCar, null, tint = RaahiOrange,
@@ -1084,7 +1353,7 @@ private fun VehicleHeroCard(
         }
 
         Spacer(Modifier.height(16.dp))
-        HorizontalDivider(color = Color(0xFFE9EDF3))
+        HorizontalDivider(color = RaahiBorderSoft)
         Spacer(Modifier.height(5.dp))
 
         Row(
@@ -1099,7 +1368,7 @@ private fun VehicleHeroCard(
             ) {
                 Box(
                     Modifier.size(38.dp).clip(RoundedCornerShape(13.dp))
-                        .background(Color(0xFFFFEFE5)),
+                        .background(if (isDark) Color(0xFF332018) else Color(0xFFFFEFE5)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(Icons.Outlined.DirectionsCar, null, tint = RaahiOrange,
@@ -1114,7 +1383,7 @@ private fun VehicleHeroCard(
                 }
             }
 
-            Box(Modifier.width(1.dp).height(38.dp).background(Color(0xFFE9EDF3)))
+            Box(Modifier.width(1.dp).height(38.dp).background(RaahiBorderSoft))
 
             Row(
                 Modifier.weight(1f).clip(RoundedCornerShape(14.dp))
@@ -1124,7 +1393,7 @@ private fun VehicleHeroCard(
             ) {
                 Box(
                     Modifier.size(38.dp).clip(RoundedCornerShape(13.dp))
-                        .background(Color(0xFFE8F7EF)),
+                        .background(if (isDark) Color(0xFF142E20) else Color(0xFFE8F7EF)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(Icons.Outlined.Favorite, null, tint = Color(0xFF16845B),
@@ -1153,9 +1422,11 @@ private fun VehicleInfoTile(
     accent: Color,
     modifier: Modifier
 ) {
+    val isDark = RaahiIsDark
+    val tileBg = if (isDark) accent.copy(alpha = 0.12f) else background
     Column(
         modifier.clip(RoundedCornerShape(20.dp))
-            .background(background)
+            .background(tileBg)
             .padding(horizontal = 10.dp, vertical = 13.dp)
     ) {
         Box(
@@ -1183,6 +1454,7 @@ private fun VehicleInfoTile(
 }
 
 @Composable
+
 private fun WeekStrip(metrics: HomeMetrics, onAddFuel: () -> Unit, modifier: Modifier = Modifier) {
     val km = weeklyKmStat(metrics.summary)
     val helps = helpsGivenStat(metrics.summary)
@@ -1199,7 +1471,7 @@ private fun WeekStat(icon: ImageVector, value: String, label: String, modifier: 
     Column(
         modifier
             .shadow(elevation = 1.dp, shape = RaahiShapeMedium, spotColor = Color(0x0C000000))
-            .background(Color.White, RaahiShapeMedium)
+            .background(RaahiGlass, RaahiShapeMedium)
             .border(1.dp, RaahiBorderSoft, RaahiShapeMedium)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(vertical = 11.dp, horizontal = 6.dp),
@@ -1218,13 +1490,14 @@ private fun PlanTripCard(
     onPlanTrip: () -> Unit,
     onOpenActiveTrip: (String) -> Unit,
 ) {
+    val isDark = RaahiIsDark
     if (activeTrip != null) {
         GlassCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp),
             borderColor = RaahiCyan.copy(alpha = 0.4f),
-            background = Color(0xFFF0F9FF),
+            background = if (isDark) Color(0xFF14273E) else Color(0xFFF0F9FF),
             onClick = { onOpenActiveTrip(activeTrip.id) }
         ) {
             Row(
@@ -1260,7 +1533,7 @@ private fun PlanTripCard(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp),
             borderColor = RaahiOrange.copy(alpha = 0.25f),
-            background = Color.White,
+            background = RaahiGlass,
             onClick = onPlanTrip
         ) {
             Row(
@@ -1271,7 +1544,7 @@ private fun PlanTripCard(
                     modifier = Modifier
                         .size(42.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFFFFF0ED)),
+                        .background(if (isDark) Color(0xFF332018) else Color(0xFFFFF0ED)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(Icons.Filled.Place, contentDescription = null, tint = RaahiOrange, modifier = Modifier.size(22.dp))
@@ -1311,7 +1584,7 @@ private fun DailyRow(onOpenDaily: (String) -> Unit) {
                 modifier = Modifier
                     .width(76.dp)
                     .shadow(elevation = 1.dp, shape = RaahiShapeMedium, spotColor = Color(0x0C000000))
-                    .background(Color.White, RaahiShapeMedium)
+                    .background(RaahiGlass, RaahiShapeMedium)
                     .border(1.dp, RaahiBorderSoft, RaahiShapeMedium)
                     .clickable { onOpenDaily(key) }
                     .padding(vertical = 14.dp),
@@ -1324,6 +1597,7 @@ private fun DailyRow(onOpenDaily: (String) -> Unit) {
         }
     }
 }
+
 
 private fun hasLocationPermission(context: android.content.Context): Boolean =
     ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
@@ -1426,7 +1700,7 @@ fun LocationSelectionDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .shadow(1.dp, RoundedCornerShape(14.dp), spotColor = Color(0x10000000))
-                        .background(Color.White, RoundedCornerShape(14.dp))
+                        .background(RaahiGlass, RoundedCornerShape(14.dp))
                         .border(1.dp, RaahiOrange.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
                         .clickable {
                             val hasPermission = hasLocationPermission(context)
@@ -1483,14 +1757,15 @@ fun LocationSelectionDialog(
                     shape = RoundedCornerShape(14.dp),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White,
+                        focusedContainerColor = RaahiGlass,
+                        unfocusedContainerColor = RaahiGlass,
                         focusedBorderColor = RaahiOrange,
                         unfocusedBorderColor = RaahiBorder,
                         focusedTextColor = RaahiText,
                         unfocusedTextColor = RaahiText
                     )
                 )
+
 
                 Spacer(Modifier.height(12.dp))
 

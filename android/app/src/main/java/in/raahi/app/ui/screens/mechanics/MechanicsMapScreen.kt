@@ -1,9 +1,12 @@
+@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+
 package `in`.raahi.app.ui.screens.mechanics
 
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -11,6 +14,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PageSize
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -106,8 +113,18 @@ private fun MechanicsLoadedContent(
     onZoomOut: () -> Unit,
     context: Context,
 ) {
+    var showFilterDialog by remember { mutableStateOf(false) }
+
+    if (showFilterDialog) {
+        CategoryFilterDialog(
+            current = state.selectedCategory,
+            onSelect = { viewModel.selectCategory(it) },
+            onDismiss = { showFilterDialog = false },
+        )
+    }
+
     Column(Modifier.fillMaxSize()) {
-        // Top search & control header
+        // Simplified top search & control header
         MechanicsHeader(
             searchQuery = state.searchQuery,
             onSearchChange = viewModel::setSearchQuery,
@@ -119,45 +136,12 @@ private fun MechanicsLoadedContent(
             onBack = onBack,
             onRefresh = viewModel::retry,
             isRefreshing = state.isRefreshing,
+            selectedCategory = state.selectedCategory,
+            onOpenFilter = { showFilterDialog = true },
         )
-
-        // Category filter chips
-        FilterCategoryRow(
-            categories = CATEGORIES,
-            selected = state.selectedCategory,
-            onSelect = viewModel::selectCategory,
-        )
-
-        // Source filter chips
-        SourceFilterRow(
-            current = state.sourceFilter,
-            onSelect = viewModel::selectSourceFilter,
-            verifiedCount = state.allItems.count { it.source == MechanicSource.VERIFIED },
-            googleCount = state.allItems.count { it.source == MechanicSource.GOOGLE_PLACES },
-        )
-
-        // Notice banner when Google Places API is restricted in Google Cloud
-        if (state.googlePlacesNotice != null && state.sourceFilter == MechanicSourceFilter.GOOGLE_PLACES) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Color(0xFFFEF3C7))
-                    .border(1.dp, Color(0xFFF59E0B).copy(alpha = 0.3f), RoundedCornerShape(10.dp))
-                    .padding(10.dp)
-            ) {
-                Text(
-                    state.googlePlacesNotice,
-                    color = Color(0xFF92400E),
-                    fontSize = 11.sp,
-                    lineHeight = 15.sp,
-                )
-            }
-        }
 
         if (state.viewMode == MechanicsViewMode.LIST) {
-            // Pure List View
+            // Full list view option
             MechanicsListView(
                 items = state.filteredItems,
                 onItemClick = { item ->
@@ -171,7 +155,7 @@ private fun MechanicsLoadedContent(
                 onDirections = { lat, lng -> launchDirections(context, lat, lng) },
             )
         } else {
-            // Interactive Map View with Bottom Sheet
+            // Interactive Map View with Google Maps-style Bottom Carousel
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 MechanicsMapView(
                     modifier = Modifier.fillMaxSize(),
@@ -188,11 +172,11 @@ private fun MechanicsLoadedContent(
                     onMapReady = onMapReady,
                 )
 
-                // Map controls overlay (Zoom + Recenter)
+                // Map controls overlay (Zoom + Recenter), safely placed above the bottom carousel
                 Column(
                     modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(top = 12.dp, end = 14.dp),
+                        .align(Alignment.BottomEnd)
+                        .padding(bottom = if (state.filteredItems.isEmpty()) 95.dp else 225.dp, end = 14.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     MapRoundButton(icon = Icons.Outlined.Add, onClick = onZoomIn)
@@ -203,13 +187,19 @@ private fun MechanicsLoadedContent(
                     )
                 }
 
-                // Interactive Bottom Sheet with Place Cards
-                Box(modifier = Modifier.align(Alignment.BottomCenter)) {
-                    MechanicsBottomSheetCard(
+                // Google Maps-style Bottom Carousel
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                ) {
+                    MechanicsBottomCarousel(
                         items = state.filteredItems,
                         selectedItem = state.selectedItem,
-                        onItemClick = { item ->
-                            if (item.source == MechanicSource.VERIFIED && item.rawMechanic != null) {
+                        selectedCategory = state.selectedCategory,
+                        onClearCategory = { viewModel.selectCategory("All") },
+                        onItemSelect = { item ->
+                            if (item.source == MechanicSource.VERIFIED && item.rawMechanic != null && item.id == state.selectedItem?.id) {
                                 onMechanicClick(item.rawMechanic.userId)
                             } else {
                                 viewModel.selectItem(item)
@@ -233,11 +223,14 @@ private fun MechanicsHeader(
     onBack: () -> Unit,
     onRefresh: () -> Unit,
     isRefreshing: Boolean,
+    selectedCategory: String,
+    onOpenFilter: () -> Unit,
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White)
+            .background(RaahiGlass)
+            .border(1.dp, RaahiBorderSoft)
             .padding(horizontal = 14.dp, vertical = 10.dp)
     ) {
         Row(
@@ -272,6 +265,28 @@ private fun MechanicsHeader(
             }
 
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                // Category Filter Button with active indicator
+                Box {
+                    IconButton(onClick = onOpenFilter, modifier = Modifier.size(36.dp)) {
+                        Icon(
+                            Icons.Outlined.Tune,
+                            contentDescription = "Filter categories",
+                            tint = if (selectedCategory != "All") RaahiOrange else RaahiTextDim,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                    if (selectedCategory != "All") {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(top = 6.dp, end = 6.dp)
+                                .size(7.dp)
+                                .clip(CircleShape)
+                                .background(RaahiOrange)
+                        )
+                    }
+                }
+
                 // View mode toggle (Map vs List)
                 IconButton(onClick = onToggleViewMode, modifier = Modifier.size(36.dp)) {
                     Icon(
@@ -281,6 +296,8 @@ private fun MechanicsHeader(
                         modifier = Modifier.size(20.dp),
                     )
                 }
+
+                // Refresh Button
                 IconButton(onClick = onRefresh, modifier = Modifier.size(36.dp), enabled = !isRefreshing) {
                     if (isRefreshing) {
                         CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = RaahiOrange)
@@ -348,68 +365,381 @@ private fun MechanicsHeader(
 }
 
 @Composable
-private fun FilterCategoryRow(
-    categories: List<String>,
-    selected: String,
+private fun CategoryFilterDialog(
+    current: String,
     onSelect: (String) -> Unit,
+    onDismiss: () -> Unit,
 ) {
-    LazyRow(
-        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        items(categories) { cat ->
-            val isSelected = cat == selected
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(if (isSelected) RaahiOrange else Color.White)
-                    .border(1.dp, if (isSelected) RaahiOrange else RaahiBorderSoft, RoundedCornerShape(20.dp))
-                    .clickable { onSelect(cat) }
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
-            ) {
-                Text(
-                    cat,
-                    color = if (isSelected) Color.White else RaahiText,
-                    fontSize = 11.5.sp,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                )
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(0.9f)
+                .clip(RoundedCornerShape(20.dp))
+                .background(RaahiBg2)
+                .border(1.dp, RaahiBorderSoft, RoundedCornerShape(20.dp))
+                .padding(20.dp)
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        "Filter by Service",
+                        color = RaahiText,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = RaahiDisplayFont,
+                    )
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Outlined.Close, contentDescription = "Close", tint = RaahiTextDim, modifier = Modifier.size(18.dp))
+                    }
+                }
+                Spacer(Modifier.height(14.dp))
+                CATEGORIES.forEach { cat ->
+                    val isSelected = cat == current
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (isSelected) RaahiSelectionBg else Color.Transparent)
+                            .border(1.dp, if (isSelected) RaahiOrange else Color.Transparent, RoundedCornerShape(10.dp))
+                            .clickable {
+                                onSelect(cat)
+                                onDismiss()
+                            }
+                            .padding(horizontal = 14.dp, vertical = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            text = cat,
+                            color = if (isSelected) RaahiOrange else RaahiText,
+                            fontSize = 14.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                        )
+                        if (isSelected) {
+                            Icon(Icons.Outlined.Check, contentDescription = "Selected", tint = RaahiOrange, modifier = Modifier.size(16.dp))
+                        }
+                    }
+                    Spacer(Modifier.height(4.dp))
+                }
             }
         }
     }
 }
 
 @Composable
-private fun SourceFilterRow(
-    current: MechanicSourceFilter,
-    onSelect: (MechanicSourceFilter) -> Unit,
-    verifiedCount: Int,
-    googleCount: Int,
+private fun MechanicsBottomCarousel(
+    items: List<UnifiedMechanicItem>,
+    selectedItem: UnifiedMechanicItem?,
+    selectedCategory: String,
+    onClearCategory: () -> Unit,
+    onItemSelect: (UnifiedMechanicItem) -> Unit,
+    onCall: (String) -> Unit,
+    onDirections: (Double, Double) -> Unit,
 ) {
-    LazyRow(
-        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        items(MechanicSourceFilter.entries.toTypedArray()) { filter ->
-            val isSelected = filter == current
-            val count = when (filter) {
-                MechanicSourceFilter.ALL -> verifiedCount + googleCount
-                MechanicSourceFilter.VERIFIED -> verifiedCount
-                MechanicSourceFilter.GOOGLE_PLACES -> googleCount
-            }
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(if (isSelected) RaahiText else Color.White)
-                    .border(1.dp, if (isSelected) RaahiText else RaahiBorderSoft, RoundedCornerShape(8.dp))
-                    .clickable { onSelect(filter) }
-                    .padding(horizontal = 10.dp, vertical = 5.dp)
+    if (items.isEmpty()) {
+        Surface(
+            modifier = Modifier
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .fillMaxWidth(),
+            shape = RoundedCornerShape(18.dp),
+            color = if (RaahiIsDark) Color(0xFF131D2E) else Color.White,
+            border = BorderStroke(1.dp, RaahiBorderSoft),
+            shadowElevation = 3.dp,
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    "${filter.label} ($count)",
-                    color = if (isSelected) Color.White else RaahiTextDim,
-                    fontSize = 11.sp,
-                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                Icon(Icons.Outlined.SearchOff, contentDescription = null, tint = RaahiTextDim, modifier = Modifier.size(22.dp))
+                Spacer(Modifier.width(12.dp))
+                Column {
+                    Text("No mechanics found nearby", color = RaahiText, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    Text("Try clearing filters or moving the map", color = RaahiTextFaint, fontSize = 11.5.sp)
+                }
+            }
+        }
+        return
+    }
+
+    val pagerState = rememberPagerState(
+        initialPage = 0,
+        pageCount = { items.size },
+    )
+
+    // Two-way sync: Swiping carousel -> select item and smoothly animate camera to marker
+    LaunchedEffect(pagerState.settledPage) {
+        val page = pagerState.settledPage
+        if (page in items.indices && !pagerState.isScrollInProgress) {
+            val currentItem = items[page]
+            if (currentItem.id != selectedItem?.id) {
+                onItemSelect(currentItem)
+            }
+        }
+    }
+
+    // Two-way sync: Map marker tapped -> scroll pager to selected item
+    LaunchedEffect(selectedItem?.id) {
+        val targetId = selectedItem?.id ?: return@LaunchedEffect
+        val index = items.indexOfFirst { it.id == targetId }
+        if (index >= 0 && index != pagerState.currentPage) {
+            pagerState.animateScrollToPage(index)
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 8.dp)
+    ) {
+        // Floating header chips: "X places nearby" and "X open"
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = if (RaahiIsDark) Color(0xEE131D2E) else Color(0xF2FFFFFF),
+                border = BorderStroke(1.dp, RaahiBorderSoft),
+                shadowElevation = 2.dp,
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "${items.size} places nearby",
+                        color = RaahiText,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 12.sp,
+                    )
+                    if (selectedCategory != "All") {
+                        Spacer(Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(RaahiOrange.copy(alpha = 0.14f))
+                                .clickable { onClearCategory() }
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(selectedCategory, color = RaahiOrange, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
+                                Spacer(Modifier.width(3.dp))
+                                Icon(Icons.Outlined.Close, contentDescription = "Clear", tint = RaahiOrange, modifier = Modifier.size(10.dp))
+                            }
+                        }
+                    }
+                }
+            }
+
+            val openCount = items.count { it.isAvailable }
+            if (openCount > 0) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (RaahiIsDark) Color(0xEE131D2E) else Color(0xF2FFFFFF),
+                    border = BorderStroke(1.dp, RaahiGreen.copy(alpha = 0.25f)),
+                    shadowElevation = 2.dp,
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(RaahiGreen)
+                        )
+                        Spacer(Modifier.width(5.dp))
+                        Text("$openCount open", color = RaahiGreen, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(4.dp))
+
+        // Google Maps-style Horizontal Pager with peek on right/left edges
+        HorizontalPager(
+            state = pagerState,
+            pageSize = PageSize.Fixed(305.dp),
+            pageSpacing = 12.dp,
+            contentPadding = PaddingValues(horizontal = 20.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) { page ->
+            val item = items[page]
+            MechanicCarouselCard(
+                item = item,
+                isSelected = selectedItem?.id == item.id,
+                onClick = { onItemSelect(item) },
+                onCall = onCall,
+                onDirections = onDirections,
+                modifier = Modifier.width(305.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun MechanicCarouselCard(
+    item: UnifiedMechanicItem,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    onCall: (String) -> Unit,
+    onDirections: (Double, Double) -> Unit,
+    modifier: Modifier = Modifier.width(305.dp),
+) {
+    Surface(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(22.dp),
+        color = if (RaahiIsDark) Color(0xFF131D2E) else Color.White,
+        border = BorderStroke(
+            width = if (isSelected) 1.5.dp else 1.dp,
+            color = if (isSelected) RaahiOrange else RaahiBorderSoft,
+        ),
+        shadowElevation = if (isSelected) 6.dp else 2.5.dp,
+    ) {
+        Box {
+            if (isSelected) {
+                // Top accent indicator pill for the selected card
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .width(32.dp)
+                        .height(3.dp)
+                        .clip(RoundedCornerShape(bottomStart = 2.dp, bottomEnd = 2.dp))
+                        .background(RaahiOrange)
                 )
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    val (badgeBg, badgeTint, badgeIcon) = when (item.source) {
+                        MechanicSource.VERIFIED -> Triple(RaahiGreen.copy(alpha = 0.12f), RaahiGreen, Icons.Outlined.VerifiedUser)
+                        MechanicSource.GOOGLE_PLACES -> Triple(RaahiOrange.copy(alpha = 0.12f), RaahiOrange, Icons.Outlined.Build)
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(badgeBg),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(badgeIcon, contentDescription = null, tint = badgeTint, modifier = Modifier.size(17.dp))
+                    }
+
+                    Spacer(Modifier.width(10.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = item.name,
+                                color = RaahiText,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false),
+                            )
+                            if (item.source == MechanicSource.VERIFIED) {
+                                Spacer(Modifier.width(6.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(RaahiGreen.copy(alpha = 0.12f))
+                                        .padding(horizontal = 5.dp, vertical = 1.5.dp)
+                                ) {
+                                    Text("Verified", color = RaahiGreen, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+
+                        val sub = item.specializations ?: item.subtitle ?: item.address
+                        if (!sub.isNullOrBlank()) {
+                            Text(
+                                text = sub,
+                                color = RaahiTextDim,
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(8.dp))
+
+                // Rating, Distance & Status Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (item.rating != null && item.rating > 0.0) {
+                        Icon(Icons.Outlined.Star, contentDescription = null, tint = RaahiAmber, modifier = Modifier.size(13.dp))
+                        Spacer(Modifier.width(2.dp))
+                        Text(
+                            text = "${"%.1f".format(item.rating)}${item.ratingCount?.let { " ($it)" } ?: ""}",
+                            color = RaahiText,
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(" · ", color = RaahiTextFaint, fontSize = 11.sp)
+                    }
+
+                    Text(
+                        text = "${"%.1f".format(item.distanceKm)} km away",
+                        color = RaahiOrange,
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+
+                    if (item.isAvailable) {
+                        Text(" · ", color = RaahiTextFaint, fontSize = 11.sp)
+                        Text("Open", color = RaahiGreen, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+
+                Spacer(Modifier.height(10.dp))
+
+                // Action buttons row (Call & Directions)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (!item.phone.isNullOrBlank()) {
+                        SmallActionButton(
+                            label = "Call",
+                            icon = Icons.Outlined.Call,
+                            tint = RaahiGreen,
+                            onClick = { onCall(item.phone) },
+                        )
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    SmallActionButton(
+                        label = "Directions",
+                        icon = Icons.Outlined.Navigation,
+                        tint = RaahiCyan,
+                        onClick = { onDirections(item.lat, item.lng) },
+                    )
+                }
             }
         }
     }
@@ -431,236 +761,16 @@ private fun MechanicsListView(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             items(items, key = { it.id }) { item ->
-                MechanicPlaceCard(
+                MechanicCarouselCard(
                     item = item,
                     isSelected = false,
                     onClick = { onItemClick(item) },
                     onCall = onCall,
                     onDirections = onDirections,
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun MechanicsBottomSheetCard(
-    items: List<UnifiedMechanicItem>,
-    selectedItem: UnifiedMechanicItem?,
-    onItemClick: (UnifiedMechanicItem) -> Unit,
-    onCall: (String) -> Unit,
-    onDirections: (Double, Double) -> Unit,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
-            .background(Color.White)
-            .shadow(elevation = 8.dp, shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
-            .padding(top = 8.dp)
-    ) {
-        // Drag handle
-        Box(
-            modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-                .width(36.dp)
-                .height(4.dp)
-                .clip(CircleShape)
-                .background(RaahiBorder)
-        )
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                if (items.isEmpty()) "No mechanics found" else "${items.size} places nearby",
-                color = RaahiText,
-                fontWeight = FontWeight.Bold,
-                fontSize = 13.5.sp,
-            )
-            val openCount = items.count { it.isAvailable }
-            if (openCount > 0) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(RaahiGreen.copy(alpha = 0.12f))
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
-                ) {
-                    Text("$openCount open", color = RaahiGreen, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-
-        if (items.isEmpty()) {
-            EmptyStateNotice(modifier = Modifier.padding(16.dp))
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 280.dp),
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                items(items, key = { it.id }) { item ->
-                    MechanicPlaceCard(
-                        item = item,
-                        isSelected = selectedItem?.id == item.id,
-                        onClick = { onItemClick(item) },
-                        onCall = onCall,
-                        onDirections = onDirections,
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun MechanicPlaceCard(
-    item: UnifiedMechanicItem,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-    onCall: (String) -> Unit,
-    onDirections: (Double, Double) -> Unit,
-) {
-    val borderColor = if (isSelected) RaahiOrange else RaahiBorderSoft
-    val bgColor = if (isSelected) Color(0xFFFFF9F5) else Color.White
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(bgColor)
-            .border(1.dp, borderColor, RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick)
-            .padding(12.dp)
-    ) {
-        Column {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.Top,
-            ) {
-                // Category icon badge
-                val (badgeColor, iconVector) = when (item.source) {
-                    MechanicSource.VERIFIED -> RaahiGreen to Icons.Outlined.VerifiedUser
-                    MechanicSource.GOOGLE_PLACES -> Color(0xFF4285F4) to Icons.Outlined.Place
-                }
-
-                Box(
-                    modifier = Modifier
-                        .size(38.dp)
-                        .clip(CircleShape)
-                        .background(badgeColor.copy(alpha = 0.15f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(iconVector, contentDescription = null, tint = badgeColor, modifier = Modifier.size(19.dp))
-                }
-
-                Spacer(Modifier.width(10.dp))
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            item.name,
-                            color = RaahiText,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.5.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false),
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        // Source tag
-                        when (item.source) {
-                            MechanicSource.VERIFIED -> SourceBadge("Verified", RaahiGreen)
-                            MechanicSource.GOOGLE_PLACES -> SourceBadge("Google Places", Color(0xFF4285F4))
-                        }
-                    }
-
-                    if (!item.subtitle.isNullOrBlank()) {
-                        Text(item.subtitle, color = RaahiTextDim, fontSize = 11.5.sp, maxLines = 1)
-                    }
-                    if (!item.address.isNullOrBlank()) {
-                        Text(item.address, color = RaahiTextFaint, fontSize = 10.5.sp, maxLines = 1)
-                    }
-
-                    // Rating & distance line
-                    Row(
-                        modifier = Modifier.padding(top = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        if (item.rating != null) {
-                            Icon(Icons.Outlined.Star, contentDescription = null, tint = RaahiAmber, modifier = Modifier.size(13.dp))
-                            Text(
-                                " ${"%.1f".format(item.rating)}${item.ratingCount?.let { " ($it)" } ?: ""}",
-                                color = RaahiTextDim,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                            Text(" · ", color = RaahiTextFaint, fontSize = 11.sp)
-                        }
-                        Text(
-                            "${"%.1f".format(item.distanceKm)} km away",
-                            color = RaahiOrange,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        if (item.specializations != null) {
-                            Text(" · ${item.specializations}", color = RaahiTextDim, fontSize = 11.sp, maxLines = 1)
-                        }
-                    }
-                }
-
-                // Status indicator
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .clip(CircleShape)
-                        .background(if (item.isAvailable) RaahiGreen else RaahiRed)
-                )
-            }
-
-            // Action buttons row (Call & Directions)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (!item.phone.isNullOrBlank()) {
-                    SmallActionButton(
-                        label = "Call",
-                        icon = Icons.Outlined.Call,
-                        tint = RaahiGreen,
-                        onClick = { onCall(item.phone) },
-                    )
-                    Spacer(Modifier.width(8.dp))
-                }
-                SmallActionButton(
-                    label = "Directions",
-                    icon = Icons.Outlined.Navigation,
-                    tint = RaahiCyan,
-                    onClick = { onDirections(item.lat, item.lng) },
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun SourceBadge(text: String, color: Color) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(4.dp))
-            .background(color.copy(alpha = 0.12f))
-            .padding(horizontal = 5.dp, vertical = 1.dp)
-    ) {
-        Text(text, color = color, fontSize = 9.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -671,19 +781,19 @@ private fun SmallActionButton(
     tint: Color,
     onClick: () -> Unit,
 ) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(tint.copy(alpha = 0.10f))
-            .border(1.dp, tint.copy(alpha = 0.25f), RoundedCornerShape(8.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 5.dp),
-        contentAlignment = Alignment.Center,
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(10.dp),
+        color = tint.copy(alpha = 0.12f),
+        border = BorderStroke(1.dp, tint.copy(alpha = 0.28f)),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.padding(horizontal = 11.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(13.dp))
             Spacer(Modifier.width(4.dp))
-            Text(label, color = tint, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Text(label, color = tint, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -693,17 +803,17 @@ private fun MapRoundButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     onClick: () -> Unit,
 ) {
-    Box(
-        modifier = Modifier
-            .size(40.dp)
-            .shadow(elevation = 4.dp, shape = CircleShape)
-            .clip(CircleShape)
-            .background(Color.White)
-            .border(1.dp, RaahiBorderSoft, CircleShape)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
+    Surface(
+        onClick = onClick,
+        shape = CircleShape,
+        color = if (RaahiIsDark) Color(0xFF131D2E) else Color.White,
+        border = BorderStroke(1.dp, RaahiBorderSoft),
+        shadowElevation = 4.dp,
+        modifier = Modifier.size(40.dp),
     ) {
-        Icon(icon, contentDescription = null, tint = RaahiText, modifier = Modifier.size(18.dp))
+        Box(contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, tint = RaahiText, modifier = Modifier.size(18.dp))
+        }
     }
 }
 

@@ -60,7 +60,7 @@ import `in`.raahi.app.ui.theme.*
 fun GlassCard(
     modifier: Modifier = Modifier,
     shape: androidx.compose.ui.graphics.Shape = RaahiShapeLarge,
-    background: Color = Color.White,
+    background: Color = RaahiGlass,
     borderColor: Color = RaahiBorderSoft,
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
@@ -82,7 +82,8 @@ fun RowCard(
     onClick: (() -> Unit)? = null,
     content: @Composable RowScope.() -> Unit,
 ) {
-    val bg = if (urgent) Color(0xFFFEF2F2) else Color.White
+    val isDark = LocalRaahiColors.current.isDark
+    val bg = if (urgent) (if (isDark) Color(0xFF381A1A) else Color(0xFFFEF2F2)) else RaahiGlass
     val border = if (urgent) RaahiRed.copy(alpha = 0.35f) else RaahiBorderSoft
     val clickMod = if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
     Row(
@@ -188,7 +189,7 @@ fun SectionLabel(text: String, trailing: String? = null, onTrailingClick: (() ->
 
 @Composable
 fun RaahiChip(label: String, active: Boolean, icon: ImageVector? = null, onClick: () -> Unit) {
-    val bg = if (active) RaahiOrange else Color.White
+    val bg = if (active) RaahiOrange else RaahiGlass
     val border = if (active) RaahiOrange else RaahiBorder
     val textColor = if (active) Color.White else RaahiTextDim
     Row(
@@ -249,38 +250,69 @@ fun ScoreRing(score: Int, ringSize: Dp = 56.dp, big: Boolean = false) {
 fun Ticker(items: List<String>, modifier: Modifier = Modifier) {
     if (items.isEmpty()) return
 
+    // Repeat items to allow smooth continuous looping
+    val displayItems = remember(items) {
+        if (items.size > 1) items + items + items else items
+    }
+
     val scrollState = rememberScrollState()
-    LaunchedEffect(scrollState.maxValue) {
-        if (scrollState.maxValue <= 0) return@LaunchedEffect
+    var isUserInteracting by remember { mutableStateOf(false) }
+
+    // Detect user touch / drag interaction to pause auto-scroll
+    LaunchedEffect(scrollState.isScrollInProgress) {
+        if (scrollState.isScrollInProgress) {
+            isUserInteracting = true
+        } else {
+            // Once user finishes touch gesture, wait 2 seconds before resuming auto-scroll
+            delay(2000)
+            isUserInteracting = false
+        }
+    }
+
+    // Faster, smoother auto-scrolling
+    LaunchedEffect(displayItems, isUserInteracting) {
+        if (isUserInteracting) return@LaunchedEffect
         while (true) {
+            val max = scrollState.maxValue
+            if (max <= 0) {
+                delay(300)
+                continue
+            }
+            if (scrollState.value >= max - 20) {
+                // Wrap back smoothly without a jump to 0
+                scrollState.scrollTo(max / 3)
+            }
+            val remaining = (max - scrollState.value).coerceAtLeast(1)
+            // Scroll rate: ~7ms per pixel for smooth responsive movement
+            val duration = (remaining * 7).coerceIn(2000, 15000)
             scrollState.animateScrollTo(
-                scrollState.maxValue,
+                value = max,
                 animationSpec = tween(
-                    (scrollState.maxValue * 18).coerceAtLeast(5000),
+                    durationMillis = duration,
                     easing = LinearEasing
                 )
             )
-            delay(700)
-            scrollState.scrollTo(0)
-            delay(500)
+            delay(300)
         }
     }
+
+    val isDark = LocalRaahiColors.current.isDark
 
     Row(
         modifier = modifier
             .fillMaxWidth()
             .height(62.dp)
-            .shadow(3.dp, RaahiShapePill, spotColor = Color(0x120F1D35))
+            .shadow(2.dp, RaahiShapePill, spotColor = Color(0x120F1D35))
             .clip(RaahiShapePill)
-            .background(Color.White)
-            .border(1.dp, Color(0xFFE9EDF3), RaahiShapePill),
+            .background(RaahiBg2)
+            .border(1.dp, RaahiBorderSoft, RaahiShapePill),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(
             modifier = Modifier
                 .widthIn(min = 104.dp)
                 .fillMaxHeight()
-                .background(Color(0xFFFFF3EB))
+                .background(if (isDark) Color(0xFF2E1F18) else Color(0xFFFFF3EB))
                 .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -288,7 +320,7 @@ fun Ticker(items: List<String>, modifier: Modifier = Modifier) {
             Box(
                 Modifier.size(34.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFFFFE2D1)),
+                    .background(if (isDark) Color(0xFF45271A) else Color(0xFFFFE2D1)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -300,7 +332,7 @@ fun Ticker(items: List<String>, modifier: Modifier = Modifier) {
             }
             Column {
                 Text(
-                    "Fuel Prices",
+                    "Live Updates",
                     color = RaahiText,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
@@ -319,18 +351,18 @@ fun Ticker(items: List<String>, modifier: Modifier = Modifier) {
             Modifier
                 .width(1.dp)
                 .height(34.dp)
-                .background(Color(0xFFE9EDF3))
+                .background(RaahiBorderSoft)
         )
 
         Row(
             modifier = Modifier
                 .weight(1f)
-                .horizontalScroll(scrollState, enabled = false)
+                .horizontalScroll(scrollState, enabled = true)
                 .padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            items.forEachIndexed { index, item ->
+            displayItems.forEachIndexed { index, item ->
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(7.dp)
@@ -354,12 +386,12 @@ fun Ticker(items: List<String>, modifier: Modifier = Modifier) {
                         }
                     }
                 }
-                if (index < items.lastIndex) {
+                if (index < displayItems.lastIndex) {
                     Box(
                         Modifier
                             .width(1.dp)
                             .height(28.dp)
-                            .background(Color(0xFFE9EDF3))
+                            .background(RaahiBorderSoft)
                     )
                 }
             }
@@ -374,8 +406,8 @@ enum class RaahiTab(val label: String) {
 }
 
 /**
- * Floating white pill bottom navigation bar matching the reference mockup:
- * Pure white container, soft shadow, coral-red active state with glow, slate inactive state.
+ * Floating pill bottom navigation bar matching the design system:
+ * Container surface adapting to theme, soft shadow, coral-red active state.
  */
 @Composable
 fun RaahiBottomNavBar(current: RaahiTab, onSelect: (RaahiTab) -> Unit) {
@@ -385,8 +417,8 @@ fun RaahiBottomNavBar(current: RaahiTab, onSelect: (RaahiTab) -> Unit) {
             .padding(horizontal = 16.dp, vertical = 10.dp)
             .height(64.dp)
             .shadow(elevation = 8.dp, shape = RoundedCornerShape(28.dp), spotColor = Color(0x18000000), ambientColor = Color(0x0A000000))
-            .background(Color.White, RoundedCornerShape(28.dp))
-            .border(1.dp, Color(0xFFEDE8E1), RoundedCornerShape(28.dp)),
+            .background(RaahiBg2, RoundedCornerShape(28.dp))
+            .border(1.dp, RaahiBorderSoft, RoundedCornerShape(28.dp)),
     ) {
         Row(
             modifier = Modifier.fillMaxSize(),
@@ -511,7 +543,7 @@ fun RaahiOutlineButton(
         modifier = modifier.fillMaxWidth().height(52.dp),
         shape = RoundedCornerShape(18.dp),
         border = androidx.compose.foundation.BorderStroke(1.dp, tint.copy(alpha = if (enabled) 0.6f else 0.25f)),
-        colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(containerColor = Color.White, contentColor = tint),
+        colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(containerColor = RaahiGlass, contentColor = tint),
     ) {
         Text(text, color = tint, fontWeight = FontWeight.Bold, fontSize = 14.sp)
     }
@@ -541,7 +573,7 @@ fun RaahiTextField(
         colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
             focusedTextColor = RaahiText, unfocusedTextColor = RaahiText,
             focusedBorderColor = RaahiOrange, unfocusedBorderColor = RaahiBorder,
-            focusedContainerColor = Color.White, unfocusedContainerColor = Color.White,
+            focusedContainerColor = RaahiGlass, unfocusedContainerColor = RaahiGlass,
             cursorColor = RaahiOrange,
         ),
     )

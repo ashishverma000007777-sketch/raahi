@@ -36,18 +36,23 @@ class VehicleSetupViewModel @Inject constructor(
     private val _prefill = MutableStateFlow<VehicleDto?>(null)
     val prefill: StateFlow<VehicleDto?> = _prefill.asStateFlow()
 
-    fun loadForEdit() {
+    fun loadForEdit(vehicleId: String? = null) {
         if (!authRepository.hasAuthToken()) return
         viewModelScope.launch {
-            runCatching { repository.myVehicle() }.onSuccess { _prefill.value = it }
+            if (vehicleId != null) {
+                val v = repository.getVehicleById(vehicleId) ?: repository.myVehicle()
+                _prefill.value = v
+            } else {
+                runCatching { repository.myVehicle() }.onSuccess { _prefill.value = it }
+            }
         }
     }
 
-    fun save(req: UpsertVehicleRequest) {
+    fun save(req: UpsertVehicleRequest, vehicleId: String? = null) {
         if (!authRepository.hasAuthToken()) return
         _state.value = VehicleSetupState.Saving
         viewModelScope.launch {
-            runCatching { repository.upsertVehicle(req) }
+            runCatching { repository.saveVehicle(req, vehicleId) }
                 .onSuccess { _state.value = VehicleSetupState.Saved }
                 .onFailure { e -> _state.value = VehicleSetupState.Error(e.toUserFriendlyMessage("Could not save your vehicle.")) }
         }

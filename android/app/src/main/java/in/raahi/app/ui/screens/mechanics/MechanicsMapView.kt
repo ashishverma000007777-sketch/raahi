@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -23,6 +25,7 @@ import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.gms.maps.model.LatLng as GoogleLatLng
 import `in`.raahi.app.data.LatLng
+import kotlinx.coroutines.delay
 
 @Composable
 fun MechanicsMapView(
@@ -38,6 +41,10 @@ fun MechanicsMapView(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val density = LocalDensity.current
+
+    val topPaddingPx = with(density) { 60.dp.roundToPx() }
+    val bottomPaddingPx = with(density) { 210.dp.roundToPx() }
 
     var googleMap by remember { mutableStateOf<GoogleMap?>(null) }
     val markerMap = remember { mutableMapOf<String, Marker>() }
@@ -48,14 +55,20 @@ fun MechanicsMapView(
     val verifiedIcon = remember(googleMap) {
         if (googleMap != null) createMechanicMarkerBitmap(isVerified = true, isSelected = false) else null
     }
+    val verifiedMidIcon = remember(googleMap) {
+        if (googleMap != null) createMechanicMarkerBitmap(isVerified = true, isSelected = true, scaleFactor = 0.88f) else null
+    }
     val verifiedSelectedIcon = remember(googleMap) {
-        if (googleMap != null) createMechanicMarkerBitmap(isVerified = true, isSelected = true) else null
+        if (googleMap != null) createMechanicMarkerBitmap(isVerified = true, isSelected = true, scaleFactor = 1.0f) else null
     }
     val googleIcon = remember(googleMap) {
         if (googleMap != null) createMechanicMarkerBitmap(isVerified = false, isSelected = false) else null
     }
+    val googleMidIcon = remember(googleMap) {
+        if (googleMap != null) createMechanicMarkerBitmap(isVerified = false, isSelected = true, scaleFactor = 0.88f) else null
+    }
     val googleSelectedIcon = remember(googleMap) {
-        if (googleMap != null) createMechanicMarkerBitmap(isVerified = false, isSelected = true) else null
+        if (googleMap != null) createMechanicMarkerBitmap(isVerified = false, isSelected = true, scaleFactor = 1.0f) else null
     }
     val userDotIcon = remember(googleMap) {
         if (googleMap != null) createUserDotBitmap() else null
@@ -156,6 +169,8 @@ fun MechanicsMapView(
 
         // Add or update markers
         for (item in mechanics) {
+            if (!isValidCoordinate(item.lat, item.lng)) continue
+
             val isSelected = item.id == selectedId
             val icon = when {
                 item.source == MechanicSource.VERIFIED && isSelected -> verifiedSelectedIcon
@@ -169,14 +184,15 @@ fun MechanicsMapView(
                 if (icon != null) {
                     existingMarker.setIcon(icon)
                 }
-                existingMarker.zIndex = if (isSelected) 50f else 10f
+                existingMarker.setAnchor(0.5f, 0.92f)
+                existingMarker.zIndex = if (isSelected) 100f else 10f
             } else {
                 val opts = MarkerOptions()
                     .position(GoogleLatLng(item.lat, item.lng))
                     .title(item.name)
                     .snippet(item.address ?: item.specializations ?: "")
-                    .anchor(0.5f, 0.5f)
-                    .zIndex(if (isSelected) 50f else 10f)
+                    .anchor(0.5f, 0.92f)
+                    .zIndex(if (isSelected) 100f else 10f)
                 if (icon != null) {
                     opts.icon(icon)
                 }
@@ -189,6 +205,49 @@ fun MechanicsMapView(
         }
     }
 
+    // Ensure map camera viewport padding is applied so target markers are centered in unobstructed area above cards
+    LaunchedEffect(googleMap, topPaddingPx, bottomPaddingPx) {
+        googleMap?.setPadding(0, topPaddingPx, 0, bottomPaddingPx)
+    }
+
+    var prevSelectedId by remember { mutableStateOf<String?>(null) }
+
+    // Smooth scale-up pop transition when a marker is selected and reset when deselected
+    LaunchedEffect(selectedId) {
+        val currentSelectedId = selectedId
+        // Deselect previous marker smoothly back to standard size and lower zIndex
+        if (prevSelectedId != null && prevSelectedId != currentSelectedId) {
+            val prevMarker = markerMap[prevSelectedId]
+            val prevItem = mechanics.firstOrNull { it.id == prevSelectedId }
+            if (prevMarker != null && prevItem != null) {
+                val icon = if (prevItem.source == MechanicSource.VERIFIED) verifiedIcon else googleIcon
+                if (icon != null) {
+                    prevMarker.setIcon(icon)
+                }
+                prevMarker.zIndex = 10f
+            }
+        }
+
+        // Pop animation for newly selected marker: intermediate frame -> final prominent Raahi marker
+        if (currentSelectedId != null) {
+            val newMarker = markerMap[currentSelectedId]
+            val newItem = mechanics.firstOrNull { it.id == currentSelectedId }
+            if (newMarker != null && newItem != null) {
+                newMarker.zIndex = 100f
+                val midIcon = if (newItem.source == MechanicSource.VERIFIED) verifiedMidIcon else googleMidIcon
+                val finalIcon = if (newItem.source == MechanicSource.VERIFIED) verifiedSelectedIcon else googleSelectedIcon
+                if (midIcon != null) {
+                    newMarker.setIcon(midIcon)
+                    delay(50)
+                }
+                if (finalIcon != null) {
+                    newMarker.setIcon(finalIcon)
+                }
+            }
+        }
+        prevSelectedId = currentSelectedId
+    }
+
     AndroidView(
         factory = {
             mapView.apply {
@@ -197,6 +256,7 @@ fun MechanicsMapView(
                     map.uiSettings.isCompassEnabled = true
                     map.uiSettings.isMyLocationButtonEnabled = false
                     map.mapType = GoogleMap.MAP_TYPE_NORMAL
+                    map.setPadding(0, topPaddingPx, 0, bottomPaddingPx)
 
                     // Immediately center on valid initial position if available to prevent default (0,0) viewport
                     val initialLoc = cameraTarget ?: userLocation
@@ -260,36 +320,126 @@ private fun createUserDotBitmap(): BitmapDescriptor? {
     }
 }
 
-private fun createMechanicMarkerBitmap(isVerified: Boolean, isSelected: Boolean): BitmapDescriptor? {
+private fun createMechanicMarkerBitmap(
+    isVerified: Boolean,
+    isSelected: Boolean,
+    scaleFactor: Float = 1.0f,
+): BitmapDescriptor? {
     return try {
-        val size = if (isSelected) 60 else 46
-        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val baseWidth = if (isSelected) 64f else 46f
+        val baseHeight = if (isSelected) 78f else 56f
+        val width = (baseWidth * scaleFactor).toInt().coerceAtLeast(1)
+        val height = (baseHeight * scaleFactor).toInt().coerceAtLeast(1)
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
-        val primaryColor = if (isVerified) {
+        val primaryColor = if (isSelected) {
+            android.graphics.Color.parseColor("#FF5722") // Raahi Deep Coral
+        } else if (isVerified) {
             android.graphics.Color.parseColor("#1B6BFF") // Raahi Verified Blue
         } else {
-            android.graphics.Color.parseColor("#10B981") // Google Places Emerald
+            android.graphics.Color.parseColor("#FF6B35") // Raahi Orange
         }
 
-        // Selection outer ring
+        val centerX = width / 2f
+        val circleRadius = (if (isSelected) 24f else 17f) * scaleFactor
+        val circleCenterY = circleRadius + ((if (isSelected) 5f else 3f) * scaleFactor)
+
+        // 1. Soft ground shadow under bottom tip
+        paint.color = android.graphics.Color.parseColor("#33000000")
+        canvas.drawOval(
+            centerX - ((if (isSelected) 12f else 8f) * scaleFactor),
+            height - (7f * scaleFactor),
+            centerX + ((if (isSelected) 12f else 8f) * scaleFactor),
+            height - (1f * scaleFactor),
+            paint
+        )
+
+        // 2. Pin shape path (Top circle + tapered tip)
+        val tipY = height - (5f * scaleFactor)
+        val path = android.graphics.Path()
+        path.moveTo(centerX, tipY)
+        path.quadTo(
+            centerX - circleRadius * 0.95f,
+            circleCenterY + circleRadius * 0.7f,
+            centerX - circleRadius,
+            circleCenterY
+        )
+        path.arcTo(
+            centerX - circleRadius,
+            circleCenterY - circleRadius,
+            centerX + circleRadius,
+            circleCenterY + circleRadius,
+            180f,
+            180f,
+            false
+        )
+        path.quadTo(
+            centerX + circleRadius * 0.95f,
+            circleCenterY + circleRadius * 0.7f,
+            centerX,
+            tipY
+        )
+        path.close()
+
+        // 3. Selection outer glowing aura
         if (isSelected) {
-            paint.color = android.graphics.Color.parseColor("#44FF6B35")
-            canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
+            val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = android.graphics.Color.parseColor("#44FF6B35")
+                style = Paint.Style.STROKE
+                strokeWidth = 6f * scaleFactor
+            }
+            canvas.drawPath(path, glowPaint)
         }
 
-        // Outer white halo
-        paint.color = android.graphics.Color.WHITE
-        canvas.drawCircle(size / 2f, size / 2f, (size / 2f) - (if (isSelected) 6f else 2f), paint)
+        // 4. Clean white border
+        val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = android.graphics.Color.WHITE
+            style = Paint.Style.FILL
+        }
+        canvas.drawPath(path, borderPaint)
 
-        // Main marker circle
+        // 5. Fill pin body
+        val innerCircleRadius = circleRadius - ((if (isSelected) 3.5f else 2.5f) * scaleFactor)
+        val innerTipY = tipY - ((if (isSelected) 4f else 3f) * scaleFactor)
+        val innerPath = android.graphics.Path()
+        innerPath.moveTo(centerX, innerTipY)
+        innerPath.quadTo(
+            centerX - innerCircleRadius * 0.95f,
+            circleCenterY + innerCircleRadius * 0.7f,
+            centerX - innerCircleRadius,
+            circleCenterY
+        )
+        innerPath.arcTo(
+            centerX - innerCircleRadius,
+            circleCenterY - innerCircleRadius,
+            centerX + innerCircleRadius,
+            circleCenterY + innerCircleRadius,
+            180f,
+            180f,
+            false
+        )
+        innerPath.quadTo(
+            centerX + innerCircleRadius * 0.95f,
+            circleCenterY + innerCircleRadius * 0.7f,
+            centerX,
+            innerTipY
+        )
+        innerPath.close()
+
         paint.color = primaryColor
-        canvas.drawCircle(size / 2f, size / 2f, (size / 2f) - (if (isSelected) 10f else 6f), paint)
+        paint.style = Paint.Style.FILL
+        canvas.drawPath(innerPath, paint)
 
-        // Center indicator dot
+        // 6. Inner white circle badge
+        val badgeRadius = (if (isSelected) 12f else 8.5f) * scaleFactor
         paint.color = android.graphics.Color.WHITE
-        canvas.drawCircle(size / 2f, size / 2f, if (isSelected) 6f else 4f, paint)
+        canvas.drawCircle(centerX, circleCenterY, badgeRadius, paint)
+
+        // 7. Inner center pip
+        paint.color = primaryColor
+        canvas.drawCircle(centerX, circleCenterY, (if (isSelected) 6f else 4.2f) * scaleFactor, paint)
 
         BitmapDescriptorFactory.fromBitmap(bitmap)
     } catch (_: Exception) {
@@ -298,8 +448,12 @@ private fun createMechanicMarkerBitmap(isVerified: Boolean, isSelected: Boolean)
 }
 
 private fun isValidLocation(loc: LatLng?): Boolean {
-    return loc != null && loc.lat.isFinite() && loc.lng.isFinite() &&
-        !(loc.lat == 0.0 && loc.lng == 0.0) &&
-        loc.lat in -90.0..90.0 && loc.lng in -180.0..180.0
+    return loc != null && isValidCoordinate(loc.lat, loc.lng)
+}
+
+private fun isValidCoordinate(lat: Double, lng: Double): Boolean {
+    return lat.isFinite() && lng.isFinite() &&
+        !(lat == 0.0 && lng == 0.0) &&
+        lat in -90.0..90.0 && lng in -180.0..180.0
 }
 

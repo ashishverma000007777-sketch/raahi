@@ -161,7 +161,7 @@ private fun TopHeader(onBack: () -> Unit) {
             modifier = Modifier
                 .size(44.dp)
                 .clip(RoundedCornerShape(15.dp))
-                .background(Color.White)
+                .background(RaahiGlass)
                 .border(1.dp, RaahiBorderSoft, RoundedCornerShape(15.dp)),
             contentAlignment = Alignment.Center,
         ) {
@@ -228,7 +228,7 @@ private fun LocationCard(
                 shape = RoundedCornerShape(22.dp),
                 spotColor = Color(0x12000000),
             )
-            .background(Color.White, RoundedCornerShape(22.dp))
+            .background(RaahiGlass, RoundedCornerShape(22.dp))
             .border(1.dp, RaahiBorderSoft, RoundedCornerShape(22.dp))
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -372,7 +372,7 @@ private fun ProblemGrid(selected: String?, onSelect: (String) -> Unit) {
                         else Modifier.shadow(elevation = 1.dp, shape = RoundedCornerShape(18.dp), spotColor = Color(0x08000000))
                     )
                     .background(
-                        if (isSelected) Color(0xFFFFF0ED) else Color.White,
+                        if (isSelected) RaahiSelectionBg else RaahiGlass,
                         RoundedCornerShape(18.dp)
                     )
                     .border(
@@ -407,7 +407,7 @@ private fun PriceSection(price: String, onPriceChange: (String) -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .shadow(elevation = 2.dp, shape = RoundedCornerShape(16.dp), spotColor = Color(0x10000000))
-                .background(Color.White, RoundedCornerShape(16.dp))
+                .background(RaahiGlass, RoundedCornerShape(16.dp))
                 .border(1.dp, RaahiBorderSoft, RoundedCornerShape(16.dp))
                 .padding(horizontal = 16.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -439,7 +439,7 @@ private fun PriceSection(price: String, onPriceChange: (String) -> Unit) {
                             else Modifier.shadow(elevation = 1.dp, shape = RoundedCornerShape(20.dp), spotColor = Color(0x0C000000))
                         )
                         .background(
-                            if (selected) RaahiOrange else Color.White,
+                            if (selected) RaahiOrange else RaahiGlass,
                             RoundedCornerShape(20.dp)
                         )
                         .border(
@@ -517,7 +517,7 @@ private fun requestFieldColors() = OutlinedTextFieldDefaults.colors(
     unfocusedTextColor = RaahiText,
     focusedBorderColor = RaahiOrange,
     unfocusedBorderColor = RaahiBorder,
-    focusedContainerColor = Color.White,
-    unfocusedContainerColor = Color.White,
+    focusedContainerColor = RaahiGlass,
+    unfocusedContainerColor = RaahiGlass,
     cursorColor = RaahiOrange,
 )

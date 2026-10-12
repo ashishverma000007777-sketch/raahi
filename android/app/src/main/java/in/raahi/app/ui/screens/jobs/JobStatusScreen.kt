@@ -94,13 +94,8 @@ private fun JobStatusBody(s: Loaded, vm: JobStatusViewModel, onDone: () -> Unit)
             return@Column
         }
 
-        StepperCard(job)
-        Spacer(Modifier.height(14.dp))
-        JobDetailsCard(job)
-
-        // LIVE_HELPER_TRACKING_MAP
-        if ((isRequester || isHelper) && job.status in setOf("MATCHED", "ARRIVED", "IN_PROGRESS")) {
-            Spacer(Modifier.height(14.dp))
+        // LIVE_HELPER_TRACKING_MAP (Top of tracking screen, Zomato/Blinkit style)
+        if ((isRequester || isHelper) && job.status in setOf("PENDING", "MATCHED", "ARRIVED", "IN_PROGRESS")) {
             LiveJobTrackingMap(
                 customerLat = job.lat,
                 customerLng = job.lng,
@@ -110,9 +105,14 @@ private fun JobStatusBody(s: Loaded, vm: JobStatusViewModel, onDone: () -> Unit)
                 isHelperViewer = isHelper,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(260.dp),
+                    .height(240.dp),
             )
+            Spacer(Modifier.height(14.dp))
         }
+
+        StepperCard(job)
+        Spacer(Modifier.height(14.dp))
+        JobDetailsCard(job)
 
         val otherName = if (isHelper) job.requesterName else job.helperName
         if (otherName != null) {
@@ -440,7 +440,7 @@ private fun TextPromptDialog(
     var text by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = RaahiBg2,
         title = { Text(title, color = RaahiText, fontWeight = FontWeight.Bold) },
         text = {
             Column {
@@ -464,7 +464,7 @@ private fun WorkDoneDialog(suggested: Double, onConfirm: (Double?, String) -> Un
     var mode by remember { mutableStateOf("CASH") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = RaahiBg2,
         title = { Text("Work completed", color = RaahiText, fontWeight = FontWeight.Bold) },
         text = {
             Column {
