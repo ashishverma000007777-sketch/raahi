@@ -35,7 +35,7 @@ public class CommissionService {
         return CommissionMath.round2(sum == null ? 0.0 : sum);
     }
 
-    public static final double OUTSTANDING_LIMIT = 50.0;
+    public static final double OUTSTANDING_LIMIT = 100.0;
 
     public boolean canAcceptWithBalance(double balance) {
         return CommissionMath.round2(balance) >= -OUTSTANDING_LIMIT;
