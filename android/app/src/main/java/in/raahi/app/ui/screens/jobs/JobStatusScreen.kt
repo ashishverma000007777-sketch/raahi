@@ -94,6 +94,22 @@ private fun JobStatusBody(s: Loaded, vm: JobStatusViewModel, onDone: () -> Unit)
             return@Column
         }
 
+        // LIVE_HELPER_TRACKING_MAP (Top of tracking screen, Zomato/Blinkit style)
+        if ((isRequester || isHelper) && job.status in setOf("PENDING", "MATCHED", "ARRIVED", "IN_PROGRESS")) {
+            LiveJobTrackingMap(
+                customerLat = job.lat,
+                customerLng = job.lng,
+                helperLocation = s.liveLocation,
+                helperName = if (isHelper) "You" else job.helperName,
+                jobStatus = job.status,
+                isHelperViewer = isHelper,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(240.dp),
+            )
+            Spacer(Modifier.height(14.dp))
+        }
+
         StepperCard(job)
         Spacer(Modifier.height(14.dp))
         JobDetailsCard(job)
@@ -424,7 +440,7 @@ private fun TextPromptDialog(
     var text by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = RaahiBg2,
         title = { Text(title, color = RaahiText, fontWeight = FontWeight.Bold) },
         text = {
             Column {
@@ -448,7 +464,7 @@ private fun WorkDoneDialog(suggested: Double, onConfirm: (Double?, String) -> Un
     var mode by remember { mutableStateOf("CASH") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = RaahiBg2,
         title = { Text("Work completed", color = RaahiText, fontWeight = FontWeight.Bold) },
         text = {
             Column {

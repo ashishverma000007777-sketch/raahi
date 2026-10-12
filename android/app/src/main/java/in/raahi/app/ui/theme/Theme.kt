@@ -1,10 +1,17 @@
 package `in`.raahi.app.ui.theme
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
@@ -17,23 +24,69 @@ import androidx.compose.ui.unit.sp
 import `in`.raahi.app.R
 
 // ---------------------------------------------------------------------------------------
-// Raahi Design Tokens — Exact reference mockup styling (cream / navy / coral automotive)
+// Raahi Design Tokens — Exact reference mockup styling with full Dark & Light support
 // ---------------------------------------------------------------------------------------
 
+data class RaahiColorPalette(
+    val bg: Color,
+    val bg2: Color,
+    val glass: Color,
+    val glassStrong: Color,
+    val border: Color,
+    val borderSoft: Color,
+    val text: Color,
+    val textDim: Color,
+    val textFaint: Color,
+    val selectionBg: Color,
+    val isDark: Boolean,
+)
+
+val RaahiLightPalette = RaahiColorPalette(
+    bg = Color(0xFFF6F8FC),
+    bg2 = Color(0xFFFFFFFF),
+    glass = Color(0xFFFFFFFF),
+    glassStrong = Color(0xFFF8FAFD),
+    border = Color(0xFFE2E8F0),
+    borderSoft = Color(0xFFEDF2F7),
+    text = Color(0xFF0F172A),
+    textDim = Color(0xFF475569),
+    textFaint = Color(0xFF94A3B8),
+    selectionBg = Color(0xFFFFF0E8),
+    isDark = false,
+)
+
+val RaahiDarkPalette = RaahiColorPalette(
+    bg = Color(0xFF0B1120),
+    bg2 = Color(0xFF151F32),
+    glass = Color(0xFF182338),
+    glassStrong = Color(0xFF1E2C45),
+    border = Color(0xFF283854),
+    borderSoft = Color(0xFF202D45),
+    text = Color(0xFFF8FAFC),
+    textDim = Color(0xFF94A3B8),
+    textFaint = Color(0xFF64748B),
+    selectionBg = Color(0xFF332018),
+    isDark = true,
+)
+
+val LocalRaahiColors = staticCompositionLocalOf { RaahiLightPalette }
+
 // Backgrounds
-val RaahiBg = Color(0xFFF5F8FC)          // Light warm cream / off-white (page root)
-val RaahiBg2 = Color(0xFFFFFFFF)         // Clean white card / surface
-val RaahiGlass = Color(0xFFFFFFFF)       // White card surface
-val RaahiGlassStrong = Color(0xFFFFFFFF) // Elevated white card surface
-val RaahiBorder = Color(0xFFE2E9F3)      // Soft subtle warm border
-val RaahiBorderSoft = Color(0xFFEBF0F7)  // Soft light border
+val RaahiBg: Color @Composable @ReadOnlyComposable get() = LocalRaahiColors.current.bg
+val RaahiBg2: Color @Composable @ReadOnlyComposable get() = LocalRaahiColors.current.bg2
+val RaahiGlass: Color @Composable @ReadOnlyComposable get() = LocalRaahiColors.current.glass
+val RaahiGlassStrong: Color @Composable @ReadOnlyComposable get() = LocalRaahiColors.current.glassStrong
+val RaahiBorder: Color @Composable @ReadOnlyComposable get() = LocalRaahiColors.current.border
+val RaahiBorderSoft: Color @Composable @ReadOnlyComposable get() = LocalRaahiColors.current.borderSoft
 
-// Text — Deep Navy Typography
-val RaahiText = Color(0xFF142039)        // Deep navy primary text
-val RaahiTextDim = Color(0xFF596780)     // Slate navy secondary text
-val RaahiTextFaint = Color(0xFF8B97AA)   // Soft muted slate text
+// Text — Deep Navy in Light, Crisp Off-White in Dark
+val RaahiText: Color @Composable @ReadOnlyComposable get() = LocalRaahiColors.current.text
+val RaahiTextDim: Color @Composable @ReadOnlyComposable get() = LocalRaahiColors.current.textDim
+val RaahiTextFaint: Color @Composable @ReadOnlyComposable get() = LocalRaahiColors.current.textFaint
+val RaahiIsDark: Boolean @Composable @ReadOnlyComposable get() = LocalRaahiColors.current.isDark
 
-// Accents — Automotive Coral Red
+
+// Accents — Automotive Coral Red (consistent across themes)
 val RaahiOrange = Color(0xFFFF6B35)      // Vibrant automotive coral red
 val RaahiAmber = Color(0xFFFFB547)       // Warm Amber
 val RaahiPink = Color(0xFFF28BA8)        // Subtle pink/coral
@@ -45,20 +98,20 @@ val RaahiRed = Color(0xFFE5484D)         // Emergency Red (SOS)
 // Coral / Selection tokens
 val RaahiCoral = Color(0xFFFF6B35)
 val RaahiCoralGlow = Color(0x26FF6B35)
-val RaahiSelectionBg = Color(0xFFFFF0E8)
+val RaahiSelectionBg: Color @Composable @ReadOnlyComposable get() = LocalRaahiColors.current.selectionBg
 val RaahiSelectionBorder = Color(0xFFFF6B35)
 
 // Backward-compat aliases
-val RaahiNavyBackground = RaahiBg
-val RaahiCardBg = Color(0xFFFFFFFF)
-val RaahiSurfaceHigh = Color(0xFFF8F5EE)
-val RaahiSecondaryCard = Color(0xFFFCFAF7)
-val RaahiCardBorder = RaahiBorder
+val RaahiNavyBackground: Color @Composable @ReadOnlyComposable get() = LocalRaahiColors.current.bg
+val RaahiCardBg: Color @Composable @ReadOnlyComposable get() = LocalRaahiColors.current.glass
+val RaahiSurfaceHigh: Color @Composable @ReadOnlyComposable get() = LocalRaahiColors.current.glassStrong
+val RaahiSecondaryCard: Color @Composable @ReadOnlyComposable get() = LocalRaahiColors.current.bg2
+val RaahiCardBorder: Color @Composable @ReadOnlyComposable get() = LocalRaahiColors.current.border
 val RaahiOrangeAccent = RaahiOrange
 val RaahiOrangeDark = Color(0xFFDC2626)
-val RaahiTextPrimary = RaahiText
-val RaahiTextSecondary = RaahiTextDim
-val RaahiTextMuted = RaahiTextFaint
+val RaahiTextPrimary: Color @Composable @ReadOnlyComposable get() = LocalRaahiColors.current.text
+val RaahiTextSecondary: Color @Composable @ReadOnlyComposable get() = LocalRaahiColors.current.textDim
+val RaahiTextMuted: Color @Composable @ReadOnlyComposable get() = LocalRaahiColors.current.textFaint
 val RaahiYellow = RaahiAmber
 val RaahiWarningOrange = RaahiAmber
 
@@ -108,124 +161,135 @@ val RaahiTypography = Typography(
         fontWeight = FontWeight.Bold,
         fontSize = 30.sp,
         lineHeight = 36.sp,
-        color = RaahiText,
     ),
     displayMedium = TextStyle(
         fontFamily = RaahiDisplayFont,
         fontWeight = FontWeight.Bold,
         fontSize = 26.sp,
         lineHeight = 32.sp,
-        color = RaahiText,
     ),
     displaySmall = TextStyle(
         fontFamily = RaahiDisplayFont,
         fontWeight = FontWeight.Bold,
         fontSize = 22.sp,
         lineHeight = 28.sp,
-        color = RaahiText,
     ),
     headlineLarge = TextStyle(
         fontFamily = RaahiDisplayFont,
         fontWeight = FontWeight.Bold,
         fontSize = 20.sp,
         lineHeight = 26.sp,
-        color = RaahiText,
     ),
     headlineMedium = TextStyle(
         fontFamily = RaahiDisplayFont,
         fontWeight = FontWeight.SemiBold,
         fontSize = 18.sp,
         lineHeight = 24.sp,
-        color = RaahiText,
     ),
     headlineSmall = TextStyle(
         fontFamily = RaahiDisplayFont,
         fontWeight = FontWeight.SemiBold,
         fontSize = 16.sp,
         lineHeight = 22.sp,
-        color = RaahiText,
     ),
     titleLarge = TextStyle(
         fontFamily = RaahiGlobalFont,
         fontWeight = FontWeight.SemiBold,
         fontSize = 16.sp,
         lineHeight = 22.sp,
-        color = RaahiText,
     ),
     titleMedium = TextStyle(
         fontFamily = RaahiGlobalFont,
         fontWeight = FontWeight.Medium,
         fontSize = 15.sp,
         lineHeight = 20.sp,
-        color = RaahiText,
     ),
     titleSmall = TextStyle(
         fontFamily = RaahiGlobalFont,
         fontWeight = FontWeight.Medium,
         fontSize = 14.sp,
         lineHeight = 18.sp,
-        color = RaahiText,
     ),
     bodyLarge = TextStyle(
         fontFamily = RaahiGlobalFont,
         fontWeight = FontWeight.Normal,
         fontSize = 15.sp,
         lineHeight = 22.sp,
-        color = RaahiText,
     ),
     bodyMedium = TextStyle(
         fontFamily = RaahiGlobalFont,
         fontWeight = FontWeight.Normal,
         fontSize = 13.5.sp,
         lineHeight = 19.sp,
-        color = RaahiTextDim,
     ),
     bodySmall = TextStyle(
         fontFamily = RaahiGlobalFont,
         fontWeight = FontWeight.Normal,
         fontSize = 12.sp,
         lineHeight = 16.sp,
-        color = RaahiTextFaint,
     ),
     labelLarge = TextStyle(
         fontFamily = RaahiGlobalFont,
         fontWeight = FontWeight.SemiBold,
         fontSize = 14.sp,
         lineHeight = 18.sp,
-        color = RaahiText,
     ),
     labelMedium = TextStyle(
         fontFamily = RaahiGlobalFont,
         fontWeight = FontWeight.Medium,
         fontSize = 12.sp,
         lineHeight = 16.sp,
-        color = RaahiTextDim,
     ),
     labelSmall = TextStyle(
         fontFamily = RaahiGlobalFont,
         fontWeight = FontWeight.Medium,
         fontSize = 10.sp,
         lineHeight = 14.sp,
-        color = RaahiTextFaint,
     ),
 )
 
 private val RaahiLightColors = lightColorScheme(
-    background = RaahiBg,
+    background = Color(0xFFF5F8FC),
     surface = Color.White,
     primary = RaahiOrange,
     onPrimary = Color.White,
-    onBackground = RaahiText,
-    onSurface = RaahiText,
-    outline = RaahiBorder,
+    onBackground = Color(0xFF142039),
+    onSurface = Color(0xFF142039),
+    outline = Color(0xFFE2E9F3),
+    error = RaahiRed,
+)
+
+private val RaahiDarkColors = darkColorScheme(
+    background = Color(0xFF0F172A),
+    surface = Color(0xFF1E293B),
+    primary = RaahiOrange,
+    onPrimary = Color.White,
+    onBackground = Color(0xFFF8FAFC),
+    onSurface = Color(0xFFF8FAFC),
+    outline = Color(0xFF334155),
     error = RaahiRed,
 )
 
 @Composable
 fun RaahiTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = RaahiLightColors,
-        typography = RaahiTypography,
-        content = content
-    )
+    val themePreference by ThemeManager.themeFlow.collectAsState()
+    val isSystemDark = isSystemInDarkTheme()
+    val isDark = when (themePreference) {
+        ThemeManager.THEME_DARK -> true
+        ThemeManager.THEME_LIGHT -> false
+        else -> isSystemDark
+    }
+
+    val palette = if (isDark) RaahiDarkPalette else RaahiLightPalette
+    val colorScheme = if (isDark) RaahiDarkColors else RaahiLightColors
+
+    CompositionLocalProvider(
+        LocalRaahiColors provides palette
+    ) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = RaahiTypography,
+            content = content
+        )
+    }
 }

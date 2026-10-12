@@ -545,6 +545,8 @@ private fun MobilityTechBackground(
         label = "routeSweep"
     )
 
+    val gridColor = RaahiBorderSoft.copy(alpha = 0.035f)
+
     Canvas(modifier = modifier) {
         val w = size.width
         val h = size.height
@@ -570,7 +572,7 @@ private fun MobilityTechBackground(
         var gx = gridStep
         while (gx < w) {
             drawLine(
-                color = RaahiBorderSoft.copy(alpha = 0.035f),
+                color = gridColor,
                 start = Offset(gx, 0f),
                 end = Offset(gx, h),
                 strokeWidth = 1f
@@ -580,7 +582,7 @@ private fun MobilityTechBackground(
         var gy = gridStep
         while (gy < h) {
             drawLine(
-                color = RaahiBorderSoft.copy(alpha = 0.035f),
+                color = gridColor,
                 start = Offset(0f, gy),
                 end = Offset(w, gy),
                 strokeWidth = 1f

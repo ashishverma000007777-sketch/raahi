@@ -1,263 +1,459 @@
 package `in`.raahi.app.ui.screens.mechanics
-import android.util.Log
 
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.os.Bundle
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.GoogleMap
+import com.google.android.gms.maps.MapView
+import com.google.android.gms.maps.MapsInitializer
+import com.google.android.gms.maps.model.BitmapDescriptor
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
+import com.google.android.gms.maps.model.Marker
+import com.google.android.gms.maps.model.MarkerOptions
+import com.google.android.gms.maps.model.LatLng as GoogleLatLng
 import `in`.raahi.app.data.LatLng
-import `in`.raahi.app.network.MechanicDto
-import `in`.raahi.app.network.OsmMechanicShopDto
-import org.maplibre.android.MapLibre
-import org.maplibre.android.camera.CameraPosition
-import org.maplibre.geojson.Feature
-import org.maplibre.geojson.FeatureCollection
-import org.maplibre.geojson.Point
-import org.maplibre.android.maps.MapView
-import org.maplibre.android.maps.MapLibreMap
-import org.maplibre.android.maps.Style
-import org.maplibre.android.style.expressions.Expression
-import org.maplibre.android.style.layers.CircleLayer
-import org.maplibre.android.style.layers.PropertyFactory.*
-import org.maplibre.android.style.layers.RasterLayer
-import org.maplibre.android.style.sources.GeoJsonSource
-import org.maplibre.android.style.sources.RasterSource
-import org.maplibre.android.style.sources.TileSet
-import org.maplibre.android.geometry.LatLng as MlLatLng
-
-private const val OSM_SOURCE_ID = "osm-raster-source"
-private const val OSM_LAYER_ID = "osm-raster-layer"
-private const val USER_SOURCE_ID = "user-source"
-private const val USER_LAYER_ID = "user-layer"
-private const val MECHANICS_SOURCE_ID = "mechanics-source"
-private const val MECHANICS_LAYER_ID = "mechanics-layer"
-private const val SHOPS_SOURCE_ID = "osm-shops-source"
-private const val SHOPS_LAYER_ID = "osm-shops-layer"
-private const val MECHANIC_ID_PROPERTY = "mechanicUserId"
-private const val AVAILABLE_PROPERTY = "available"
-
-/**
- * Raw XYZ raster tiles from tile.openstreetmap.org — same tile source the Flutter reference
- * used (flutter_map's TileLayer). No vector style / API key needed, which keeps this fully
- * within "MapLibre + OpenStreetMap" as specified rather than pulling in a hosted vector-style
- * provider that would need its own API key.
- */
-private fun emptyStyleBuilder(): Style.Builder {
-    val styleJson = """{ "version": 8, "sources": {}, "layers": [] }"""
-    return Style.Builder().fromJson(styleJson)
-}
+import kotlinx.coroutines.delay
 
 @Composable
 fun MechanicsMapView(
+    userLocation: LatLng?,
+    mechanics: List<UnifiedMechanicItem>,
+    selectedId: String?,
+    cameraTarget: LatLng?,
+    cameraZoom: Double?,
+    onSelect: (String) -> Unit,
+    onCameraMoved: () -> Unit = {},
+    onMapReady: (GoogleMap) -> Unit = {},
     modifier: Modifier = Modifier,
-    userLocation: LatLng,
-    mechanics: List<MechanicDto>,
-    shops: List<OsmMechanicShopDto> = emptyList(),
-    onMechanicClick: (MechanicDto) -> Unit,
-    onMapReady: (MapLibreMap) -> Unit = {},
 ) {
+    val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val mapViewRef = remember { arrayOfNulls<MapView>(1) }
-    // Keep the latest list for the click listener (the listener is registered once).
-    val latestMechanics by rememberUpdatedState(mechanics)
-    val latestShops by rememberUpdatedState(shops)
+    val density = LocalDensity.current
 
-    AndroidView<android.view.View>(
-        modifier = modifier,
-        factory = { context ->
-          // Map creation can throw on devices without usable GL / native lib problems. A failed
-          // map must never take the whole app down: fall back to an empty view and keep the
-          // list UI below it working.
-          try {
-            MapLibre.getInstance(context.applicationContext)
-            MapView(context).also { mv ->
-                mapViewRef[0] = mv
-                mv.onCreate(null)
-                Log.d("RAAHI_MAP_DEBUG", "MapView onCreate")
-                var frameCount = 0
-                mv.addOnWillStartLoadingMapListener { Log.d("RAAHI_MAP_DEBUG", "WILL_START_LOADING_MAP") }
-                mv.addOnDidFinishLoadingMapListener { Log.d("RAAHI_MAP_DEBUG", "DID_FINISH_LOADING_MAP") }
-                mv.addOnDidFailLoadingMapListener { error -> Log.e("RAAHI_MAP_DEBUG", "DID_FAIL_LOADING_MAP: $error") }
-                mv.addOnDidFinishLoadingStyleListener { Log.d("RAAHI_MAP_DEBUG", "DID_FINISH_LOADING_STYLE") }
-                mv.addOnSourceChangedListener { source -> Log.d("RAAHI_MAP_DEBUG", "SOURCE_CHANGED: $source") }
-                mv.addOnTileActionListener { a, b, c, d, e, f, g -> Log.d("RAAHI_MAP_DEBUG", "TILE_ACTION: $a $b $c $d $e $f $g") }
-                mv.addOnShaderCompileFailedListener { a, b, c -> Log.e("RAAHI_MAP_DEBUG", "SHADER_COMPILE_FAILED: $a $b $c") }
-                mv.addOnDidFinishRenderingFrameListener { a, b, c ->
-                    frameCount++
-                    if (frameCount <= 3 || frameCount % 60 == 0) Log.d("RAAHI_MAP_DEBUG", "RENDER_FRAME #$frameCount fully=$a p1=$b p2=$c")
-                }
-                Log.d("RAAHI_MAP_DEBUG", "MapView listeners registered")
-                mv.getMapAsync { map ->
-                    map.setStyle(emptyStyleBuilder()) { style ->
-                        addOsmRasterLayer(style)
-                        addUserLocationLayer(style, userLocation)
-                        addMechanicsLayer(style, mechanics)
-                        addOsmShopsLayer(style, shops)
-                    }
-                    map.cameraPosition = CameraPosition.Builder()
-                        .target(MlLatLng(userLocation.lat, userLocation.lng))
-                        .zoom(13.5)
-                        .build()
-                    map.addOnMapClickListener { point ->
-                        val screenPoint = map.projection.toScreenLocation(point)
-                        val features = map.queryRenderedFeatures(screenPoint, MECHANICS_LAYER_ID)
-                        val mechanicId = features.firstOrNull()?.getStringProperty(MECHANIC_ID_PROPERTY)
-                        val shopFeatures = map.queryRenderedFeatures(screenPoint, SHOPS_LAYER_ID)
-                        if (shopFeatures.isNotEmpty()) return@addOnMapClickListener true
-                        val mechanic = latestMechanics.firstOrNull { it.userId == mechanicId }
-                        if (mechanic != null) onMechanicClick(mechanic)
-                        mechanic != null
-                    }
-                    onMapReady(map)
-                }
-            }
-          } catch (t: Throwable) {
-            Log.e("RAAHI_MAP_DEBUG", "MAP_INIT_FAILED: ${t.javaClass.name}: ${t.message}", t)
-            android.widget.TextView(context).apply {
-                text = "Map failed to initialize: ${t.javaClass.simpleName}\n${t.message ?: "No details"}"
-                setTextColor(android.graphics.Color.RED)
-                textSize = 13f
-                setPadding(16, 16, 16, 16)
-            }
-          }
-        },
-        update = { view ->
-            val mv = view as? MapView ?: return@AndroidView
-            // Re-applied whenever the mechanics list or the user's location fix changes —
-            // MapLibre requires re-setting the GeoJSON data on the already-loaded style
-            // rather than rebuilding the whole style from scratch on every recomposition.
-            mv.getMapAsync { map ->
-                val style = map.style ?: return@getMapAsync
-                (style.getSource(MECHANICS_SOURCE_ID) as? GeoJsonSource)
-                    ?.setGeoJson(mechanicsToFeatureCollection(mechanics))
-                (style.getSource(USER_SOURCE_ID) as? GeoJsonSource)
-                    ?.setGeoJson(Feature.fromGeometry(Point.fromLngLat(userLocation.lng, userLocation.lat)))
-                (style.getSource(SHOPS_SOURCE_ID) as? GeoJsonSource)
-                    ?.setGeoJson(osmShopsToFeatureCollection(shops))
-            }
-        },
-    )
+    val topPaddingPx = with(density) { 60.dp.roundToPx() }
+    val bottomPaddingPx = with(density) { 210.dp.roundToPx() }
 
-    DisposableEffect(lifecycleOwner) {
-        val mv = mapViewRef[0] ?: return@DisposableEffect onDispose {}
-        var destroyed = false
+    var googleMap by remember { mutableStateOf<GoogleMap?>(null) }
+    val markerMap = remember { mutableMapOf<String, Marker>() }
+    var userLocationMarker by remember { mutableStateOf<Marker?>(null) }
+    var initialCameraPositioned by remember { mutableStateOf(false) }
+
+    // Defer marker icon bitmap generation until Google Maps SDK is initialized and ready
+    val verifiedIcon = remember(googleMap) {
+        if (googleMap != null) createMechanicMarkerBitmap(isVerified = true, isSelected = false) else null
+    }
+    val verifiedMidIcon = remember(googleMap) {
+        if (googleMap != null) createMechanicMarkerBitmap(isVerified = true, isSelected = true, scaleFactor = 0.88f) else null
+    }
+    val verifiedSelectedIcon = remember(googleMap) {
+        if (googleMap != null) createMechanicMarkerBitmap(isVerified = true, isSelected = true, scaleFactor = 1.0f) else null
+    }
+    val googleIcon = remember(googleMap) {
+        if (googleMap != null) createMechanicMarkerBitmap(isVerified = false, isSelected = false) else null
+    }
+    val googleMidIcon = remember(googleMap) {
+        if (googleMap != null) createMechanicMarkerBitmap(isVerified = false, isSelected = true, scaleFactor = 0.88f) else null
+    }
+    val googleSelectedIcon = remember(googleMap) {
+        if (googleMap != null) createMechanicMarkerBitmap(isVerified = false, isSelected = true, scaleFactor = 1.0f) else null
+    }
+    val userDotIcon = remember(googleMap) {
+        if (googleMap != null) createUserDotBitmap() else null
+    }
+
+    val mapView = remember {
+        MapView(context).apply {
+            try {
+                MapsInitializer.initialize(context)
+            } catch (_: Exception) {}
+            onCreate(Bundle())
+        }
+    }
+
+    DisposableEffect(lifecycleOwner, mapView) {
         val observer = LifecycleEventObserver { _, event ->
-            if (destroyed) return@LifecycleEventObserver
-        Log.d("RAAHI_MAP_DEBUG", "LIFECYCLE_EVENT: $event")
-            runCatching {
-                when (event) {
-                    Lifecycle.Event.ON_START -> mv.onStart()
-                    Lifecycle.Event.ON_RESUME -> mv.onResume()
-                    Lifecycle.Event.ON_PAUSE -> mv.onPause()
-                    Lifecycle.Event.ON_STOP -> mv.onStop()
-                    Lifecycle.Event.ON_DESTROY -> { destroyed = true; mv.onDestroy() }
-                    else -> {}
-                }
+            when (event) {
+                Lifecycle.Event.ON_START -> mapView.onStart()
+                Lifecycle.Event.ON_RESUME -> mapView.onResume()
+                Lifecycle.Event.ON_PAUSE -> mapView.onPause()
+                Lifecycle.Event.ON_STOP -> mapView.onStop()
+                Lifecycle.Event.ON_DESTROY -> mapView.onDestroy()
+                else -> {}
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
-            // Screen left composition (back / navigate away) while the Activity is still alive:
-            // the GL surface must still be torn down, otherwise reopening the screen leaks and
-            // can crash the native renderer.
-            if (!destroyed) {
-                destroyed = true
-                runCatching { mv.onPause() }
-                runCatching { mv.onStop() }
-                runCatching { mv.onDestroy() }
+            mapView.onDestroy()
+        }
+    }
+
+    // Initial camera positioning as soon as GoogleMap is bound and valid user location is available
+    LaunchedEffect(googleMap, userLocation) {
+        val map = googleMap ?: return@LaunchedEffect
+        val uLoc = userLocation ?: return@LaunchedEffect
+        if (!initialCameraPositioned && isValidLocation(uLoc)) {
+            val zoom = cameraZoom?.toFloat() ?: 14.5f
+            map.moveCamera(CameraUpdateFactory.newLatLngZoom(GoogleLatLng(uLoc.lat, uLoc.lng), zoom))
+            initialCameraPositioned = true
+        }
+    }
+
+    // Camera animation when cameraTarget explicitly updates (e.g. selection or recenter button)
+    LaunchedEffect(googleMap, cameraTarget, cameraZoom) {
+        val map = googleMap ?: return@LaunchedEffect
+        val target = cameraTarget ?: return@LaunchedEffect
+        if (isValidLocation(target)) {
+            val zoom = cameraZoom?.toFloat() ?: 14.5f
+            map.animateCamera(CameraUpdateFactory.newLatLngZoom(GoogleLatLng(target.lat, target.lng), zoom))
+            initialCameraPositioned = true
+        }
+    }
+
+    // Update user location marker
+    LaunchedEffect(googleMap, userLocation, userDotIcon) {
+        val map = googleMap ?: return@LaunchedEffect
+        if (userLocation != null) {
+            val uLatLng = GoogleLatLng(userLocation.lat, userLocation.lng)
+            val currentMarker = userLocationMarker
+            if (currentMarker == null) {
+                val opts = MarkerOptions()
+                    .position(uLatLng)
+                    .title("Your Location")
+                    .anchor(0.5f, 0.5f)
+                    .zIndex(100f)
+                if (userDotIcon != null) {
+                    opts.icon(userDotIcon)
+                }
+                userLocationMarker = map.addMarker(opts)
+            } else {
+                currentMarker.position = uLatLng
+                if (userDotIcon != null) {
+                    currentMarker.setIcon(userDotIcon)
+                }
+            }
+        } else {
+            userLocationMarker?.remove()
+            userLocationMarker = null
+        }
+    }
+
+    // Synchronize mechanic markers on the map
+    LaunchedEffect(googleMap, mechanics, selectedId, verifiedIcon, verifiedSelectedIcon, googleIcon, googleSelectedIcon) {
+        val map = googleMap ?: return@LaunchedEffect
+
+        val currentIds = mechanics.map { it.id }.toSet()
+
+        // Remove markers not in current list
+        val iterator = markerMap.entries.iterator()
+        while (iterator.hasNext()) {
+            val entry = iterator.next()
+            if (!currentIds.contains(entry.key)) {
+                entry.value.remove()
+                iterator.remove()
+            }
+        }
+
+        // Add or update markers
+        for (item in mechanics) {
+            if (!isValidCoordinate(item.lat, item.lng)) continue
+
+            val isSelected = item.id == selectedId
+            val icon = when {
+                item.source == MechanicSource.VERIFIED && isSelected -> verifiedSelectedIcon
+                item.source == MechanicSource.VERIFIED -> verifiedIcon
+                isSelected -> googleSelectedIcon
+                else -> googleIcon
+            }
+
+            val existingMarker = markerMap[item.id]
+            if (existingMarker != null) {
+                if (icon != null) {
+                    existingMarker.setIcon(icon)
+                }
+                existingMarker.setAnchor(0.5f, 0.92f)
+                existingMarker.zIndex = if (isSelected) 100f else 10f
+            } else {
+                val opts = MarkerOptions()
+                    .position(GoogleLatLng(item.lat, item.lng))
+                    .title(item.name)
+                    .snippet(item.address ?: item.specializations ?: "")
+                    .anchor(0.5f, 0.92f)
+                    .zIndex(if (isSelected) 100f else 10f)
+                if (icon != null) {
+                    opts.icon(icon)
+                }
+                val marker = map.addMarker(opts)
+                if (marker != null) {
+                    marker.tag = item.id
+                    markerMap[item.id] = marker
+                }
             }
         }
     }
-}
 
-private fun addOsmRasterLayer(style: Style) {
-    val tileSet = TileSet(
-        "2.1.0",
-        "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-        "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-        "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-    )
-    tileSet.attribution = "© OpenStreetMap contributors, © CARTO"
-    style.addSource(RasterSource(OSM_SOURCE_ID, tileSet, 256))
-    style.addLayer(RasterLayer(OSM_LAYER_ID, OSM_SOURCE_ID))
-}
-
-private fun addUserLocationLayer(style: Style, userLocation: LatLng) {
-    style.addSource(
-        GeoJsonSource(USER_SOURCE_ID, Feature.fromGeometry(Point.fromLngLat(userLocation.lng, userLocation.lat)))
-    )
-    val userLayer = CircleLayer(USER_LAYER_ID, USER_SOURCE_ID)
-    // setProperties(...), not a fluent withProperties(...) — the latter isn't part of the
-    // base Layer API on org.maplibre.android.style.layers.Layer (verified by re-checking
-    // against the only Layer method this codebase can confirm elsewhere: constructor +
-    // setProperties is the documented pattern; withProperties was a genuine, unconfirmed
-    // guess caught during the final audit).
-    userLayer.setProperties(
-        circleRadius(8f),
-        circleColor("#00CFFF"),
-        circleStrokeWidth(2.5f),
-        circleStrokeColor("#FFFFFF"),
-    )
-    style.addLayer(userLayer)
-}
-
-private fun addMechanicsLayer(style: Style, mechanics: List<MechanicDto>) {
-    style.addSource(GeoJsonSource(MECHANICS_SOURCE_ID, mechanicsToFeatureCollection(mechanics)))
-    val mechanicsLayer = CircleLayer(MECHANICS_LAYER_ID, MECHANICS_SOURCE_ID)
-    mechanicsLayer.setProperties(
-        circleRadius(9f),
-        // Green when available, red when not — same visual language as the Flutter
-        // reference's green/red pins, via a match expression on the per-feature
-        // "available" property instead of two separate layers.
-        circleColor(
-            Expression.match(
-                Expression.get(AVAILABLE_PROPERTY),
-                Expression.color(android.graphics.Color.parseColor("#FF3D5A")), // default: not available
-                Expression.stop(true, Expression.color(android.graphics.Color.parseColor("#00E676"))), // available
-            )
-        ),
-        circleStrokeWidth(2f),
-        circleStrokeColor("#FFFFFF"),
-    )
-    style.addLayer(mechanicsLayer)
-}
-
-private fun addOsmShopsLayer(style: Style, shops: List<OsmMechanicShopDto>) {
-    style.addSource(GeoJsonSource(SHOPS_SOURCE_ID, osmShopsToFeatureCollection(shops)))
-    val layer = CircleLayer(SHOPS_LAYER_ID, SHOPS_SOURCE_ID)
-    layer.setProperties(
-        circleRadius(7f),
-        circleColor("#F59E0B"),
-        circleStrokeWidth(2f),
-        circleStrokeColor("#FFFFFF"),
-    )
-    style.addLayer(layer)
-}
-
-private fun osmShopsToFeatureCollection(shops: List<OsmMechanicShopDto>): FeatureCollection {
-    val features = shops.mapNotNull { shop ->
-        if (!shop.lat.isFinite() || !shop.lng.isFinite() ||
-            shop.lat !in -90.0..90.0 || shop.lng !in -180.0..180.0
-        ) return@mapNotNull null
-        Feature.fromGeometry(Point.fromLngLat(shop.lng, shop.lat)).apply {
-            addStringProperty("osmShopId", shop.id)
-            addStringProperty("shopName", shop.name)
-        }
+    // Ensure map camera viewport padding is applied so target markers are centered in unobstructed area above cards
+    LaunchedEffect(googleMap, topPaddingPx, bottomPaddingPx) {
+        googleMap?.setPadding(0, topPaddingPx, 0, bottomPaddingPx)
     }
-    return FeatureCollection.fromFeatures(features)
+
+    var prevSelectedId by remember { mutableStateOf<String?>(null) }
+
+    // Smooth scale-up pop transition when a marker is selected and reset when deselected
+    LaunchedEffect(selectedId) {
+        val currentSelectedId = selectedId
+        // Deselect previous marker smoothly back to standard size and lower zIndex
+        if (prevSelectedId != null && prevSelectedId != currentSelectedId) {
+            val prevMarker = markerMap[prevSelectedId]
+            val prevItem = mechanics.firstOrNull { it.id == prevSelectedId }
+            if (prevMarker != null && prevItem != null) {
+                val icon = if (prevItem.source == MechanicSource.VERIFIED) verifiedIcon else googleIcon
+                if (icon != null) {
+                    prevMarker.setIcon(icon)
+                }
+                prevMarker.zIndex = 10f
+            }
+        }
+
+        // Pop animation for newly selected marker: intermediate frame -> final prominent Raahi marker
+        if (currentSelectedId != null) {
+            val newMarker = markerMap[currentSelectedId]
+            val newItem = mechanics.firstOrNull { it.id == currentSelectedId }
+            if (newMarker != null && newItem != null) {
+                newMarker.zIndex = 100f
+                val midIcon = if (newItem.source == MechanicSource.VERIFIED) verifiedMidIcon else googleMidIcon
+                val finalIcon = if (newItem.source == MechanicSource.VERIFIED) verifiedSelectedIcon else googleSelectedIcon
+                if (midIcon != null) {
+                    newMarker.setIcon(midIcon)
+                    delay(50)
+                }
+                if (finalIcon != null) {
+                    newMarker.setIcon(finalIcon)
+                }
+            }
+        }
+        prevSelectedId = currentSelectedId
+    }
+
+    AndroidView(
+        factory = {
+            mapView.apply {
+                getMapAsync { map ->
+                    map.uiSettings.isZoomControlsEnabled = false
+                    map.uiSettings.isCompassEnabled = true
+                    map.uiSettings.isMyLocationButtonEnabled = false
+                    map.mapType = GoogleMap.MAP_TYPE_NORMAL
+                    map.setPadding(0, topPaddingPx, 0, bottomPaddingPx)
+
+                    // Immediately center on valid initial position if available to prevent default (0,0) viewport
+                    val initialLoc = cameraTarget ?: userLocation
+                    if (initialLoc != null && isValidLocation(initialLoc)) {
+                        val zoom = cameraZoom?.toFloat() ?: 14.5f
+                        map.moveCamera(CameraUpdateFactory.newLatLngZoom(GoogleLatLng(initialLoc.lat, initialLoc.lng), zoom))
+                        initialCameraPositioned = true
+                    }
+
+                    map.setOnCameraMoveStartedListener { reason ->
+                        if (reason == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE) {
+                            onCameraMoved()
+                        }
+                    }
+
+                    map.setOnMarkerClickListener { marker ->
+                        val id = marker.tag as? String
+                        if (id != null) {
+                            onSelect(id)
+                            true
+                        } else {
+                            false
+                        }
+                    }
+
+                    map.setOnMapClickListener {
+                        onSelect("")
+                    }
+
+                    googleMap = map
+                    onMapReady(map)
+                }
+            }
+        },
+        modifier = modifier.fillMaxSize(),
+    )
 }
 
-private fun mechanicsToFeatureCollection(mechanics: List<MechanicDto>): FeatureCollection {
-    val features = mechanics.mapNotNull { m ->
-        val lat = m.lat ?: return@mapNotNull null
-        val lng = m.lng ?: return@mapNotNull null
-        Feature.fromGeometry(Point.fromLngLat(lng, lat)).apply {
-            addStringProperty(MECHANIC_ID_PROPERTY, m.userId)
-            addBooleanProperty(AVAILABLE_PROPERTY, m.isAvailable)
-        }
+private fun createUserDotBitmap(): BitmapDescriptor? {
+    return try {
+        val size = 48
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+        // Outer glow
+        paint.color = android.graphics.Color.parseColor("#3300CFFF")
+        canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
+
+        // White border ring
+        paint.color = android.graphics.Color.WHITE
+        canvas.drawCircle(size / 2f, size / 2f, 15f, paint)
+
+        // Inner bright cyan dot
+        paint.color = android.graphics.Color.parseColor("#00CFFF")
+        canvas.drawCircle(size / 2f, size / 2f, 11f, paint)
+
+        BitmapDescriptorFactory.fromBitmap(bitmap)
+    } catch (_: Exception) {
+        null
     }
-    return FeatureCollection.fromFeatures(features)
 }
+
+private fun createMechanicMarkerBitmap(
+    isVerified: Boolean,
+    isSelected: Boolean,
+    scaleFactor: Float = 1.0f,
+): BitmapDescriptor? {
+    return try {
+        val baseWidth = if (isSelected) 64f else 46f
+        val baseHeight = if (isSelected) 78f else 56f
+        val width = (baseWidth * scaleFactor).toInt().coerceAtLeast(1)
+        val height = (baseHeight * scaleFactor).toInt().coerceAtLeast(1)
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+        val primaryColor = if (isSelected) {
+            android.graphics.Color.parseColor("#FF5722") // Raahi Deep Coral
+        } else if (isVerified) {
+            android.graphics.Color.parseColor("#1B6BFF") // Raahi Verified Blue
+        } else {
+            android.graphics.Color.parseColor("#FF6B35") // Raahi Orange
+        }
+
+        val centerX = width / 2f
+        val circleRadius = (if (isSelected) 24f else 17f) * scaleFactor
+        val circleCenterY = circleRadius + ((if (isSelected) 5f else 3f) * scaleFactor)
+
+        // 1. Soft ground shadow under bottom tip
+        paint.color = android.graphics.Color.parseColor("#33000000")
+        canvas.drawOval(
+            centerX - ((if (isSelected) 12f else 8f) * scaleFactor),
+            height - (7f * scaleFactor),
+            centerX + ((if (isSelected) 12f else 8f) * scaleFactor),
+            height - (1f * scaleFactor),
+            paint
+        )
+
+        // 2. Pin shape path (Top circle + tapered tip)
+        val tipY = height - (5f * scaleFactor)
+        val path = android.graphics.Path()
+        path.moveTo(centerX, tipY)
+        path.quadTo(
+            centerX - circleRadius * 0.95f,
+            circleCenterY + circleRadius * 0.7f,
+            centerX - circleRadius,
+            circleCenterY
+        )
+        path.arcTo(
+            centerX - circleRadius,
+            circleCenterY - circleRadius,
+            centerX + circleRadius,
+            circleCenterY + circleRadius,
+            180f,
+            180f,
+            false
+        )
+        path.quadTo(
+            centerX + circleRadius * 0.95f,
+            circleCenterY + circleRadius * 0.7f,
+            centerX,
+            tipY
+        )
+        path.close()
+
+        // 3. Selection outer glowing aura
+        if (isSelected) {
+            val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = android.graphics.Color.parseColor("#44FF6B35")
+                style = Paint.Style.STROKE
+                strokeWidth = 6f * scaleFactor
+            }
+            canvas.drawPath(path, glowPaint)
+        }
+
+        // 4. Clean white border
+        val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = android.graphics.Color.WHITE
+            style = Paint.Style.FILL
+        }
+        canvas.drawPath(path, borderPaint)
+
+        // 5. Fill pin body
+        val innerCircleRadius = circleRadius - ((if (isSelected) 3.5f else 2.5f) * scaleFactor)
+        val innerTipY = tipY - ((if (isSelected) 4f else 3f) * scaleFactor)
+        val innerPath = android.graphics.Path()
+        innerPath.moveTo(centerX, innerTipY)
+        innerPath.quadTo(
+            centerX - innerCircleRadius * 0.95f,
+            circleCenterY + innerCircleRadius * 0.7f,
+            centerX - innerCircleRadius,
+            circleCenterY
+        )
+        innerPath.arcTo(
+            centerX - innerCircleRadius,
+            circleCenterY - innerCircleRadius,
+            centerX + innerCircleRadius,
+            circleCenterY + innerCircleRadius,
+            180f,
+            180f,
+            false
+        )
+        innerPath.quadTo(
+            centerX + innerCircleRadius * 0.95f,
+            circleCenterY + innerCircleRadius * 0.7f,
+            centerX,
+            innerTipY
+        )
+        innerPath.close()
+
+        paint.color = primaryColor
+        paint.style = Paint.Style.FILL
+        canvas.drawPath(innerPath, paint)
+
+        // 6. Inner white circle badge
+        val badgeRadius = (if (isSelected) 12f else 8.5f) * scaleFactor
+        paint.color = android.graphics.Color.WHITE
+        canvas.drawCircle(centerX, circleCenterY, badgeRadius, paint)
+
+        // 7. Inner center pip
+        paint.color = primaryColor
+        canvas.drawCircle(centerX, circleCenterY, (if (isSelected) 6f else 4.2f) * scaleFactor, paint)
+
+        BitmapDescriptorFactory.fromBitmap(bitmap)
+    } catch (_: Exception) {
+        null
+    }
+}
+
+private fun isValidLocation(loc: LatLng?): Boolean {
+    return loc != null && isValidCoordinate(loc.lat, loc.lng)
+}
+
+private fun isValidCoordinate(lat: Double, lng: Double): Boolean {
+    return lat.isFinite() && lng.isFinite() &&
+        !(lat == 0.0 && lng == 0.0) &&
+        lat in -90.0..90.0 && lng in -180.0..180.0
+}
+

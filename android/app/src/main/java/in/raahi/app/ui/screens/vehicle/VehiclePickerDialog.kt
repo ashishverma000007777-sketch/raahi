@@ -65,8 +65,8 @@ fun VehiclePickerDialog(
                 .fillMaxWidth(0.92f)
                 .heightIn(max = 480.dp)
                 .shadow(elevation = 16.dp, shape = RoundedCornerShape(20.dp), spotColor = Color(0x22000000))
-                .background(Color.White, RoundedCornerShape(20.dp))
-                .border(1.dp, Color(0xFFEDE8E1), RoundedCornerShape(20.dp))
+                .background(RaahiBg2, RoundedCornerShape(20.dp))
+                .border(1.dp, RaahiBorderSoft, RoundedCornerShape(20.dp))
                 .padding(18.dp)
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
@@ -78,7 +78,7 @@ fun VehiclePickerDialog(
                 ) {
                     Text(
                         text = title,
-                        color = Color(0xFF111827),
+                        color = RaahiText,
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = RaahiDisplayFont
@@ -90,7 +90,7 @@ fun VehiclePickerDialog(
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Close",
-                            tint = Color(0xFF64748B),
+                            tint = RaahiTextDim,
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -103,15 +103,15 @@ fun VehiclePickerDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(44.dp)
-                        .background(Color(0xFFFAF7F2), RoundedCornerShape(10.dp))
-                        .border(1.dp, Color(0xFFE8E2D8), RoundedCornerShape(10.dp))
+                        .background(RaahiGlass, RoundedCornerShape(10.dp))
+                        .border(1.dp, RaahiBorderSoft, RoundedCornerShape(10.dp))
                         .padding(horizontal = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         imageVector = Icons.Default.Search,
                         contentDescription = null,
-                        tint = Color(0xFF94A3B8),
+                        tint = RaahiTextDim,
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(Modifier.width(8.dp))
@@ -121,7 +121,7 @@ fun VehiclePickerDialog(
                         modifier = Modifier.weight(1f),
                         singleLine = true,
                         textStyle = TextStyle(
-                            color = Color(0xFF111827),
+                            color = RaahiText,
                             fontSize = 13.5.sp,
                             fontWeight = FontWeight.Medium
                         ),
@@ -129,7 +129,7 @@ fun VehiclePickerDialog(
                             if (searchQuery.isEmpty()) {
                                 Text(
                                     "Search by name or 2–3 letters...",
-                                    color = Color(0xFF94A3B8),
+                                    color = RaahiTextFaint,
                                     fontSize = 13.sp
                                 )
                             }
@@ -140,7 +140,7 @@ fun VehiclePickerDialog(
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Clear",
-                            tint = Color(0xFF64748B),
+                            tint = RaahiTextDim,
                             modifier = Modifier
                                 .size(16.dp)
                                 .clickable { searchQuery = "" }
@@ -159,9 +159,9 @@ fun VehiclePickerDialog(
                 ) {
                     items(filteredItems) { item ->
                         val isSelected = item.equals(selectedItem, ignoreCase = true)
-                        val rowBg = if (isSelected) Color(0xFFFFF0ED) else Color.Transparent
-                        val rowBorder = if (isSelected) Color(0xFFFF4B3A) else Color.Transparent
-                        val textCol = if (isSelected) Color(0xFFFF4B3A) else Color(0xFF1E293B)
+                        val rowBg = if (isSelected) RaahiSelectionBg else Color.Transparent
+                        val rowBorder = if (isSelected) RaahiOrange else Color.Transparent
+                        val textCol = if (isSelected) RaahiOrange else RaahiText
 
                         Row(
                             modifier = Modifier
@@ -180,7 +180,7 @@ fun VehiclePickerDialog(
                                 modifier = Modifier
                                     .size(28.dp)
                                     .background(
-                                        if (isSelected) Color(0xFFFF4B3A).copy(alpha = 0.15f) else Color(0xFFFFF0E8),
+                                        if (isSelected) RaahiOrange.copy(alpha = 0.15f) else RaahiBg,
                                         CircleShape
                                     ),
                                 contentAlignment = Alignment.Center
@@ -188,7 +188,7 @@ fun VehiclePickerDialog(
                                 Icon(
                                     imageVector = Icons.Default.DirectionsCar,
                                     contentDescription = null,
-                                    tint = if (isSelected) Color(0xFFFF4B3A) else Color(0xFF64748B),
+                                    tint = if (isSelected) RaahiOrange else RaahiTextDim,
                                     modifier = Modifier.size(15.dp)
                                 )
                             }
@@ -204,7 +204,7 @@ fun VehiclePickerDialog(
                                 Box(
                                     modifier = Modifier
                                         .size(20.dp)
-                                        .background(Color(0xFFFF4B3A), CircleShape),
+                                        .background(RaahiOrange, CircleShape),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
@@ -226,8 +226,8 @@ fun VehiclePickerDialog(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(10.dp))
-                                    .background(Color(0xFFFFF7ED))
-                                    .border(1.dp, Color(0xFFFDBA74), RoundedCornerShape(10.dp))
+                                    .background(RaahiOrange.copy(alpha = 0.1f))
+                                    .border(1.dp, RaahiOrange.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
                                     .clickable {
                                         runCatching {
                                             context.startActivity(
@@ -244,7 +244,7 @@ fun VehiclePickerDialog(
                             ) {
                                 Text(
                                     text = "Can't find your vehicle? Request it",
-                                    color = Color(0xFFC2410C),
+                                    color = RaahiOrange,
                                     fontSize = 13.5.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )

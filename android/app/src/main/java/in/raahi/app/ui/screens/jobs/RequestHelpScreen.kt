@@ -34,6 +34,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import `in`.raahi.app.ui.components.rememberLocationPermissionState
 import `in`.raahi.app.ui.theme.*
 
+// RAahi_REQUEST_HELP_UI_POLISH_V1
 @Composable
 fun RequestHelpScreen(
     onBack: () -> Unit,
@@ -79,13 +80,13 @@ fun RequestHelpScreen(
                     onRetry = viewModel::fetchLocation,
                 )
 
-                Spacer(Modifier.height(18.dp))
+                Spacer(Modifier.height(16.dp))
 
                 SectionTitle("Select issue type")
                 Spacer(Modifier.height(8.dp))
                 ProblemGrid(state.selectedProblem, onSelect = viewModel::selectProblem)
 
-                Spacer(Modifier.height(18.dp))
+                Spacer(Modifier.height(16.dp))
 
                 SectionTitle("Describe the issue (optional)")
                 Spacer(Modifier.height(8.dp))
@@ -97,8 +98,8 @@ fun RequestHelpScreen(
                     maxLines = 4,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .shadow(elevation = 1.dp, shape = RaahiShapeSmall, spotColor = Color(0x0C000000)),
-                    shape = RaahiShapeSmall,
+                        .shadow(elevation = 1.dp, shape = RoundedCornerShape(16.dp), spotColor = Color(0x08000000)),
+                    shape = RoundedCornerShape(16.dp),
                     colors = requestFieldColors(),
                 )
 
@@ -116,11 +117,11 @@ fun RequestHelpScreen(
                     Spacer(Modifier.height(10.dp))
                     Text(
                         (state.submit as SubmitState.Error).message,
-                        color = RaahiRed, fontSize = 12.5.sp, fontWeight = FontWeight.Medium,
+                        color = RaahiRed, fontSize = 13.sp, fontWeight = FontWeight.Medium,
                     )
                 }
 
-                Spacer(Modifier.height(22.dp))
+                Spacer(Modifier.height(18.dp))
 
                 // Primary CTA button: "Find Nearby Helpers" with coral red background and coral glow
                 Button(
@@ -129,7 +130,7 @@ fun RequestHelpScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(58.dp)
-                        .shadow(elevation = 4.dp, shape = RoundedCornerShape(18.dp), spotColor = RaahiOrange.copy(alpha = 0.25f)),
+                        .shadow(elevation = 3.dp, shape = RoundedCornerShape(18.dp), spotColor = RaahiOrange.copy(alpha = 0.18f)),
                     shape = RoundedCornerShape(18.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange),
                 ) {
@@ -152,16 +153,59 @@ private fun TopHeader(onBack: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .background(RaahiBg)
+            .padding(horizontal = 18.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = onBack, modifier = Modifier.size(36.dp)) {
-            Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = RaahiText)
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .clip(RoundedCornerShape(15.dp))
+                .background(RaahiGlass)
+                .border(1.dp, RaahiBorderSoft, RoundedCornerShape(15.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            IconButton(onClick = onBack, modifier = Modifier.size(44.dp)) {
+                Icon(
+                    Icons.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    tint = RaahiText,
+                )
+            }
         }
-        Spacer(Modifier.width(6.dp))
+
+        Spacer(Modifier.width(12.dp))
+
         Column(Modifier.weight(1f)) {
-            Text("Request Help", color = RaahiText, fontSize = 22.sp, fontWeight = FontWeight.Bold, fontFamily = RaahiDisplayFont)
-            Text("Tell us what's wrong. We'll find the nearest helpers for you.", color = RaahiTextDim, fontSize = 11.5.sp, maxLines = 1)
+            Text(
+                "Request Help",
+                color = RaahiText,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = RaahiDisplayFont,
+            )
+            Spacer(Modifier.height(3.dp))
+            Text(
+                "Get back on the road, faster.",
+                color = RaahiTextDim,
+                fontSize = 12.sp,
+                maxLines = 2,
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .clip(CircleShape)
+                .background(RaahiGreen.copy(alpha = 0.10f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Filled.Notifications,
+                contentDescription = "Notifications",
+                tint = RaahiGreen,
+                modifier = Modifier.size(19.dp),
+            )
         }
     }
 }
@@ -174,47 +218,102 @@ private fun LocationCard(
     onRetry: () -> Unit,
 ) {
     val ready = location is LocationFixState.Ready
+    val fetching = location is LocationFixState.Fetching
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(elevation = 2.dp, shape = RoundedCornerShape(18.dp), spotColor = Color(0x10000000))
-            .background(Color.White, RoundedCornerShape(18.dp))
-            .border(1.dp, RaahiBorderSoft, RoundedCornerShape(18.dp))
+            .shadow(
+                elevation = 3.dp,
+                shape = RoundedCornerShape(22.dp),
+                spotColor = Color(0x12000000),
+            )
+            .background(RaahiGlass, RoundedCornerShape(22.dp))
+            .border(1.dp, RaahiBorderSoft, RoundedCornerShape(22.dp))
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = Modifier
-                .size(38.dp)
-                .background((if (ready) RaahiGreen else RaahiOrange).copy(alpha = 0.12f), RoundedCornerShape(10.dp)),
+                .size(48.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(
+                    (if (ready) RaahiGreen else RaahiOrange)
+                        .copy(alpha = 0.11f)
+                ),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 if (ready) Icons.Filled.LocationOn else Icons.Filled.LocationOff,
-                contentDescription = null, tint = if (ready) RaahiGreen else RaahiOrange, modifier = Modifier.size(20.dp)
+                contentDescription = null,
+                tint = if (ready) RaahiGreen else RaahiOrange,
+                modifier = Modifier.size(23.dp),
             )
         }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
+
+        Spacer(Modifier.width(13.dp))
+
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
+            Text(
+                "BREAKDOWN LOCATION",
+                color = RaahiTextDim,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp,
+            )
+
             val title = when {
                 !hasPermission -> "Location permission needed"
-                location is LocationFixState.Fetching -> "Detecting location..."
-                ready -> "Location detected"
+                fetching -> "Finding your location…"
+                ready -> "Your location is ready"
                 else -> "Location unavailable"
             }
-            Text(title, color = if (ready) RaahiGreen else RaahiText, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+
+            Text(
+                title,
+                color = RaahiText,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+            )
+
             val loc = (location as? LocationFixState.Ready)?.location
             Text(
-                if (loc != null) "Lat ${"%.4f".format(loc.lat)}, Lng ${"%.4f".format(loc.lng)}"
-                else "Helpers need this to reach your breakdown location",
-                color = RaahiTextDim, fontSize = 11.sp, maxLines = 1,
+                if (loc != null) {
+                    "Lat %.4f · Lng %.4f".format(loc.lat, loc.lng)
+                } else {
+                    "So nearby helpers can reach you"
+                },
+                color = RaahiTextDim,
+                fontSize = 11.5.sp,
+                maxLines = 2,
             )
         }
+
+        Spacer(Modifier.width(8.dp))
+
         when {
             !hasPermission -> RetryChip("Allow", onRequestPermission)
-            location is LocationFixState.Fetching -> CircularProgressIndicator(modifier = Modifier.size(18.dp), color = RaahiOrange, strokeWidth = 2.dp)
-            ready -> Box(Modifier.size(24.dp).background(RaahiGreen, CircleShape), contentAlignment = Alignment.Center) {
-                Text("✓", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            fetching -> CircularProgressIndicator(
+                modifier = Modifier.size(21.dp),
+                color = RaahiGreen,
+                strokeWidth = 2.dp,
+            )
+            ready -> Box(
+                Modifier
+                    .size(27.dp)
+                    .clip(CircleShape)
+                    .background(RaahiGreen),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    "✓",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                )
             }
             else -> RetryChip("Retry", onRetry)
         }
@@ -225,11 +324,18 @@ private fun LocationCard(
 private fun RetryChip(label: String, onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .background(RaahiOrange.copy(alpha = 0.12f), RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(11.dp))
+            .background(RaahiGreen.copy(alpha = 0.10f))
+            .border(1.dp, RaahiGreen.copy(alpha = 0.18f), RoundedCornerShape(11.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 6.dp)
+            .padding(horizontal = 12.dp, vertical = 9.dp),
     ) {
-        Text(label, color = RaahiOrange, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+        Text(
+            label,
+            color = RaahiGreen,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+        )
     }
 }
 
@@ -238,13 +344,15 @@ private fun SectionTitle(title: String) {
     Text(
         text = title,
         color = RaahiText,
-        fontSize = 13.5.sp,
+        fontSize = 15.sp,
         fontWeight = FontWeight.Bold,
-        fontFamily = RaahiDisplayFont
+        fontFamily = RaahiDisplayFont,
+        letterSpacing = (-0.2).sp,
     )
 }
 
 @Composable
+// RAAHI_PROBLEM_GRID_POLISH_V2
 private fun ProblemGrid(selected: String?, onSelect: (String) -> Unit) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(3),
@@ -260,11 +368,11 @@ private fun ProblemGrid(selected: String?, onSelect: (String) -> Unit) {
             Column(
                 modifier = Modifier
                     .then(
-                        if (isSelected) Modifier.shadow(elevation = 5.dp, shape = RoundedCornerShape(18.dp), spotColor = RaahiOrange)
-                        else Modifier.shadow(elevation = 1.dp, shape = RoundedCornerShape(18.dp), spotColor = Color(0x0C000000))
+                        if (isSelected) Modifier.shadow(elevation = 3.dp, shape = RoundedCornerShape(18.dp), spotColor = RaahiOrange)
+                        else Modifier.shadow(elevation = 1.dp, shape = RoundedCornerShape(18.dp), spotColor = Color(0x08000000))
                     )
                     .background(
-                        if (isSelected) Color(0xFFFFF0ED) else Color.White,
+                        if (isSelected) RaahiSelectionBg else RaahiGlass,
                         RoundedCornerShape(18.dp)
                     )
                     .border(
@@ -273,7 +381,7 @@ private fun ProblemGrid(selected: String?, onSelect: (String) -> Unit) {
                         RoundedCornerShape(18.dp)
                     )
                     .clickable { onSelect(p.id) }
-                    .padding(vertical = 16.dp, horizontal = 4.dp)
+                    .padding(vertical = 17.dp, horizontal = 4.dp)
                     .fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -282,7 +390,7 @@ private fun ProblemGrid(selected: String?, onSelect: (String) -> Unit) {
                 Text(
                     text = p.label,
                     color = if (isSelected) RaahiOrange else RaahiText,
-                    fontSize = 11.5.sp,
+                    fontSize = 12.sp,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
                     maxLines = 1,
                 )
@@ -298,9 +406,9 @@ private fun PriceSection(price: String, onPriceChange: (String) -> Unit) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .shadow(elevation = 2.dp, shape = RoundedCornerShape(14.dp), spotColor = Color(0x10000000))
-                .background(Color.White, RoundedCornerShape(14.dp))
-                .border(1.dp, RaahiBorderSoft, RoundedCornerShape(14.dp))
+                .shadow(elevation = 2.dp, shape = RoundedCornerShape(16.dp), spotColor = Color(0x10000000))
+                .background(RaahiGlass, RoundedCornerShape(16.dp))
+                .border(1.dp, RaahiBorderSoft, RoundedCornerShape(16.dp))
                 .padding(horizontal = 16.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -331,7 +439,7 @@ private fun PriceSection(price: String, onPriceChange: (String) -> Unit) {
                             else Modifier.shadow(elevation = 1.dp, shape = RoundedCornerShape(20.dp), spotColor = Color(0x0C000000))
                         )
                         .background(
-                            if (selected) RaahiOrange else Color.White,
+                            if (selected) RaahiOrange else RaahiGlass,
                             RoundedCornerShape(20.dp)
                         )
                         .border(
@@ -388,9 +496,9 @@ private fun CashNote() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(elevation = 1.dp, shape = RoundedCornerShape(12.dp), spotColor = Color(0x0A000000))
-            .background(Color(0xFFF0FDF4), RoundedCornerShape(12.dp))
-            .border(1.dp, Color(0xFFBBF7D0), RoundedCornerShape(12.dp))
+            .shadow(elevation = 1.dp, shape = RoundedCornerShape(14.dp), spotColor = Color(0x08000000))
+            .background(Color(0xFFF0FDF4), RoundedCornerShape(14.dp))
+            .border(1.dp, Color(0xFFD1FAE5), RoundedCornerShape(14.dp))
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -409,7 +517,7 @@ private fun requestFieldColors() = OutlinedTextFieldDefaults.colors(
     unfocusedTextColor = RaahiText,
     focusedBorderColor = RaahiOrange,
     unfocusedBorderColor = RaahiBorder,
-    focusedContainerColor = Color.White,
-    unfocusedContainerColor = Color.White,
+    focusedContainerColor = RaahiGlass,
+    unfocusedContainerColor = RaahiGlass,
     cursorColor = RaahiOrange,
 )

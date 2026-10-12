@@ -8,13 +8,16 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import kotlinx.coroutines.launch
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -43,12 +46,14 @@ import `in`.raahi.app.ui.screens.jobs.MyJobsScreen
 import `in`.raahi.app.ui.screens.jobs.RequestHelpScreen
 import `in`.raahi.app.ui.screens.mechanics.MechanicDetailScreen
 import `in`.raahi.app.ui.screens.mechanics.MechanicsMapScreen
+import `in`.raahi.app.ui.screens.onboarding.PermissionOnboardingScreen
 import `in`.raahi.app.ui.screens.profile.ProfileScreen
 import `in`.raahi.app.ui.screens.profile.ProfileSetupScreen
 import `in`.raahi.app.ui.screens.savings.PaisaBachaoScreen
 import `in`.raahi.app.ui.screens.sos.EmergencyContactsScreen
 import `in`.raahi.app.ui.screens.sos.SosScreen
 import `in`.raahi.app.ui.screens.vehicle.CarReportCardScreen
+import `in`.raahi.app.ui.screens.vehicle.MyGarageScreen
 import `in`.raahi.app.ui.screens.vehicle.ServiceHistoryScreen
 import `in`.raahi.app.ui.screens.vehicle.VehicleSetupScreen
 import `in`.raahi.app.ui.screens.trip.TripActiveScreen
@@ -68,8 +73,10 @@ private object Routes {
     const val PHONE_LOGIN = "phone_login"
     const val OTP = "otp"
     const val PROFILE_SETUP = "profile_setup"
+    const val PERMISSION_ONBOARDING = "permission_onboarding"
     const val PROFILE_EDIT = "profile_edit"
     const val PROFILE = "profile"
+    const val MY_GARAGE = "my_garage"
     const val VEHICLE_SETUP = "vehicle_setup"
     const val VEHICLE_EDIT = "vehicle_edit"
     const val SERVICE_HISTORY = "service_history"
@@ -123,6 +130,7 @@ private object Routes {
 class AuthGateViewModel @Inject constructor(
     private val tokens: TokenManager,
     private val authRepository: `in`.raahi.app.data.AuthRepository,
+    val incomingJobAlertManager: `in`.raahi.app.data.IncomingJobAlertManager,
 ) : ViewModel() {
 
     fun isAuthenticated(): Boolean = !tokens.getCachedToken().isNullOrBlank()
@@ -199,6 +207,28 @@ fun RaahiNavHost(
         return
     }
 
+    val incomingJob by gate.incomingJobAlertManager.incomingJob.collectAsState()
+    val alertScope = rememberCoroutineScope()
+
+    incomingJob?.let { job ->
+        `in`.raahi.app.ui.screens.jobs.IncomingJobFullScreenAlert(
+            job = job,
+            onNotInterested = {
+                alertScope.launch {
+                    gate.incomingJobAlertManager.declineJob()
+                }
+            },
+            onAccept = {
+                alertScope.launch {
+                    val accepted = gate.incomingJobAlertManager.acceptJob()
+                    if (accepted != null) {
+                        navController.navigate(Routes.jobStatus(accepted.id))
+                    }
+                }
+            }
+        )
+    }
+
     val startDestination = if (authenticated) Routes.HOME else Routes.PHONE_LOGIN
 
     NavHost(navController = navController, startDestination = startDestination) {
@@ -237,13 +267,14 @@ fun RaahiNavHost(
         composable(Routes.PROFILE_SETUP) {
             ProfileSetupScreen(
                 onDone = {
-                    // New-user flow: name/account profile, then straight into "Set up your
-                    // car" per the approved Car Health spec ("after authentication, if the
-                    // user's vehicle profile is incomplete, show a proper 'Set up your car'
-                    // onboarding step"). Not gated on every returning-user login too — that
-                    // would mean restructuring the sign-in redirect this app already relies
-                    // on; instead, returning users who skip it see a "Set up your car" CTA on
-                    // Home and on Profile's Car Health tab whenever they open either.
+                    navController.navigate(Routes.PERMISSION_ONBOARDING) { popUpTo(0) { inclusive = true } }
+                }
+            )
+        }
+
+        composable(Routes.PERMISSION_ONBOARDING) {
+            PermissionOnboardingScreen(
+                onDone = {
                     navController.navigate(Routes.VEHICLE_SETUP) { popUpTo(0) { inclusive = true } }
                 }
             )
@@ -272,11 +303,29 @@ fun RaahiNavHost(
             )
         }
 
-        composable(Routes.VEHICLE_EDIT) {
+        composable(
+            "${Routes.VEHICLE_EDIT}?vehicleId={vehicleId}",
+            arguments = listOf(navArgument("vehicleId") {
+                nullable = true
+                defaultValue = null
+                type = NavType.StringType
+            })
+        ) { backStackEntry ->
+            val vehicleId = backStackEntry.arguments?.getString("vehicleId")
             VehicleSetupScreen(
                 isEditing = true,
+                vehicleId = vehicleId,
                 onBack = { navController.popBackStack() },
                 onDone = { navController.popBackStack() },
+            )
+        }
+
+        composable(Routes.MY_GARAGE) {
+            MyGarageScreen(
+                onBack = { navController.popBackStack() },
+                onAddVehicle = { navController.navigate(Routes.VEHICLE_SETUP) },
+                onEditVehicle = { vehicleId -> navController.navigate("${Routes.VEHICLE_EDIT}?vehicleId=$vehicleId") },
+                onViewCarHealth = { navController.navigate(Routes.CAR_REPORT_CARD) },
             )
         }
 
@@ -331,6 +380,7 @@ fun RaahiNavHost(
                 },
                 onSetupVehicle = { navController.navigate(Routes.VEHICLE_SETUP) { launchSingleTop = true } },
                 onEditVehicle = { navController.navigate(Routes.VEHICLE_EDIT) { launchSingleTop = true } },
+                onMyGarage = { navController.navigate(Routes.MY_GARAGE) { launchSingleTop = true } },
                 onServiceHistory = { navController.navigate(Routes.SERVICE_HISTORY) },
                 onNavigateTab = navigateToTab,
                 onHelper = { navController.navigate(Routes.HELPER_DASHBOARD) { launchSingleTop = true } },

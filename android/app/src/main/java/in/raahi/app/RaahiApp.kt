@@ -12,5 +12,6 @@ class RaahiApp : Application() {
         // mandatory on API 26+, which is this app's exact minSdk, so there's no legacy
         // pre-channel code path to fall back to.
         runCatching { RaahiNotifications.createChannel(this) }
+        runCatching { `in`.raahi.app.ui.theme.ThemeManager.init(this) }
     }
 }

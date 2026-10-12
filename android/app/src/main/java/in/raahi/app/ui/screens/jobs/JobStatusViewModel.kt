@@ -54,6 +54,9 @@ class JobStatusViewModel @Inject constructor(
 
     init {
         if (authRepository.hasAuthToken()) {
+            viewModelScope.launch {
+                runCatching { webSocketClient.connect(`in`.raahi.app.BuildConfig.BASE_URL) }
+            }
             startPolling()
             listenForLiveUpdates()
             startLocationSharingIfHelper()
@@ -89,16 +92,21 @@ class JobStatusViewModel @Inject constructor(
         }
     }
 
-    /** Helper side, while IN_PROGRESS: push a location fix over the socket periodically so
-     * the requester's screen can show where their helper is. Stops once the job leaves
-     * IN_PROGRESS or this ViewModel is cleared. */
+    /** Helper side, while MATCHED/ARRIVED/IN_PROGRESS: push a location fix over socket + REST periodically so
+     * the requester's screen can show where their helper is, and update own state so helper map tracks live. */
     private fun startLocationSharingIfHelper() {
         viewModelScope.launch {
             while (true) {
                 val current = _state.value
                 if (current is JobStatusUiState.Loaded && current.job.viewerRole == "HELPER" && current.job.status in LOCATION_SHARING_STATUSES) {
                     val fix = runCatching { locationProvider.getCurrentLocation() }.getOrNull()
-                    if (fix != null) webSocketClient.sendJobLocationUpdate(jobId, fix.lat, fix.lng)
+                    if (fix != null) {
+                        _state.update {
+                            (it as? JobStatusUiState.Loaded)?.copy(liveLocation = fix.lat to fix.lng) ?: it
+                        }
+                        webSocketClient.sendJobLocationUpdate(jobId, fix.lat, fix.lng)
+                        runCatching { jobsRepository.updateLocation(jobId, fix.lat, fix.lng) }
+                    }
                 }
                 delay(LOCATION_SHARE_INTERVAL_MS)
             }
@@ -112,6 +120,7 @@ class JobStatusViewModel @Inject constructor(
                 .onSuccess { job ->
                     _state.update { prev ->
                         val prevLoc = (prev as? JobStatusUiState.Loaded)?.liveLocation
+                            ?: if (job.helperLat != null && job.helperLng != null) (job.helperLat to job.helperLng) else null
                         JobStatusUiState.Loaded(job, liveLocation = prevLoc)
                     }
                 }

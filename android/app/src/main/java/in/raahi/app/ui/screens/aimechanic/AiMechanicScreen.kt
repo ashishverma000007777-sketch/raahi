@@ -222,7 +222,7 @@ private fun DescribeStep(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color.White, RaahiShapeLarge)
+                .background(RaahiGlass, RaahiShapeLarge)
                 .border(1.dp, RaahiBorder, RaahiShapeLarge)
                 .padding(6.dp)
         ) {
@@ -417,7 +417,7 @@ private fun AssistantTypingBubble() {
         Row(
             modifier = Modifier
                 .shadow(elevation = 2.dp, shape = RaahiShapeMedium, spotColor = Color(0x10000000))
-                .background(Color.White, RaahiShapeMedium)
+                .background(RaahiGlass, RaahiShapeMedium)
                 .border(1.dp, RaahiBorderSoft, RaahiShapeMedium)
                 .padding(horizontal = 12.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically

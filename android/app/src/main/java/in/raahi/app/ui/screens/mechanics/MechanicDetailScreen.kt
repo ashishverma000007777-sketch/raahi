@@ -3,6 +3,7 @@ package `in`.raahi.app.ui.screens.mechanics
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -64,7 +65,7 @@ fun MechanicDetailScreen(
 private fun DetailBody(m: MechanicDto, onRequestHelp: () -> Unit) {
     val context = LocalContext.current
     Column(Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 16.dp)) {
-        Column(Modifier.fillMaxWidth().background(Color.White, RaahiShapeLarge).padding(18.dp)) {
+        Column(Modifier.fillMaxWidth().background(RaahiGlass, RaahiShapeLarge).border(1.dp, RaahiBorderSoft, RaahiShapeLarge).padding(18.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(60.dp).background(RaahiSelectionBg, CircleShape), contentAlignment = Alignment.Center) {
                 Text((m.shopName ?: m.name ?: "?").firstOrNull()?.uppercaseChar()?.toString() ?: "?", color = RaahiOrange, fontWeight = FontWeight.Bold, fontSize = 22.sp)

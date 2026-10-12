@@ -47,7 +47,12 @@ data class JobDto(
     val commissionAmount: Double? = null,
     val distanceKm: Double? = null,
     val createdAt: String? = null,
+    val helperLat: Double? = null,
+    val helperLng: Double? = null,
+    val nearbyHelperCount: Int? = null,
 )
+
+data class JobLocationUpdateRequest(val lat: Double, val lng: Double)
 
 data class ArriveRequest(val lat: Double?, val lng: Double?, val otp: String?)
 data class WorkDoneRequest(val finalAmount: Double?, val paymentMode: String)
@@ -80,12 +85,6 @@ data class HelperJobHistoryDto(
     val paymentMode: String?, val rated: Boolean?, val createdAt: String?, val completedAt: String?,
 )
 data class HelperRatingDto(val job_id: String?, val stars: Int, val comment: String?, val created_at: String?)
-
-data class OsmMechanicShopDto(
-    val id: String, val name: String, val phone: String?, val address: String?,
-    val lat: Double, val lng: Double, val osmUrl: String?, val status: String,
-    val distanceKm: Double
-)
 
 data class MechanicDto(
     val userId: String, val name: String?, val phone: String?, val shopName: String?,
@@ -447,14 +446,14 @@ interface RaahiApi {
     @POST("jobs/{id}/cancel")
     suspend fun cancelJob(@Path("id") id: String, @Body req: CancelRequest): ApiEnvelope<Map<String, Any>>
 
+    @POST("jobs/{id}/decline")
+    suspend fun declineJob(@Path("id") id: String): ApiEnvelope<Map<String, Any>>
+
+    @POST("jobs/{id}/location")
+    suspend fun updateJobLocation(@Path("id") id: String, @Body req: JobLocationUpdateRequest): ApiEnvelope<Map<String, Any>>
+
     @POST("jobs/{id}/report")
     suspend fun reportJob(@Path("id") id: String, @Body req: ReportRequest): ApiEnvelope<Map<String, Boolean>>
-
-    @GET("mechanics/nearby-shops")
-    suspend fun nearbyMechanicShops(
-        @Query("lat") lat: Double, @Query("lng") lng: Double,
-        @Query("radius") radius: Double? = null
-    ): ApiEnvelope<List<OsmMechanicShopDto>>
 
     @GET("mechanics/nearby")
     suspend fun nearbyMechanics(

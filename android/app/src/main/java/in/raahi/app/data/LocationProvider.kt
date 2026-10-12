@@ -42,33 +42,68 @@ class LocationProvider @Inject constructor(@ApplicationContext private val conte
 
     fun setGpsLocation(cityName: String, lat: Double, lng: Double) {
         selectedCityName = cityName
-        manualLocation = LatLng(lat, lng)
+        val coords = LatLng(lat, lng)
+        manualLocation = coords
+        lastConfirmedGpsLocation = coords
+    }
+
+    @Volatile
+    var lastConfirmedGpsLocation: LatLng? = null
+        private set
+
+    @SuppressLint("MissingPermission")
+    suspend fun getLastKnownGpsLocation(): LatLng? {
+        val loc = runCatching { client.lastLocation.await() }.getOrNull()
+        if (loc != null && loc.latitude.isFinite() && loc.longitude.isFinite()) {
+            val coords = LatLng(loc.latitude, loc.longitude)
+            lastConfirmedGpsLocation = coords
+            return coords
+        }
+        return null
+    }
+
+    /**
+     * Obtains the user's REAL physical device GPS location.
+     * Bypasses any manual city override set on the home screen.
+     * Checks fast lastLocation first, attempts fresh high-accuracy GPS fix,
+     * and falls back to lastLocation if fresh fix takes longer than timeout.
+     */
+    @SuppressLint("MissingPermission")
+    suspend fun getRealGpsLocation(freshTimeoutMs: Long = 7000L): LatLng? {
+        // Fast path: if last known location is available and fresh (< 2 mins), return it or attempt fresh
+        val cached = getLastKnownGpsLocation()
+
+        val request = CurrentLocationRequest.Builder()
+            .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
+            .setDurationMillis(freshTimeoutMs)
+            .setMaxUpdateAgeMillis(15000)
+            .build()
+
+        val freshLocation = withTimeoutOrNull(freshTimeoutMs) {
+            runCatching { client.getCurrentLocation(request, null).await() }.getOrNull()
+        }
+
+        if (freshLocation != null && freshLocation.latitude.isFinite() && freshLocation.longitude.isFinite()) {
+            val coords = LatLng(freshLocation.latitude, freshLocation.longitude)
+            lastConfirmedGpsLocation = coords
+            return coords
+        }
+
+        if (cached != null) {
+            return cached
+        }
+
+        val fallback = getLastKnownGpsLocation()
+        if (fallback != null) {
+            return fallback
+        }
+
+        return lastConfirmedGpsLocation
     }
 
     @SuppressLint("MissingPermission")
     suspend fun getFreshGpsLocation(): LatLng? {
-        val request = CurrentLocationRequest.Builder()
-            .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
-            .setDurationMillis(8000)
-            .setMaxUpdateAgeMillis(30000)
-            .build()
-
-        // 1. Attempt fresh high-accuracy location with an 8-second timeout
-        val freshLocation = withTimeoutOrNull(8000L) {
-            runCatching { client.getCurrentLocation(request, null).await() }.getOrNull()
-        }
-
-        if (freshLocation != null) {
-            return LatLng(freshLocation.latitude, freshLocation.longitude)
-        }
-
-        // 2. Emergency fallback to last known location (essential for SOS when satellites are obscured)
-        val lastLocation = runCatching { client.lastLocation.await() }.getOrNull()
-        if (lastLocation != null) {
-            return LatLng(lastLocation.latitude, lastLocation.longitude)
-        }
-
-        return null
+        return getRealGpsLocation(8000L)
     }
 
     @SuppressLint("MissingPermission") // caller is required to have checked permission first
@@ -77,6 +112,6 @@ class LocationProvider @Inject constructor(@ApplicationContext private val conte
         if (manual != null) {
             return manual
         }
-        return getFreshGpsLocation()
+        return getRealGpsLocation()
     }
 }
