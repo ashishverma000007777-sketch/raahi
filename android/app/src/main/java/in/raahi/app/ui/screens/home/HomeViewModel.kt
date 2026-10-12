@@ -158,6 +158,7 @@ class HomeViewModel @Inject constructor(
                             val newRequest = requests.firstOrNull { it.id !in seenIncomingRequestIds }
                             seenIncomingRequestIds.addAll(ids)
                             if (newRequest != null) {
+                                android.util.Log.d("RAAHI_INCOMING_ALERT", "HomeViewModel polling detected new pending request: ${newRequest.id}")
                                 incomingJobAlertManager.triggerAlert(newRequest)
                             }
                             if (seenIncomingRequestIds.size > 500) {

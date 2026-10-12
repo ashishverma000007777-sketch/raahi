@@ -156,9 +156,16 @@ public class JobController {
                 for (MechanicProfile mp : nearby) {
                     if (mp.getUser() != null && !mp.getUser().getId().equals(requester.getId())) {
                         sessionRegistry.sendToUser(mp.getUser().getId(), "job:new_request", dto);
-                        notificationService.send(mp.getUser(), "New Roadside Assistance Request",
+                        notificationService.sendHighPriorityJobAlert(mp.getUser(), "New Roadside Assistance Request",
                                 "Someone needs help with " + (req.problemType != null ? req.problemType : "vehicle") + " nearby.",
-                                Map.of("jobId", job.getId().toString(), "type", "job_new_request"));
+                                Map.of(
+                                        "jobId", job.getId().toString(),
+                                        "type", "job_new_request",
+                                        "problemType", req.problemType != null ? req.problemType : "ROADSIDE_ASSISTANCE",
+                                        "rewardAmount", String.valueOf(job.getRewardAmount() != null ? job.getRewardAmount() : 0.0),
+                                        "lat", String.valueOf(req.lat),
+                                        "lng", String.valueOf(req.lng)
+                                ));
                     }
                 }
             } catch (Exception ignored) {}

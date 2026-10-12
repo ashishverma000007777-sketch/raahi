@@ -111,8 +111,9 @@ fun HomeScreen(
     var hasLocationPerm by remember { mutableStateOf(hasLocationPermission(context)) }
     var isDrivingConfirmed by remember {
         mutableStateOf(
-            context.getSharedPreferences("raahi_driving_tracking", Context.MODE_PRIVATE)
-                .getBoolean("is_driving_confirmed", false)
+            `in`.raahi.app.data.DrivingTrackingService.isConfirmedDriving &&
+                context.getSharedPreferences("raahi_driving_tracking", Context.MODE_PRIVATE)
+                    .getBoolean("is_driving_confirmed", false)
         )
     }
 
@@ -134,7 +135,8 @@ fun HomeScreen(
     fun syncDrivingTrackingState() {
         hasLocationPerm = hasLocationPermission(context)
         val prefs = context.getSharedPreferences("raahi_driving_tracking", Context.MODE_PRIVATE)
-        isDrivingConfirmed = prefs.getBoolean("is_driving_confirmed", false)
+        isDrivingConfirmed = `in`.raahi.app.data.DrivingTrackingService.isConfirmedDriving &&
+            prefs.getBoolean("is_driving_confirmed", false)
     }
 
     LaunchedEffect(Unit) {
@@ -285,6 +287,7 @@ fun HomeScreen(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 syncDrivingTrackingState()
+                viewModel.load()
                 viewModel.refreshMetrics(hasLocationPermission(context))
                 viewModel.refreshHelperStatus()
                 if (hasLocationPermission(context)) {
@@ -591,7 +594,8 @@ private fun HomeContent(
             scrolled = scrolled,
             unread = unreadCount(metrics.summary),
             onBell = onOpenNotifications,
-            onWallet = onOpenWallet
+            onWallet = onOpenWallet,
+            helperStatus = helperStatus,
         )
     }
 }
@@ -605,7 +609,8 @@ private fun BoxScope.HeaderRow(
     scrolled: Boolean,
     unread: Int,
     onBell: () -> Unit,
-    onWallet: () -> Unit
+    onWallet: () -> Unit,
+    helperStatus: HelperStatusDto? = null,
 ) {
     val scrollFraction by androidx.compose.animation.core.animateFloatAsState(
         targetValue = if (scrolled) 1f else 0f, label = "headerBgFraction",
@@ -648,38 +653,44 @@ private fun BoxScope.HeaderRow(
 
         Spacer(Modifier.weight(1f))
 
-        // Payments & Wallet pill shortcut (Screen reference: [•] ₹-55)
-        Row(
-            modifier = Modifier
-                .shadow(elevation = 1.dp, shape = RoundedCornerShape(50), spotColor = Color(0x0C000000))
-                .clip(RoundedCornerShape(50))
-                .background(RaahiGlass)
-                .border(1.dp, RaahiBorderSoft, RoundedCornerShape(50))
-                .clickable(onClick = onWallet)
-                .padding(horizontal = 9.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(5.dp)
-        ) {
-            Icon(
-                Icons.Outlined.AccountBalanceWallet,
-                contentDescription = "Payments & Wallet",
-                tint = RaahiOrange,
-                modifier = Modifier.size(15.dp)
-            )
-            Box(
-                Modifier
-                    .size(5.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFF22B573))
-            )
-            Text(
-                "₹-55",
-                color = RaahiText,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold
-            )
+        // Payments & Wallet pill shortcut: only for approved helpers/mechanics with real balance
+        val isApprovedHelper = (user?.role == "HELPER" || user?.role == "MECHANIC") &&
+            helperStatus?.applicationStatus == "APPROVED"
+        if (isApprovedHelper) {
+            val balance = helperStatus?.commissionBalance ?: 0.0
+            val balanceText = "₹${if (balance % 1.0 == 0.0) balance.toLong().toString() else "%.2f".format(balance)}"
+            Row(
+                modifier = Modifier
+                    .shadow(elevation = 1.dp, shape = RoundedCornerShape(50), spotColor = Color(0x0C000000))
+                    .clip(RoundedCornerShape(50))
+                    .background(RaahiGlass)
+                    .border(1.dp, RaahiBorderSoft, RoundedCornerShape(50))
+                    .clickable(onClick = onWallet)
+                    .padding(horizontal = 9.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
+                Icon(
+                    Icons.Outlined.AccountBalanceWallet,
+                    contentDescription = "Payments & Wallet",
+                    tint = RaahiOrange,
+                    modifier = Modifier.size(15.dp)
+                )
+                Box(
+                    Modifier
+                        .size(5.dp)
+                        .clip(CircleShape)
+                        .background(if (balance < 0) RaahiRed else Color(0xFF22B573))
+                )
+                Text(
+                    balanceText,
+                    color = RaahiText,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Spacer(Modifier.width(8.dp))
         }
-        Spacer(Modifier.width(8.dp))
 
         // Notification Bell Button
         BellWithBadge(unread = unread, onClick = onBell)
@@ -856,7 +867,7 @@ private fun DriveTrackingCard(
  */
 @Composable
 private fun GreetingHeroBanner(user: UserDto?) {
-    val name = user?.name?.trim()?.split(" ")?.firstOrNull()?.ifBlank { "avi" } ?: "avi"
+    val firstName = user?.name?.trim()?.takeIf { it.isNotBlank() }?.split("\\s+".toRegex())?.firstOrNull()?.takeIf { it.isNotBlank() }
     val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
     val greeting = when (hour) {
         in 5..11 -> "Good Morning"
@@ -883,8 +894,9 @@ private fun GreetingHeroBanner(user: UserDto?) {
     ) {
 
         Column {
+            val greetingText = if (firstName != null) "$greeting,\n$firstName" else greeting
             Text(
-                text = "$greeting,\n$name",
+                text = greetingText,
                 color = RaahiText,
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,

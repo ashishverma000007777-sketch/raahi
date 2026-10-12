@@ -140,18 +140,59 @@ class AuthGateViewModel @Inject constructor(
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    @Inject lateinit var incomingJobAlertManager: `in`.raahi.app.data.IncomingJobAlertManager
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // The manifest theme (Theme.Raahi.Splash) exists only to paint the splash's near-black
         // starting window; switch back to the regular app theme before the window is created so
         // everything after the splash looks exactly as before.
         setTheme(R.style.Theme_Raahi)
         super.onCreate(savedInstanceState)
+
+        // Ensure activity can show over lock screen and turn the screen on for high-priority incoming alerts
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+        } else {
+            @Suppress("DEPRECATION")
+            window.addFlags(
+                android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
+                android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+            )
+        }
+
+        android.util.Log.d(
+            "RAAHI_INCOMING_ALERT",
+            "MainActivity.onCreate: action=${intent?.action}, type=${intent?.getStringExtra("type")}, jobId=${intent?.getStringExtra("jobId")}"
+        )
+        handleIncomingIntent(intent)
+
         setContent {
             RaahiTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     RaahiRoot()
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        android.util.Log.d(
+            "RAAHI_INCOMING_ALERT",
+            "MainActivity.onNewIntent: action=${intent.action}, type=${intent.getStringExtra("type")}, jobId=${intent.getStringExtra("jobId")}"
+        )
+        handleIncomingIntent(intent)
+    }
+
+    private fun handleIncomingIntent(intent: android.content.Intent?) {
+        val jobId = intent?.getStringExtra("jobId") ?: return
+        val type = intent.getStringExtra("type")
+        android.util.Log.d("RAAHI_INCOMING_ALERT", "MainActivity.handleIncomingIntent: triggering alert for jobId=$jobId, type=$type")
+        if (type == "incoming_request" || type == "job_new_request") {
+            incomingJobAlertManager.fetchAndTrigger(jobId)
         }
     }
 }

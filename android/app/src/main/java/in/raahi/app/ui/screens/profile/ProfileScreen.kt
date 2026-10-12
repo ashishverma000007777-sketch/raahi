@@ -82,6 +82,18 @@ fun ProfileScreen(
     var tab by remember { mutableStateOf(ProfileSubTab.PROFILE) }
     val scrollState = rememberScrollState()
 
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                viewModel.load()
+                carHealthViewModel.load()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     LaunchedEffect(signedOut) { if (signedOut) onSignedOut() }
 
     Surface(modifier = Modifier.fillMaxSize(), color = RaahiBg) {
@@ -187,36 +199,38 @@ private fun ProfileHeader(onBack: () -> Unit, user: UserDto?, onEdit: () -> Unit
                 modifier = Modifier.padding(16.dp)
             ) {
                 Box(modifier = Modifier.size(54.dp).background(RaahiOrange, CircleShape), contentAlignment = Alignment.Center) {
-                    val initial = user?.name?.trim()?.firstOrNull()?.uppercaseChar()?.toString() ?: "A"
+                    val initial = user?.name?.trim()?.takeIf { it.isNotBlank() }?.firstOrNull()?.uppercaseChar()?.toString() ?: "R"
                     Text(initial, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 22.sp, fontFamily = RaahiDisplayFont)
                 }
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = user?.name?.takeIf { it.isNotBlank() } ?: "avi",
+                            text = user?.name?.trim()?.takeIf { it.isNotBlank() } ?: "Raahi User",
                             color = RaahiText,
                             fontWeight = FontWeight.Bold,
                             fontSize = 17.sp,
                             fontFamily = RaahiDisplayFont
                         )
-                        Spacer(Modifier.width(6.dp))
-                        Icon(
-                            imageVector = Icons.Filled.Verified,
-                            contentDescription = "Verified",
-                            tint = Color(0xFF388AF6),
-                            modifier = Modifier.size(17.dp)
-                        )
+                        if (user?.isVerified == true) {
+                            Spacer(Modifier.width(6.dp))
+                            Icon(
+                                imageVector = Icons.Filled.Verified,
+                                contentDescription = "Verified",
+                                tint = Color(0xFF388AF6),
+                                modifier = Modifier.size(17.dp)
+                            )
+                        }
                     }
                     Spacer(Modifier.height(3.dp))
                     Text(
-                        text = user?.phone?.takeIf { it.isNotBlank() } ?: "+919877912871",
+                        text = user?.phone?.takeIf { it.isNotBlank() } ?: "--",
                         color = RaahiTextDim,
                         fontSize = 12.sp
                     )
                     Spacer(Modifier.height(3.dp))
                     Text(
-                        text = user?.role?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Helper",
+                        text = user?.role?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "--",
                         color = RaahiOrange,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 12.sp
@@ -230,15 +244,21 @@ private fun ProfileHeader(onBack: () -> Unit, user: UserDto?, onEdit: () -> Unit
 
 @Composable
 private fun StatsRow(user: UserDto?) {
+    val totalHelpsText = user?.totalHelps?.toString() ?: "--"
+    val ratingText = if (user != null && user.ratingAvg > 0.0) "%.1f".format(user.ratingAvg) else "--"
+    val roleText = user?.role?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "--"
+    val statusText = if (user?.isVerified == true) "Verified" else "Pending"
+    val statusColor = if (user?.isVerified == true) RaahiGreen else RaahiOrange
+
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        StatItem(user?.let { "${it.totalHelps}" } ?: "4", "Helps", RaahiGreen, Modifier.weight(1f))
-        StatItem(user?.let { if (it.ratingAvg > 0) "%.1f".format(it.ratingAvg) else "5.0" } ?: "5.0", "Rating", RaahiAmber, Modifier.weight(1f))
-        StatItem(user?.role?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Helper", "Role", Color(0xFF3B82F6), Modifier.weight(1f))
-        StatItem("Verified", "Status", RaahiOrange, Modifier.weight(1f))
+        StatItem(totalHelpsText, "Helps", RaahiGreen, Modifier.weight(1f))
+        StatItem(ratingText, "Rating", RaahiAmber, Modifier.weight(1f))
+        StatItem(roleText, "Role", Color(0xFF3B82F6), Modifier.weight(1f))
+        StatItem(statusText, "Status", statusColor, Modifier.weight(1f))
     }
 }
 
@@ -556,78 +576,78 @@ private fun ProfileTab(
     Column(Modifier.fillMaxWidth()) {
         // 1. MY VEHICLE
         Box(Modifier.padding(horizontal = 16.dp)) { SectionLabel("MY VEHICLE") }
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .shadow(2.dp, RoundedCornerShape(16.dp), spotColor = Color(0x0C000000))
-                .clickable(onClick = onMyGarage),
-            shape = RoundedCornerShape(16.dp),
-            color = RaahiGlass,
-            border = androidx.compose.foundation.BorderStroke(1.dp, RaahiBorderSoft)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(44.dp)
-                            .background(RaahiOrange.copy(alpha = 0.12f), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.DirectionsCar,
-                            contentDescription = null,
-                            tint = RaahiOrange,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                    Spacer(Modifier.width(14.dp))
-                    Column(Modifier.weight(1f)) {
-                        val vehicleName = vehicle?.let {
-                            "${it.brand} ${it.model}${if (!it.variant.isNullOrBlank()) " ${it.variant}" else ""}".trim()
-                        }?.takeIf { it.isNotBlank() } ?: "Hyundai Grand i10 Nios Sportz"
-                        val vehicleSub = vehicle?.let {
-                            "${it.registrationNumber} • ${it.odometerKm} km"
-                        } ?: "PB01B1775 • 205416 km"
+        if (vehicle != null) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .shadow(2.dp, RoundedCornerShape(16.dp), spotColor = Color(0x0C000000))
+                    .clickable(onClick = onMyGarage),
+                shape = RoundedCornerShape(16.dp),
+                color = RaahiGlass,
+                border = androidx.compose.foundation.BorderStroke(1.dp, RaahiBorderSoft)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .background(RaahiOrange.copy(alpha = 0.12f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.DirectionsCar,
+                                contentDescription = null,
+                                tint = RaahiOrange,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        Spacer(Modifier.width(14.dp))
+                        Column(Modifier.weight(1f)) {
+                            val vehicleName = "${vehicle.brand} ${vehicle.model}${if (!vehicle.variant.isNullOrBlank()) " ${vehicle.variant}" else ""}".trim()
+                            val vehicleSub = "${vehicle.registrationNumber} • ${vehicle.odometerKm} km"
 
+                            Text(
+                                text = vehicleName,
+                                color = RaahiText,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.5.sp,
+                                fontFamily = RaahiDisplayFont
+                            )
+                            Spacer(Modifier.height(3.dp))
+                            Text(
+                                text = vehicleSub,
+                                color = RaahiTextDim,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(14.dp))
+                    Box(Modifier.fillMaxWidth().height(1.dp).background(RaahiBorderSoft))
+                    Spacer(Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Text(
-                            text = vehicleName,
-                            color = RaahiText,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.5.sp,
-                            fontFamily = RaahiDisplayFont
-                        )
-                        Spacer(Modifier.height(3.dp))
-                        Text(
-                            text = vehicleSub,
+                            "Manage garage & vehicle records",
                             color = RaahiTextDim,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium
                         )
+                        Icon(
+                            imageVector = Icons.Outlined.Settings,
+                            contentDescription = "Manage",
+                            tint = RaahiTextDim,
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
                 }
-                Spacer(Modifier.height(14.dp))
-                Box(Modifier.fillMaxWidth().height(1.dp).background(RaahiBorderSoft))
-                Spacer(Modifier.height(10.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "Manage garage & vehicle records",
-                        color = RaahiTextDim,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Icon(
-                        imageVector = Icons.Outlined.Settings,
-                        contentDescription = "Manage",
-                        tint = RaahiTextDim,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
             }
+        } else {
+            NoVehicleCard(onSetupVehicle = onEditVehicle)
         }
 
         Spacer(Modifier.height(18.dp))

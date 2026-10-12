@@ -76,7 +76,16 @@ public class HelperPortalController {
         out.put("accountActive", user.getStatus() == User.Status.ACTIVE);
         out.put("blockedUntil", user.isTemporarilyBlocked() ? user.getBlockedUntil().toString() : null);
         out.put("blockReason", user.isTemporarilyBlocked() ? user.getBlockReason() : null);
-        out.put("online", profile != null && profile.isAvailable());
+        boolean isOnline = profile != null && profile.isAvailable();
+        // Shift expiration policy: If a helper has not updated location or interacted with the app in > 24 hours, automatically expire availability
+        if (isOnline && user.getLastLocationAt() != null) {
+            if (user.getLastLocationAt().isBefore(java.time.Instant.now().minus(java.time.Duration.ofHours(24)))) {
+                isOnline = false;
+                profile.setAvailable(false);
+                profileRepository.save(profile);
+            }
+        }
+        out.put("online", isOnline);
         out.put("commissionBalance", balance);
         out.put("commissionDue", CommissionMath.owesMoney(balance));
         out.put("commissionRate", commissionService.rate());
@@ -108,6 +117,11 @@ public class HelperPortalController {
             profile.setCurrentLat(req.lat);
             profile.setCurrentLng(req.lng);
             profile.setAvailable(true);
+            user.setLastLat(req.lat);
+            user.setLastLng(req.lng);
+            user.setLastLocationAt(java.time.Instant.now());
+            user.setLastSeenAt(java.time.Instant.now());
+            userRepository.save(user);
         } else {
             profile = profileRepository.findByUserId(principal.userId())
                     .orElseThrow(() -> ApiException.notFound("NO_HELPER_PROFILE", "No helper profile"));

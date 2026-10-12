@@ -129,8 +129,10 @@ class RaahiWebSocketClient @Inject constructor(
         when (event) {
             "job:status_change" -> {
                 val jId = (data.get("jobId") ?: data.get("job_id"))?.asString ?: return null
+                val status = data.get("status").asString
+                android.util.Log.d("RAAHI_INCOMING_ALERT", "WS parseEvent: job:status_change jobId=$jId, status=$status")
                 WsEvent.JobStatusChange(
-                    jobId = jId, status = data.get("status").asString,
+                    jobId = jId, status = status,
                 )
             }
             "job:helper_location" -> {
@@ -141,6 +143,7 @@ class RaahiWebSocketClient @Inject constructor(
             }
             "job:new_request" -> {
                 val job = gson.fromJson(data, JobDto::class.java)
+                android.util.Log.d("RAAHI_INCOMING_ALERT", "WS parseEvent: job:new_request jobId=${job.id}, status=${job.status}")
                 WsEvent.JobNewRequest(job)
             }
             "sos:nearby_alert" -> WsEvent.SosNearbyAlert(
@@ -148,6 +151,8 @@ class RaahiWebSocketClient @Inject constructor(
             )
             else -> null
         }
+    }.onFailure {
+        android.util.Log.w("RAAHI_INCOMING_ALERT", "WS parseEvent error: ${it.message}")
     }.getOrNull()
 
     private fun toWsUrl(baseHttpUrl: String, token: String? = null): String {

@@ -22,6 +22,7 @@ public interface MechanicProfileRepository extends JpaRepository<MechanicProfile
           AND mp.is_available = TRUE
           AND u.status = 'ACTIVE'
           AND mp.current_lat IS NOT NULL
+          AND (u.last_location_at IS NULL OR u.last_location_at >= (NOW() - INTERVAL '24 HOURS'))
           AND (
             6371 * acos(
               LEAST(1.0, GREATEST(-1.0,

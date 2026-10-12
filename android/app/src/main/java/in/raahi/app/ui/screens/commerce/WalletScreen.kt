@@ -71,15 +71,25 @@ class WalletViewModel @Inject constructor(
         viewModelScope.launch {
             state = state.copy(loading = true, error = null)
             try {
-                val statusCall = async { repository.status() }
-                val commissionCall = async { repository.commission() }
-                val earningsCall = async { repository.earnings() }
-                state = WalletUiState(
-                    loading = false,
-                    status = statusCall.await(),
-                    commission = commissionCall.await(),
-                    earnings = earningsCall.await()
-                )
+                val status = repository.status()
+                val approved = status.applicationStatus.equals("APPROVED", ignoreCase = true)
+                if (approved) {
+                    val commissionCall = async { repository.commission() }
+                    val earningsCall = async { repository.earnings() }
+                    state = WalletUiState(
+                        loading = false,
+                        status = status,
+                        commission = commissionCall.await(),
+                        earnings = earningsCall.await()
+                    )
+                } else {
+                    state = WalletUiState(
+                        loading = false,
+                        status = status,
+                        commission = null,
+                        earnings = null
+                    )
+                }
             } catch (e: Exception) {
                 state = state.copy(
                     loading = false,

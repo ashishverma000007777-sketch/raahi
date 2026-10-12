@@ -12,8 +12,10 @@ data class VerifyRequest(val idToken: String, val requestedRole: String? = null)
 data class VerifyResponse(val token: String, val isNewUser: Boolean, val user: UserDto)
 data class UserDto(
     val id: String, val name: String?, val phone: String?, val role: String,
-    val vehicleType: String?, val vehicleReg: String?, val isVerified: Boolean,
-    val ratingAvg: Double, val totalHelps: Int
+    val vehicleType: String?, val vehicleReg: String?,
+    @com.google.gson.annotations.SerializedName(value = "isVerified", alternate = ["verified"])
+    val isVerified: Boolean = false,
+    val ratingAvg: Double = 0.0, val totalHelps: Int = 0
 )
 
 data class UpdateProfileRequest(

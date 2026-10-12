@@ -50,6 +50,10 @@ class DrivingTrackingService : Service() {
         private const val DETECT_DURATION_MS = 60_000L // continuous for ~60s
         private const val DECLINE_COOLDOWN_MS = 2 * 60 * 60 * 1000L
         private const val SYNC_INTERVAL_MS = 10 * 60 * 1000L
+
+        @Volatile
+        var isConfirmedDriving: Boolean = false
+            internal set
     }
 
     private val fused by lazy { LocationServices.getFusedLocationProviderClient(this) }
@@ -70,6 +74,8 @@ class DrivingTrackingService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        confirmed = false
+        isConfirmedDriving = false
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(
@@ -111,6 +117,7 @@ class DrivingTrackingService : Service() {
                 postTripSummaryNotification()
                 // TRIP_STOP_STATE_RESET_PATCH
                 confirmed = false
+                isConfirmedDriving = false
                 promptSent = false
                 distanceSinceLastFix = 0f
                 lastFix = null
@@ -138,6 +145,7 @@ class DrivingTrackingService : Service() {
                     .putBoolean("is_driving_confirmed", false)
                     .apply()
                 confirmed = false
+                isConfirmedDriving = false
                 promptSent = false
                 movingSince = 0L
                 distanceSinceLastFix = 0f
@@ -173,6 +181,7 @@ class DrivingTrackingService : Service() {
                 distanceSinceLastFix = 0f
                 movingSince = 0L
                 confirmed = true
+                isConfirmedDriving = true
                 promptSent = true
                 lastFix = null
                 trackingPaused = false
@@ -229,6 +238,7 @@ class DrivingTrackingService : Service() {
                 }
                 getSharedPreferences(PREFS, MODE_PRIVATE).edit()
                     .putBoolean("is_service_running", true)
+                    .putBoolean("is_driving_confirmed", confirmed)
                     .apply()
                 sendBroadcast(Intent(EVENT_STATUS_CHANGED).setPackage(packageName))
                 startForegroundCompat()
@@ -486,6 +496,7 @@ class DrivingTrackingService : Service() {
 
     private fun finishStationarySession() {
         confirmed = false
+        isConfirmedDriving = false
         trackingPaused = false
         lowSpeedSince = 0L
         stationarySince = 0L
@@ -645,12 +656,6 @@ class DrivingTrackingService : Service() {
             .build()
 
         getSystemService(NotificationManager::class.java).notify(7402, notification)
-
-        // Overlay prompt if overlay permission is granted
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && android.provider.Settings.canDrawOverlays(this) && launchIntent != null) {
-            runCatching { startActivity(launchIntent) }
-        }
-
         startAlertSound()
     }
 
@@ -663,6 +668,8 @@ class DrivingTrackingService : Service() {
         stopAlertSound()
         stopLocationUpdates()
         serviceScope.cancel()
+        confirmed = false
+        isConfirmedDriving = false
         getSharedPreferences(PREFS, MODE_PRIVATE).edit()
             .putBoolean("is_service_running", false)
             .putBoolean("is_driving_confirmed", false)

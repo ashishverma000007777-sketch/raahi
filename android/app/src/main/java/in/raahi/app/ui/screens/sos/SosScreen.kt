@@ -1,15 +1,10 @@
 package `in`.raahi.app.ui.screens.sos
 
-import android.Manifest
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
-import android.telephony.SmsManager
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -338,50 +333,17 @@ private fun ActiveSosBody(
     var smsSent by remember { mutableStateOf(false) }
     var isSendingSms by remember { mutableStateOf(false) }
 
-    fun doSendDirect() {
-        isSendingSms = true
-        val success = sendDirectSms(context, contacts, lat, lng)
-        isSendingSms = false
-        if (success) {
-            smsSent = true
-            Toast.makeText(
-                context,
-                "SOS SMS sent to ${contacts.size} emergency contacts",
-                Toast.LENGTH_SHORT
-            ).show()
-        } else {
-            // Graceful fallback if direct SMS failed
-            openSmsComposerFallback(context, contacts, lat, lng)
-        }
-    }
-
-    val smsPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (isGranted) {
-            doSendDirect()
-        } else {
-            Toast.makeText(
-                context,
-                "SMS permission not granted. Opening SMS app...",
-                Toast.LENGTH_SHORT
-            ).show()
-            openSmsComposerFallback(context, contacts, lat, lng)
-        }
-    }
-
     val onSmsClick: () -> Unit = {
         if (!smsSent && !isSendingSms) {
-            val hasPermission = ContextCompat.checkSelfPermission(
+            isSendingSms = true
+            openSmsComposerFallback(context, contacts, lat, lng)
+            smsSent = true
+            isSendingSms = false
+            Toast.makeText(
                 context,
-                Manifest.permission.SEND_SMS
-            ) == PackageManager.PERMISSION_GRANTED
-
-            if (hasPermission) {
-                doSendDirect()
-            } else {
-                smsPermissionLauncher.launch(Manifest.permission.SEND_SMS)
-            }
+                "Opening SMS app to message emergency contacts",
+                Toast.LENGTH_SHORT
+            ).show()
         }
     }
 
@@ -450,39 +412,6 @@ private fun ActiveSosBody(
     }
 }
 
-private fun sendDirectSms(
-    context: Context,
-    contacts: List<EmergencyContact>,
-    lat: Double,
-    lng: Double
-): Boolean {
-    val locationUrl = "https://maps.google.com/?q=$lat,$lng"
-    val message = "SOS: I need emergency help. My location: $locationUrl"
-    val smsManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        context.getSystemService(SmsManager::class.java)
-    } else {
-        @Suppress("DEPRECATION")
-        SmsManager.getDefault()
-    }
-
-    var sentCount = 0
-    contacts.forEach { contact ->
-        if (contact.phone.isNotBlank()) {
-            try {
-                val parts = smsManager.divideMessage(message)
-                if (parts.size > 1) {
-                    smsManager.sendMultipartTextMessage(contact.phone, null, parts, null, null)
-                } else {
-                    smsManager.sendTextMessage(contact.phone, null, message, null, null)
-                }
-                sentCount++
-            } catch (e: Exception) {
-                android.util.Log.e("SosScreen", "Failed to send SMS to ${contact.phone}", e)
-            }
-        }
-    }
-    return sentCount > 0
-}
 
 private fun openSmsComposerFallback(
     context: Context,

@@ -2,11 +2,8 @@ package `in`.raahi.app.ui.screens.onboarding
 
 import android.Manifest
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
-import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -63,17 +60,6 @@ fun PermissionOnboardingScreen(
             }
         )
     }
-
-    var hasOverlay by remember {
-        mutableStateOf(
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                Settings.canDrawOverlays(context)
-            } else {
-                true
-            }
-        )
-    }
-
     // Refresh permissions on resume when returning from system settings
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -82,11 +68,6 @@ fun PermissionOnboardingScreen(
                     ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
                 hasNotification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-                } else {
-                    true
-                }
-                hasOverlay = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    Settings.canDrawOverlays(context)
                 } else {
                     true
                 }
@@ -187,26 +168,7 @@ fun PermissionOnboardingScreen(
                 },
             )
 
-            Spacer(Modifier.height(14.dp))
 
-            // Permission item 3: Overlay / Alert window
-            PermissionCard(
-                icon = Icons.Outlined.Layers,
-                title = "Display Over Other Apps",
-                description = "Shows urgent driving confirmation and emergency roadside alerts instantly.",
-                isGranted = hasOverlay,
-                onRequest = {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        runCatching {
-                            val intent = Intent(
-                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                Uri.parse("package:${context.packageName}")
-                            )
-                            context.startActivity(intent)
-                        }
-                    }
-                },
-            )
 
             Spacer(Modifier.weight(1f, fill = false))
             Spacer(Modifier.height(36.dp))
