@@ -65,6 +65,7 @@ public class HelperApplication {
     @Column(name = "suspension_reason") private String suspensionReason;
 
     public UUID getId() { return id; }
+    public void setId(UUID id) { this.id = id; }
     public User getUser() { return user; }
     public void setUser(User v) { this.user = v; }
     public String getEmail() { return email; }

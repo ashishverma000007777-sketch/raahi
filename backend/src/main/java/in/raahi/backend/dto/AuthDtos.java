@@ -14,6 +14,8 @@ public class AuthDtos {
         public String idToken;
         @Size(max = 50)
         public String requestedRole; // optional, defaults to DRIVER server-side; client cannot pick ADMIN/etc
+        @Size(max = 255)
+        public String email; // optional expected email for verification matching
     }
 
     public static class VerifyResponse {
@@ -26,6 +28,8 @@ public class AuthDtos {
         public String id;
         public String name;
         public String phone;
+        public String email;
+        public boolean emailVerified;
         public String role;
         public String vehicleType;
         public String vehicleReg;

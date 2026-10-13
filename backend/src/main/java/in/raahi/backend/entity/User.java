@@ -19,6 +19,9 @@ public class User {
     private String phone;
 
     private String email;
+
+    @Column(name = "email_verified")
+    private boolean emailVerified = false;
     private String name;
 
     @Column(name = "profile_photo")
@@ -92,6 +95,8 @@ public class User {
     public void setPhone(String v) { this.phone = v; }
     public String getEmail() { return email; }
     public void setEmail(String v) { this.email = v; }
+    public boolean isEmailVerified() { return emailVerified; }
+    public void setEmailVerified(boolean v) { this.emailVerified = v; }
     public String getName() { return name; }
     public void setName(String v) { this.name = v; }
     public Role getRole() { return role; }

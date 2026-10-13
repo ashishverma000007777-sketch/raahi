@@ -29,9 +29,29 @@ button,input,select{font:inherit}button{cursor:pointer;border:0}.hidden{display:
 .action{padding:7px 10px;border-radius:7px;background:#111;color:#fff;font-size:12px}.action.danger{background:#b42318}.action.light{background:#eee;color:#222}
 .toolbar{display:flex;gap:8px}.toolbar input,.toolbar select{padding:9px 10px;border:1px solid #ddd;border-radius:8px}
 .empty{padding:30px;text-align:center;color:#777}
-.toast{position:fixed;right:20px;bottom:20px;background:#111;color:#fff;padding:12px 16px;border-radius:10px;display:none}
-@media(max-width:900px){.side{width:70px}.side .brand{font-size:0}.side .brand:after{content:"R";font-size:24px}.nav button{font-size:0;text-align:center}.nav button:before{content:"•";font-size:22px}.main{margin-left:70px;width:calc(100% - 70px);padding:16px}.cards{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:520px){.cards{grid-template-columns:1fr 1fr}.top h1{font-size:20px}.toolbar{flex-wrap:wrap}}
+.toast{position:fixed;right:20px;bottom:20px;background:#111;color:#fff;padding:12px 16px;border-radius:10px;display:none;z-index:10000}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.65);display:flex;align-items:center;justify-content:center;z-index:999;padding:16px}
+.modal-card{background:#fff;border-radius:16px;width:min(900px,100%);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,0.35);overflow:hidden}
+.modal-head{padding:16px 20px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center}
+.modal-head h3{margin:0;font-size:18px}
+.modal-body{padding:18px 20px;overflow-y:auto;display:flex;flex-direction:column;gap:14px}
+.modal-foot{padding:14px 20px;border-top:1px solid #e5e7eb;display:flex;justify-content:flex-end;gap:10px;background:#fafafa}
+.doc-tabs{display:flex;gap:8px;border-bottom:1px solid #eee;padding-bottom:10px}
+.doc-tab{padding:8px 14px;border-radius:8px;background:#f3f4f6;font-size:13px;font-weight:600}
+.doc-tab.active{background:#111;color:#fff}
+.viewer-box{background:#1a1c1e;border-radius:12px;position:relative;min-height:360px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.viewer-controls{position:absolute;top:10px;right:10px;display:flex;gap:6px;z-index:10;background:rgba(255,255,255,0.92);padding:5px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15)}
+.viewer-controls button{background:#fff;border:1px solid #ddd;padding:5px 9px;border-radius:6px;font-weight:700;font-size:13px}
+.viewer-img-wrap{display:flex;align-items:center;justify-content:center;width:100%;min-height:360px}
+.viewer-img{max-width:92%;max-height:480px;object-fit:contain;transition:transform 0.15s ease}
+.viewer-loading,.viewer-error{color:#fff;text-align:center;padding:40px 20px;font-size:14px}
+.viewer-error{color:#ff8b8b}
+.status-pill{font-size:11px;padding:3px 8px;border-radius:12px;font-weight:700}
+.verified{background:#dcfce7;color:#15803d}.unverified{background:#fee2e2;color:#b91c1c}
+.meta-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;background:#f9fafb;padding:12px 14px;border-radius:10px;border:1px solid #eee;font-size:12px}
+.meta-item .label{color:#6b7280;font-size:11px}.meta-item .val{font-weight:600;margin-top:2px}
+@media(max-width:900px){.side{width:70px}.side .brand{font-size:0}.side .brand:after{content:"R";font-size:24px}.nav button{font-size:0;text-align:center}.nav button:before{content:"•";font-size:22px}.main{margin-left:70px;width:calc(100% - 70px);padding:16px}.cards{grid-template-columns:repeat(2,1fr)}.meta-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:520px){.cards{grid-template-columns:1fr 1fr}.top h1{font-size:20px}.toolbar{flex-wrap:wrap}.meta-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -72,6 +92,35 @@ button,input,select{font:inherit}button{cursor:pointer;border:0}.hidden{display:
     <div id="content"></div>
   </main>
 </section>
+
+<div id="docModal" class="modal-overlay hidden">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3 id="modalTitle">Review Helper Application</h3>
+      <button class="action light" onclick="closeDocModal()">✕ Close</button>
+    </div>
+    <div class="modal-body">
+      <div id="applicantMeta" class="meta-grid"></div>
+      <div class="doc-tabs" id="docTabs"></div>
+      <div id="aiNoteBox" style="font-size:12.5px;padding:10px 12px;background:#f3f4f6;border-radius:8px"></div>
+      <div class="viewer-box">
+        <div class="viewer-controls">
+          <button onclick="zoomDoc(0.2)" title="Zoom in">+</button>
+          <button onclick="zoomDoc(-0.2)" title="Zoom out">-</button>
+          <button onclick="rotateDoc(90)" title="Rotate">↻</button>
+          <button onclick="resetDocTransform()" title="Reset">↺</button>
+        </div>
+        <div class="viewer-img-wrap" id="viewerContent">
+          <div class="viewer-loading" id="viewerStatus">Select a document to preview</div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:#888;text-align:center">
+        Server-authorized preview · Ephemeral in-memory rendering · Official UIDAI authenticity not claimed
+      </div>
+    </div>
+    <div class="modal-foot" id="modalActions"></div>
+  </div>
+</div>
 
 <div id="toast" class="toast"></div>
 
@@ -133,16 +182,187 @@ async function overview(){
  <div class="panel"><div class="panel-head"><h2>Admin Control Center</h2><button class="action" onclick="load('applications')">Review Applications</button></div><div class="empty">Use the sidebar to manage Raahi operations.</div></div>`;
 }
 
+let currentApp = null;
+let currentDocId = null;
+let currentZoom = 1;
+let currentRotate = 0;
+let currentBlobUrl = null;
+
 async function applications(){
  const d=await api("/admin/helper-applications");
  $("content").innerHTML=`<div class="panel"><div class="panel-head"><h2>Pending Helper Applications</h2><button class="action light" onclick="load('applications')">Refresh</button></div>
- <div class="table-wrap"><table><thead><tr><th>Applicant</th><th>Phone</th><th>Area</th><th>Services</th><th>Vehicle</th><th>Submitted</th><th>Action</th></tr></thead><tbody>
- ${d.length?d.map(a=>`<tr><td><b>${esc(a.applicantName)}</b></td><td>${esc(a.applicantPhone)}</td><td>${esc(a.serviceArea)}</td><td>${esc(a.services)}</td><td>${esc(a.vehicleBrand)} ${esc(a.vehicleModel)}</td><td>${esc(a.submittedAt)}</td><td><button class="action" onclick="approve('${a.id}')">Approve</button> <button class="action danger" onclick="reject('${a.id}')">Reject</button></td></tr>`).join(""):`<tr><td colspan="7" class="empty">No pending applications</td></tr>`}
+ <div class="table-wrap"><table><thead><tr><th>Applicant</th><th>Contact</th><th>Area</th><th>Services</th><th>Vehicle</th><th>Submitted</th><th>Actions</th></tr></thead><tbody>
+ ${d.length?d.map(a=>`<tr>
+   <td><b>${esc(a.applicantName)}</b></td>
+   <td>${esc(a.applicantPhone)}<br><small class="muted">${esc(a.email||"-")}</small></td>
+   <td>${esc(a.serviceArea)}</td>
+   <td>${esc(a.services)}</td>
+   <td>${esc(a.vehicleBrand)} ${esc(a.vehicleModel)}</td>
+   <td>${esc(a.submittedAt)}</td>
+   <td>
+     <button class="action" onclick="reviewApplication('${a.id}')">Review & Docs</button>
+     <button class="action light" onclick="requestResubmission('${a.id}')">Resubmit</button>
+     <button class="action danger" onclick="reject('${a.id}')">Reject</button>
+   </td>
+ </tr>`).join(""):`<tr><td colspan="7" class="empty">No pending applications</td></tr>`}
  </tbody></table></div></div>`;
 }
 
-async function approve(id){if(!confirm("Approve this helper application?"))return;await api("/admin/helper-applications/"+id+"/approve",{method:"POST"});toast("Helper approved");load("applications")}
-async function reject(id){const reason=prompt("Rejection reason:");if(!reason)return;await api("/admin/helper-applications/"+id+"/reject",{method:"POST",body:JSON.stringify({reason})});toast("Application rejected");load("applications")}
+async function reviewApplication(id){
+ try {
+   currentApp = await api("/admin/helper-applications/" + id);
+   $("modalTitle").textContent = "Review: " + (currentApp.applicantName || "Helper Application");
+
+   const phoneVerifiedBadge = currentApp.phoneVerified ? '<span class="status-pill verified">Phone Verified</span>' : '<span class="status-pill unverified">Phone Unverified</span>';
+   const emailVerifiedBadge = currentApp.emailVerified ? '<span class="status-pill verified">Email Verified</span>' : '<span class="status-pill unverified">Email Unverified</span>';
+
+   $("applicantMeta").innerHTML = `
+     <div class="meta-item"><div class="label">Phone</div><div class="val">${esc(currentApp.applicantPhone)} ${phoneVerifiedBadge}</div></div>
+     <div class="meta-item"><div class="label">Email</div><div class="val">${esc(currentApp.email||"-")} ${emailVerifiedBadge}</div></div>
+     <div class="meta-item"><div class="label">Service Area</div><div class="val">${esc(currentApp.serviceArea)} (${currentApp.serviceRadiusKm} km)</div></div>
+     <div class="meta-item"><div class="label">Experience</div><div class="val">${esc(currentApp.experienceYears)} years</div></div>
+     <div class="meta-item"><div class="label">Vehicle</div><div class="val">${esc(currentApp.vehicleType)}: ${esc(currentApp.vehicleBrand)} ${esc(currentApp.vehicleModel)} (${esc(currentApp.vehicleReg)})</div></div>
+     <div class="meta-item"><div class="label">Payout</div><div class="val">${esc(currentApp.payoutUpi||currentApp.payoutBankAcctMasked||"-")}</div></div>
+   `;
+
+   const docs = [];
+   if (currentApp.aadhaarFront) docs.push({ type: 'front', label: 'Aadhaar Front', doc: currentApp.aadhaarFront });
+   if (currentApp.aadhaarBack) docs.push({ type: 'back', label: 'Aadhaar Back', doc: currentApp.aadhaarBack });
+   if (currentApp.selfie) docs.push({ type: 'selfie', label: 'Selfie', doc: currentApp.selfie });
+
+   $("docTabs").innerHTML = docs.map((d, i) => `
+     <button class="doc-tab ${i===0?'active':''}" onclick="selectDocTab('${d.doc.id}', '${d.doc.aiStatus}', '${esc(d.doc.aiNote||'')}', this)">
+       ${d.label}
+     </button>
+   `).join("");
+
+   $("modalActions").innerHTML = `
+     <button class="action" onclick="approve('${currentApp.id}')">Approve Helper</button>
+     <button class="action light" onclick="requestResubmission('${currentApp.id}')">Request Resubmission</button>
+     <button class="action danger" onclick="reject('${currentApp.id}')">Reject Application</button>
+     <button class="action light" onclick="closeDocModal()">Close</button>
+   `;
+
+   $("docModal").classList.remove("hidden");
+   if (docs.length > 0) {
+     selectDocTab(docs[0].doc.id, docs[0].doc.aiStatus, docs[0].doc.aiNote || '', $("docTabs").children[0]);
+   } else {
+     $("viewerContent").innerHTML = '<div class="viewer-error">No documents uploaded for this application.</div>';
+     $("aiNoteBox").innerHTML = '<b>Documents:</b> None uploaded';
+   }
+ } catch(err) {
+   toast("Failed to load application details: " + err.message);
+ }
+}
+
+function selectDocTab(docId, aiStatus, aiNote, tabEl){
+ document.querySelectorAll(".doc-tab").forEach(t => t.classList.remove("active"));
+ if (tabEl) tabEl.classList.add("active");
+ $("aiNoteBox").innerHTML = `<b>AI Document Quality & Tamper Screening:</b> <span class="badge ${(aiStatus||'').toLowerCase()}">${esc(aiStatus||'-')}</span> <span style="margin-left:8px;color:#555">${esc(aiNote||'Advisory signal only · UIDAI official authenticity not claimed')}</span>`;
+ currentDocId = docId;
+ loadDocPreview(docId);
+}
+
+async function loadDocPreview(docId){
+ resetDocTransform();
+ if (currentBlobUrl) {
+   URL.revokeObjectURL(currentBlobUrl);
+   currentBlobUrl = null;
+ }
+ $("viewerContent").innerHTML = '<div class="viewer-loading">Loading secure document preview...</div>';
+ try {
+   const res = await fetch(API + "/admin/documents/" + docId, {
+     headers: { "Authorization": "Bearer " + token }
+   });
+   if (!res.ok) throw new Error("Document request failed (" + res.status + ")");
+   const blob = await res.blob();
+   currentBlobUrl = URL.createObjectURL(blob);
+   if (blob.type === "application/pdf") {
+     $("viewerContent").innerHTML = `<iframe src="${currentBlobUrl}" style="width:100%;height:450px;border:0"></iframe>`;
+   } else {
+     $("viewerContent").innerHTML = `<img id="previewImg" class="viewer-img" src="${currentBlobUrl}" alt="Document Preview">`;
+   }
+ } catch(err) {
+   $("viewerContent").innerHTML = `<div class="viewer-error">Error loading document: ${esc(err.message)}<br><button class="action light" style="margin-top:10px" onclick="loadDocPreview('${docId}')">Retry</button></div>`;
+ }
+}
+
+function zoomDoc(delta){
+ currentZoom = Math.max(0.4, Math.min(4.0, currentZoom + delta));
+ applyDocTransform();
+}
+
+function rotateDoc(deg){
+ currentRotate = (currentRotate + deg) % 360;
+ applyDocTransform();
+}
+
+function resetDocTransform(){
+ currentZoom = 1;
+ currentRotate = 0;
+ applyDocTransform();
+}
+
+function applyDocTransform(){
+ const img = $("previewImg");
+ if (img) {
+   img.style.transform = `scale(${currentZoom}) rotate(${currentRotate}deg)`;
+ }
+}
+
+function closeDocModal(){
+ if (currentBlobUrl) {
+   URL.revokeObjectURL(currentBlobUrl);
+   currentBlobUrl = null;
+ }
+ $("docModal").classList.add("hidden");
+}
+
+async function approve(id){
+ if(!confirm("Approve this helper application? Ensure phone, email, and documents have been verified.")) return;
+ try {
+   await api("/admin/helper-applications/" + id + "/approve", { method: "POST" });
+   toast("Helper approved successfully");
+   closeDocModal();
+   load("applications");
+ } catch(e) {
+   alert("Approval error: " + e.message);
+ }
+}
+
+async function reject(id){
+ const reason = prompt("Mandatory rejection reason (reason is recorded in audit log):");
+ if(reason === null) return;
+ if(!reason.trim()) { alert("Rejection reason cannot be blank."); return; }
+ try {
+   await api("/admin/helper-applications/" + id + "/reject", {
+     method: "POST",
+     body: JSON.stringify({ reason: reason.trim() })
+   });
+   toast("Application rejected");
+   closeDocModal();
+   load("applications");
+ } catch(e) {
+   alert("Rejection error: " + e.message);
+ }
+}
+
+async function requestResubmission(id){
+ const reason = prompt("What needs to be resubmitted/retaken? (e.g. blurry Aadhaar back, poor lighting):");
+ if(reason === null) return;
+ if(!reason.trim()) { alert("Resubmission reason cannot be blank."); return; }
+ try {
+   await api("/admin/helper-applications/" + id + "/request-resubmission", {
+     method: "POST",
+     body: JSON.stringify({ reason: reason.trim() })
+   });
+   toast("Resubmission requested from applicant");
+   closeDocModal();
+   load("applications");
+ } catch(e) {
+   alert("Resubmission request error: " + e.message);
+ }
+}
 
 async function helpers(){
  const d=await api("/admin/helpers");

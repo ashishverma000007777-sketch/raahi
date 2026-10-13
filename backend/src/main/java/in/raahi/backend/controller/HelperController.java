@@ -96,6 +96,13 @@ public class HelperController {
         User user = userRepository.findById(principal.userId())
                 .orElseThrow(() -> ApiException.notFound("USER_NOT_FOUND", "User not found"));
 
+        if (!user.isEmailVerified()) {
+            throw ApiException.badRequest("EMAIL_NOT_VERIFIED", "Email must be verified before submitting helper application");
+        }
+        if (user.getPhone() == null || user.getPhone().isBlank()) {
+            throw ApiException.badRequest("PHONE_NOT_VERIFIED", "Phone must be verified before submitting helper application");
+        }
+
         if (applicationRepository.findByUserId(user.getId())
                 .filter(a -> a.getStatus() == HelperApplication.Status.PENDING).isPresent()) {
             throw ApiException.conflict("APPLICATION_PENDING", "You already have an application under review");
@@ -166,18 +173,50 @@ public class HelperController {
                 .orElseThrow(() -> ApiException.notFound("DOC_NOT_FOUND", "Document not found"));
 
         boolean isOwner = doc.getUser().getId().equals(principal.userId());
-        boolean isAdmin = "ADMIN".equals(principal.role());
+        boolean isAdmin = false;
+        try {
+            User admin = adminGuard.require(principal);
+            isAdmin = (admin != null && admin.getRole() == User.Role.ADMIN && admin.getStatus() == User.Status.ACTIVE);
+        } catch (Exception ignored) {
+            // Not an active admin
+        }
+
         if (!isOwner && !isAdmin) {
             throw ApiException.forbidden("FORBIDDEN", "Not authorized to view this document");
         }
 
+        String docTypeName = doc.getDocType() != null ? doc.getDocType().name().toLowerCase() : "document";
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(doc.getContentType()))
                 .header(HttpHeaders.CACHE_CONTROL, "no-store, no-cache, must-revalidate, max-age=0")
                 .header(HttpHeaders.PRAGMA, "no-cache")
                 .header("X-Content-Type-Options", "nosniff")
                 .header("Content-Security-Policy", "default-src 'none'")
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + doc.getDocType().name().toLowerCase() + "_" + doc.getId() + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + docTypeName + "_" + doc.getId() + "\"")
+                .body(doc.getContent());
+    }
+
+    // Admin-specific document viewing endpoint with database-backed admin verification
+    @GetMapping("/api/v1/admin/documents/{docId}")
+    @Transactional(readOnly = true)
+    public ResponseEntity<byte[]> getAdminDocument(@AuthenticationPrincipal AuthenticatedUser principal, @PathVariable UUID docId) {
+        adminGuard.require(principal);
+        String rateLimitKey = "admin:doc:view:" + principal.userId();
+        if (!rateLimiter.allow(rateLimitKey, 60, Duration.ofMinutes(1))) {
+            throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMIT_EXCEEDED", "Too many document download requests");
+        }
+
+        VerificationDocument doc = documentRepository.findById(docId)
+                .orElseThrow(() -> ApiException.notFound("DOC_NOT_FOUND", "Document not found"));
+
+        String docTypeName = doc.getDocType() != null ? doc.getDocType().name().toLowerCase() : "document";
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(doc.getContentType()))
+                .header(HttpHeaders.CACHE_CONTROL, "no-store, no-cache, must-revalidate, max-age=0")
+                .header(HttpHeaders.PRAGMA, "no-cache")
+                .header("X-Content-Type-Options", "nosniff")
+                .header("Content-Security-Policy", "default-src 'none'")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + docTypeName + "_" + doc.getId() + "\"")
                 .body(doc.getContent());
     }
 
@@ -203,7 +242,7 @@ public class HelperController {
     @PostMapping("/api/v1/admin/helper-applications/{id}/approve")
     @Transactional
     public ApiResponse<HelperApplicationDto> approve(@AuthenticationPrincipal AuthenticatedUser principal, @PathVariable UUID id) {
-        adminGuard.require(principal);
+        User admin = adminGuard.require(principal);
         String rateLimitKey = "admin:review:" + principal.userId();
         if (!rateLimiter.allow(rateLimitKey, 60, Duration.ofMinutes(1))) {
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMIT_EXCEEDED", "Too many review requests");
@@ -215,12 +254,28 @@ public class HelperController {
             throw ApiException.conflict("ALREADY_REVIEWED", "This application was already reviewed");
         }
 
+        User user = application.getUser();
+        if (user.getPhone() == null || user.getPhone().isBlank()) {
+            throw ApiException.badRequest("PHONE_NOT_VERIFIED", "Applicant phone must be verified before approval");
+        }
+        if (!user.isEmailVerified()) {
+            throw ApiException.badRequest("EMAIL_NOT_VERIFIED", "Applicant email must be verified before approval");
+        }
+        if (application.getAadhaarFront() == null || application.getAadhaarBack() == null) {
+            throw ApiException.badRequest("DOCUMENTS_INCOMPLETE", "Both Aadhaar front and back documents are required");
+        }
+
+        boolean hasSuspiciousDoc = (application.getAadhaarFront() != null && application.getAadhaarFront().getAiStatus() == VerificationDocument.AiStatus.SUSPICIOUS)
+                || (application.getAadhaarBack() != null && application.getAadhaarBack().getAiStatus() == VerificationDocument.AiStatus.SUSPICIOUS);
+        if (hasSuspiciousDoc) {
+            throw ApiException.badRequest("UNRESOLVED_DOCUMENT_RISK", "Application has high-risk document tampering signals and cannot be approved");
+        }
+
         application.setStatus(HelperApplication.Status.APPROVED);
         application.setReviewedAt(Instant.now());
-        application.setReviewedBy(userRepository.getReferenceById(principal.userId()));
+        application.setReviewedBy(admin);
         applicationRepository.save(application);
 
-        User user = application.getUser();
         user.setRole(User.Role.HELPER);
         user.setVerified(true);
         userRepository.save(user);
@@ -236,6 +291,8 @@ public class HelperController {
         profile.setAvailable(true);
         mechanicProfileRepository.save(profile);
 
+        audit.log(admin.getId(), "ADMIN", "HELPER_APPROVED", "HELPER_APPLICATION", id.toString(), "Approved helper application");
+
         return ApiResponse.ok(toDto(application, true));
     }
 
@@ -243,7 +300,11 @@ public class HelperController {
     @Transactional
     public ApiResponse<HelperApplicationDto> reject(@AuthenticationPrincipal AuthenticatedUser principal,
                                                       @PathVariable UUID id, @Valid @RequestBody RejectRequest req) {
-        adminGuard.require(principal);
+        User admin = adminGuard.require(principal);
+        if (req.reason == null || req.reason.trim().isBlank()) {
+            throw ApiException.badRequest("REJECTION_REASON_REQUIRED", "Rejection reason is mandatory");
+        }
+
         String rateLimitKey = "admin:review:" + principal.userId();
         if (!rateLimiter.allow(rateLimitKey, 60, Duration.ofMinutes(1))) {
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMIT_EXCEEDED", "Too many review requests");
@@ -256,9 +317,9 @@ public class HelperController {
         }
 
         application.setStatus(HelperApplication.Status.REJECTED);
-        application.setRejectionReason(req.reason);
+        application.setRejectionReason(req.reason.trim());
         application.setReviewedAt(Instant.now());
-        application.setReviewedBy(userRepository.getReferenceById(principal.userId()));
+        application.setReviewedBy(admin);
         applicationRepository.save(application);
 
         // If a profile exists, ensure it is marked REJECTED and unavailable
@@ -267,6 +328,46 @@ public class HelperController {
             p.setAvailable(false);
             mechanicProfileRepository.save(p);
         });
+
+        audit.log(admin.getId(), "ADMIN", "HELPER_REJECTED", "HELPER_APPLICATION", id.toString(), req.reason.trim());
+
+        return ApiResponse.ok(toDto(application, true));
+    }
+
+    @PostMapping("/api/v1/admin/helper-applications/{id}/request-resubmission")
+    @Transactional
+    public ApiResponse<HelperApplicationDto> requestResubmission(@AuthenticationPrincipal AuthenticatedUser principal,
+                                                                  @PathVariable UUID id, @Valid @RequestBody RejectRequest req) {
+        User admin = adminGuard.require(principal);
+        if (req.reason == null || req.reason.trim().isBlank()) {
+            throw ApiException.badRequest("REJECTION_REASON_REQUIRED", "Resubmission reason is mandatory");
+        }
+
+        String rateLimitKey = "admin:review:" + principal.userId();
+        if (!rateLimiter.allow(rateLimitKey, 60, Duration.ofMinutes(1))) {
+            throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMIT_EXCEEDED", "Too many review requests");
+        }
+
+        HelperApplication application = applicationRepository.findById(id)
+                .orElseThrow(() -> ApiException.notFound("APPLICATION_NOT_FOUND", "Application not found"));
+        if (application.getStatus() != HelperApplication.Status.PENDING) {
+            throw ApiException.conflict("ALREADY_REVIEWED", "This application was already reviewed");
+        }
+
+        String resubmissionReason = "Resubmission requested: " + req.reason.trim();
+        application.setStatus(HelperApplication.Status.REJECTED);
+        application.setRejectionReason(resubmissionReason);
+        application.setReviewedAt(Instant.now());
+        application.setReviewedBy(admin);
+        applicationRepository.save(application);
+
+        mechanicProfileRepository.findByUserId(application.getUser().getId()).ifPresent(p -> {
+            p.setVerificationStatus(MechanicProfile.VerificationStatus.REJECTED);
+            p.setAvailable(false);
+            mechanicProfileRepository.save(p);
+        });
+
+        audit.log(admin.getId(), "ADMIN", "HELPER_RESUBMISSION_REQUESTED", "HELPER_APPLICATION", id.toString(), req.reason.trim());
 
         return ApiResponse.ok(toDto(application, true));
     }
@@ -384,7 +485,9 @@ public class HelperController {
         HelperApplicationDto dto = new HelperApplicationDto();
         dto.id = a.getId().toString();
         dto.status = a.getStatus().name();
-        dto.email = a.getEmail();
+        dto.email = a.getEmail() != null ? a.getEmail() : (a.getUser() != null ? a.getUser().getEmail() : null);
+        dto.emailVerified = a.getUser() != null && a.getUser().isEmailVerified();
+        dto.phoneVerified = a.getUser() != null && a.getUser().getPhone() != null && !a.getUser().getPhone().isBlank();
         dto.rejectionReason = a.getRejectionReason();
         dto.submittedAt = a.getSubmittedAt() != null ? a.getSubmittedAt().toString() : null;
         dto.reviewedAt = a.getReviewedAt() != null ? a.getReviewedAt().toString() : null;
@@ -418,8 +521,8 @@ public class HelperController {
     private DocSummary toDocSummary(VerificationDocument doc) {
         if (doc == null) return null;
         DocSummary s = new DocSummary();
-        s.id = doc.getId().toString();
-        s.aiStatus = doc.getAiStatus().name();
+        s.id = doc.getId() != null ? doc.getId().toString() : null;
+        s.aiStatus = doc.getAiStatus() != null ? doc.getAiStatus().name() : null;
         s.aiNote = doc.getAiNote();
         return s;
     }

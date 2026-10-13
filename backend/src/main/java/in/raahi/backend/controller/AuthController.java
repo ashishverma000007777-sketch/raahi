@@ -83,12 +83,16 @@ public class AuthController {
                 || existingUser.get().getVehicleReg() == null
                 || existingUser.get().getVehicleReg().isBlank();
 
+        boolean emailVerified = Boolean.TRUE.equals(decoded.isEmailVerified())
+                || Boolean.TRUE.equals(decoded.getClaims().get("email_verified"));
+
         User user = existingUser.orElseGet(() -> {
             User u = new User();
             u.setFirebaseUid(decoded.getUid());
             u.setPhone(decoded.getClaims().get("phone_number") != null
                     ? decoded.getClaims().get("phone_number").toString() : null);
             u.setEmail(decoded.getEmail());
+            u.setEmailVerified(emailVerified);
             // SECURITY: client can only ever request DRIVER at signup. MECHANIC/HELPER require
             // a separate application+approval flow; ADMIN is never client-selectable, period.
             u.setRole(User.Role.DRIVER);
@@ -105,6 +109,21 @@ public class AuthController {
 
             return saved;
         });
+
+        if (existingUser.isPresent()) {
+            boolean changed = false;
+            if (decoded.getEmail() != null && !decoded.getEmail().isBlank() && !decoded.getEmail().equals(user.getEmail())) {
+                user.setEmail(decoded.getEmail());
+                changed = true;
+            }
+            if (emailVerified != user.isEmailVerified()) {
+                user.setEmailVerified(emailVerified);
+                changed = true;
+            }
+            if (changed) {
+                userRepository.save(user);
+            }
+        }
 
         if (user.getStatus() == User.Status.SUSPENDED) {
             throw ApiException.forbidden("ACCOUNT_SUSPENDED", "Account suspended");
@@ -288,6 +307,47 @@ public class AuthController {
         return ApiResponse.ok(java.util.Map.of("updated", true));
     }
 
+    @PostMapping("/sync-email")
+    @Transactional
+    public ApiResponse<UserDto> syncEmail(@AuthenticationPrincipal AuthenticatedUser principal,
+                                          @Valid @RequestBody VerifyRequest req) {
+        if (!rateLimiter.allow("auth:sync-email:" + principal.userId(), 10, Duration.ofMinutes(1))) {
+            throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMIT_EXCEEDED", "Too many sync attempts. Please wait.");
+        }
+        FirebaseToken decoded = firebaseVerifier.verify(req.idToken);
+        User user = userRepository.findById(principal.userId())
+                .orElseThrow(() -> ApiException.notFound("USER_NOT_FOUND", "User not found"));
+
+        if (user.getFirebaseUid() == null || !decoded.getUid().equals(user.getFirebaseUid())) {
+            throw ApiException.forbidden("UID_MISMATCH", "Token does not belong to authenticated user");
+        }
+
+        boolean tokenEmailVerified = Boolean.TRUE.equals(decoded.isEmailVerified())
+                || Boolean.TRUE.equals(decoded.getClaims().get("email_verified"));
+        String tokenEmail = decoded.getEmail();
+
+        boolean isVerified = false;
+        if (req.email != null && !req.email.isBlank()) {
+            String requested = req.email.trim();
+            if (tokenEmail != null && tokenEmail.trim().equalsIgnoreCase(requested) && tokenEmailVerified) {
+                user.setEmail(tokenEmail.trim());
+                isVerified = true;
+            } else {
+                user.setEmail(requested);
+                isVerified = false;
+            }
+        } else {
+            if (tokenEmail != null && !tokenEmail.isBlank()) {
+                user.setEmail(tokenEmail.trim());
+            }
+            isVerified = tokenEmailVerified;
+        }
+
+        user.setEmailVerified(isVerified);
+        userRepository.save(user);
+        return ApiResponse.ok(toDto(user));
+    }
+
     @PostMapping("/logout")
     public ApiResponse<Object> logout(@AuthenticationPrincipal AuthenticatedUser principal) {
         if (principal != null) {
@@ -305,6 +365,8 @@ public class AuthController {
         dto.id = u.getId().toString();
         dto.name = u.getName();
         dto.phone = u.getPhone();
+        dto.email = u.getEmail();
+        dto.emailVerified = u.isEmailVerified();
         dto.role = u.getRole().name();
         dto.vehicleType = u.getVehicleType();
         dto.vehicleReg = u.getVehicleReg();
