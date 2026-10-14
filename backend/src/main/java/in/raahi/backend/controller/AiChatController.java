@@ -164,6 +164,12 @@ public class AiChatController {
         try {
             reply = aiMechanicProvider.complete(turns);
         } catch (AiMechanicProvider.AiUnavailableException e) {
+            try {
+                messageRepository.delete(userMessage);
+            } catch (Exception delEx) {
+                log.warn("[AI-{}] Failed to cleanup unresponded user message: {}", corrId, delEx.getMessage());
+            }
+
             long duration = System.currentTimeMillis() - callStart;
             log.warn("[AI-{}] Provider call failed after {}ms: category={}, httpStatus={}",
                     corrId, duration, e.getCategory(), e.getHttpStatus());

@@ -63,6 +63,45 @@ public class GeminiAiMechanicProvider implements AiMechanicProvider {
     @Override
     public String providerName() { return "gemini"; }
 
+    List<Map<String, Object>> buildGeminiContents(List<ChatTurn> history) {
+        if (history == null || history.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        List<Map<String, Object>> contents = new ArrayList<>();
+        String currentRole = null;
+        StringBuilder currentText = new StringBuilder();
+
+        for (ChatTurn turn : history) {
+            if (turn == null || turn.content() == null || turn.content().isBlank()) {
+                continue;
+            }
+            String geminiRole = "assistant".equals(turn.role()) ? "model" : "user";
+
+            if (geminiRole.equals(currentRole)) {
+                // Merge consecutive turns with the same role to strictly obey Gemini alternating roles rule
+                currentText.append("\n\n").append(turn.content().trim());
+            } else {
+                if (currentRole != null && !currentText.isEmpty()) {
+                    contents.add(Map.of("role", currentRole, "parts", List.of(Map.of("text", currentText.toString()))));
+                }
+                currentRole = geminiRole;
+                currentText = new StringBuilder(turn.content().trim());
+            }
+        }
+
+        if (currentRole != null && !currentText.isEmpty()) {
+            contents.add(Map.of("role", currentRole, "parts", List.of(Map.of("text", currentText.toString()))));
+        }
+
+        // Gemini REST API rule: Conversation history MUST start with a 'user' turn
+        while (!contents.isEmpty() && "model".equals(contents.get(0).get("role"))) {
+            contents.remove(0);
+        }
+
+        return contents;
+    }
+
     @Override
     public String complete(List<ChatTurn> history) throws AiUnavailableException {
         String corrId = java.util.UUID.randomUUID().toString().substring(0, 8);
@@ -74,12 +113,11 @@ public class GeminiAiMechanicProvider implements AiMechanicProvider {
                     "AI Mechanic service is temporarily misconfigured. Please try again later.", null, null);
         }
 
-        String url = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent";
-
-        List<Map<String, Object>> contents = new ArrayList<>();
-        for (ChatTurn turn : history) {
-            String geminiRole = "assistant".equals(turn.role()) ? "model" : "user";
-            contents.add(Map.of("role", geminiRole, "parts", List.of(Map.of("text", turn.content()))));
+        List<Map<String, Object>> contents = buildGeminiContents(history);
+        if (contents.isEmpty()) {
+            log.warn("[AI-{}] No valid content found in message history.", corrId);
+            throw new AiUnavailableException(ErrorCategory.MALFORMED_RESPONSE,
+                    "No message content to process. Please enter your vehicle symptom.", null, null);
         }
 
         Map<String, Object> body = Map.of(
@@ -94,12 +132,14 @@ public class GeminiAiMechanicProvider implements AiMechanicProvider {
 
         long backoffMs = INITIAL_BACKOFF_MS;
         Throwable lastTransientError = null;
+        String currentModel = this.model;
 
         for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
             long attemptStart = System.currentTimeMillis();
+            String url = "https://generativelanguage.googleapis.com/v1beta/models/" + currentModel + ":generateContent";
             try {
                 log.info("[AI-{}] Sending request to Gemini (attempt {}/{}, model {}, turns {})",
-                        corrId, attempt, MAX_ATTEMPTS, model, history.size());
+                        corrId, attempt, MAX_ATTEMPTS, currentModel, contents.size());
                 JsonNode response = restTemplate.postForObject(url, new HttpEntity<>(body, headers), JsonNode.class);
                 long latency = System.currentTimeMillis() - attemptStart;
                 if (response == null) {
@@ -121,6 +161,18 @@ public class GeminiAiMechanicProvider implements AiMechanicProvider {
             } catch (HttpStatusCodeException e) {
                 int status = e.getStatusCode().value();
                 long latency = System.currentTimeMillis() - attemptStart;
+                String errorBody = e.getResponseBodyAsString();
+                String sanitizedBody = errorBody.replaceAll("[\\r\\n]+", " ");
+                log.error("[AI-{}] Gemini request failed: HTTP {} after {}ms: {}",
+                        corrId, status, latency, sanitizedBody);
+
+                // Automatic model fallback if model is not found (404) or unsupported
+                if (status == 404 && !"gemini-1.5-flash".equals(currentModel)) {
+                    log.warn("[AI-{}] Model {} returned 404 Not Found. Falling back to gemini-1.5-flash...", corrId, currentModel);
+                    currentModel = "gemini-1.5-flash";
+                    continue;
+                }
+
                 boolean isTransient = (status == 429 || status == 503 || status == 504);
                 if (isTransient && attempt < MAX_ATTEMPTS) {
                     log.warn("[AI-{}] Gemini attempt {}/{} failed with transient HTTP status {} in {}ms. Retrying in {}ms...",
@@ -130,7 +182,7 @@ public class GeminiAiMechanicProvider implements AiMechanicProvider {
                     backoffMs *= 2;
                     continue;
                 }
-                log.error("[AI-{}] Gemini request failed: HTTP {} after {}ms", corrId, status, latency);
+
                 if (status == 429) {
                     throw new AiUnavailableException(ErrorCategory.RATE_LIMITED,
                             "AI Mechanic is currently handling high volume. Please wait a moment and try again.", status, e);
