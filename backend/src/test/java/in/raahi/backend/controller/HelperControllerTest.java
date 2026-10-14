@@ -181,17 +181,99 @@ class HelperControllerTest {
     }
 
     @Test
-    void testApplyRequiresEmailVerified() {
+    void testApplySucceedsWithUnverifiedEmail() throws java.io.IOException {
         AuthenticatedUser principal = new AuthenticatedUser(ownerId, "DRIVER");
         owner.setEmailVerified(false);
+        owner.setPhone("+919999999999");
+        when(userRepository.findById(ownerId)).thenReturn(Optional.of(owner));
+        when(aiTamperScreeningProvider.screen(any(), any())).thenReturn(
+                new in.raahi.backend.ai.AiTamperScreeningProvider.ScreeningResult(
+                        in.raahi.backend.entity.VerificationDocument.AiStatus.LIKELY_UNMODIFIED, "clean"));
+        when(documentRepository.save(any(VerificationDocument.class))).thenAnswer(i -> {
+            VerificationDocument d = i.getArgument(0);
+            d.setId(UUID.randomUUID());
+            return d;
+        });
+
+        byte[] validJpeg = new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0, 0, 0, 0, 0, 0, 0};
+        byte[] content = new byte[200];
+        System.arraycopy(validJpeg, 0, content, 0, validJpeg.length);
+
+        MockMultipartFile file1 = new MockMultipartFile("aadhaarFront", "aadhaar.jpg", "image/jpeg", content);
+        MockMultipartFile file2 = new MockMultipartFile("aadhaarBack", "aadhaar_back.jpg", "image/jpeg", content);
+
+        when(applicationRepository.save(any(HelperApplication.class))).thenAnswer(i -> {
+            HelperApplication a = i.getArgument(0);
+            a.setId(UUID.randomUUID());
+            return a;
+        });
+
+        var res = controller.apply(principal, "test@raahi.in", 5, "Chandigarh", "FLAT_TYRE", "Jack", "Van",
+                "Maruti", "Eeco", null, "CH01AB1234", 15, "owner@upi", null, null, null,
+                file1, file2, null);
+
+        assertNotNull(res);
+        assertTrue(res.success);
+        assertEquals("PENDING", res.data.status);
+        assertFalse(res.data.emailVerified);
+    }
+
+    @Test
+    void testApplyWithUnverifiedEmailStillEnforcesKycDocuments() {
+        AuthenticatedUser principal = new AuthenticatedUser(ownerId, "DRIVER");
+        owner.setEmailVerified(false);
+        owner.setPhone("+919999999999");
         when(userRepository.findById(ownerId)).thenReturn(Optional.of(owner));
 
-        MockMultipartFile file = new MockMultipartFile("aadhaarFront", "aadhaar.jpg", "image/jpeg", new byte[100]);
+        // Missing document (empty)
+        MockMultipartFile emptyFile = new MockMultipartFile("aadhaarFront", "aadhaar.jpg", "image/jpeg", new byte[0]);
         ApiException ex = assertThrows(ApiException.class, () ->
                 controller.apply(principal, "test@raahi.in", 5, "Chandigarh", "FLAT_TYRE", "Jack", "Van",
                         "Maruti", "Eeco", null, "CH01AB1234", 15, "owner@upi", null, null, null,
-                        file, file, file));
-        assertEquals("EMAIL_NOT_VERIFIED", ex.code);
+                        emptyFile, emptyFile, null));
+        assertEquals("MISSING_DOCUMENT", ex.code);
+    }
+
+    @Test
+    void testApplyWithUnverifiedEmailStillEnforcesVehicleAndPayout() {
+        AuthenticatedUser principal = new AuthenticatedUser(ownerId, "DRIVER");
+        owner.setEmailVerified(false);
+        owner.setPhone("+919999999999");
+        when(userRepository.findById(ownerId)).thenReturn(Optional.of(owner));
+
+        byte[] validJpeg = new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0, 0, 0, 0, 0, 0, 0};
+        byte[] content = new byte[200];
+        System.arraycopy(validJpeg, 0, content, 0, validJpeg.length);
+        MockMultipartFile file1 = new MockMultipartFile("aadhaarFront", "aadhaar.jpg", "image/jpeg", content);
+        MockMultipartFile file2 = new MockMultipartFile("aadhaarBack", "aadhaar_back.jpg", "image/jpeg", content);
+
+        // Invalid registration number
+        ApiException ex = assertThrows(ApiException.class, () ->
+                controller.apply(principal, "test@raahi.in", 5, "Chandigarh", "FLAT_TYRE", "Jack", "Van",
+                        "Maruti", "Eeco", null, "INVALID_REG", 15, "owner@upi", null, null, null,
+                        file1, file2, null));
+        assertEquals("INVALID_VEHICLE_REG", ex.code);
+    }
+
+    @Test
+    void testApplyWithUnverifiedEmailRejectsInvalidPayoutDetails() {
+        AuthenticatedUser principal = new AuthenticatedUser(ownerId, "DRIVER");
+        owner.setEmailVerified(false);
+        owner.setPhone("+919999999999");
+        when(userRepository.findById(ownerId)).thenReturn(Optional.of(owner));
+
+        byte[] validJpeg = new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0, 0, 0, 0, 0, 0, 0};
+        byte[] content = new byte[200];
+        System.arraycopy(validJpeg, 0, content, 0, validJpeg.length);
+        MockMultipartFile file1 = new MockMultipartFile("aadhaarFront", "aadhaar.jpg", "image/jpeg", content);
+        MockMultipartFile file2 = new MockMultipartFile("aadhaarBack", "aadhaar_back.jpg", "image/jpeg", content);
+
+        // Invalid UPI format
+        ApiException ex = assertThrows(ApiException.class, () ->
+                controller.apply(principal, "test@raahi.in", 5, "Chandigarh", "FLAT_TYRE", "Jack", "Van",
+                        "Maruti", "Eeco", null, "CH01AB1234", 15, "invalid_upi_id", null, null, null,
+                        file1, file2, null));
+        assertEquals("INVALID_UPI", ex.code);
     }
 
     @Test
@@ -274,10 +356,12 @@ class HelperControllerTest {
     }
 
     @Test
-    void testApproveRejectsMissingEmailVerification() {
+    void testApproveSucceedsWithUnverifiedEmail() {
         UUID appId = UUID.randomUUID();
         owner.setEmailVerified(false);
+        owner.setPhone("+919999999999");
         HelperApplication app = new HelperApplication();
+        app.setId(appId);
         app.setUser(owner);
         app.setStatus(HelperApplication.Status.PENDING);
         app.setAadhaarFront(new VerificationDocument());
@@ -291,9 +375,26 @@ class HelperControllerTest {
         adminUser.setRole(User.Role.ADMIN);
         adminUser.setStatus(User.Status.ACTIVE);
         when(adminGuard.require(adminPrincipal)).thenReturn(adminUser);
+        when(applicationRepository.save(any(HelperApplication.class))).thenAnswer(i -> i.getArgument(0));
 
-        ApiException ex = assertThrows(ApiException.class, () -> controller.approve(adminPrincipal, appId));
-        assertEquals("EMAIL_NOT_VERIFIED", ex.code);
+        var res = controller.approve(adminPrincipal, appId);
+        assertNotNull(res);
+        assertTrue(res.success);
+        assertEquals("APPROVED", res.data.status);
+        assertEquals(User.Role.HELPER, owner.getRole());
+        assertTrue(owner.isVerified());
+        assertFalse(owner.isEmailVerified());
+    }
+
+    @Test
+    void testApproveForbiddenForNonAdmin() {
+        UUID appId = UUID.randomUUID();
+        AuthenticatedUser driver = new AuthenticatedUser(strangerId, "DRIVER");
+        when(adminGuard.require(driver)).thenThrow(ApiException.forbidden("FORBIDDEN", "Admin access required"));
+
+        ApiException ex = assertThrows(ApiException.class, () -> controller.approve(driver, appId));
+        assertEquals(HttpStatus.FORBIDDEN, ex.status);
+        assertEquals("FORBIDDEN", ex.code);
     }
 
     @Test

@@ -17,6 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import in.raahi.backend.security.RateLimiter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import java.time.Duration;
 import java.time.Instant;
@@ -27,9 +29,10 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/v1/ai")
 public class AiChatController {
+    private static final Logger log = LoggerFactory.getLogger(AiChatController.class);
 
-    public static final int MAX_CONTEXT_TURNS = 10;
-    public static final int MAX_TURN_LENGTH = 1500;
+    public static final int MAX_CONTEXT_TURNS = 6;
+    public static final int MAX_TURN_LENGTH = 800;
     public static final int MAX_RPM = 5;
     public static final int MAX_DAILY_QUOTA = 50;
     public static final int MAX_SESSION_MESSAGES = 100;
@@ -100,7 +103,6 @@ public class AiChatController {
     }
 
     @PostMapping("/sessions/{id}/messages")
-    @Transactional
     public ApiResponse<MessageDto> sendMessage(@AuthenticationPrincipal AuthenticatedUser principal,
                                                 @PathVariable UUID id, @Valid @RequestBody SendMessageRequest req) {
         if (req.content == null || req.content.trim().isEmpty()) {
@@ -156,22 +158,48 @@ public class AiChatController {
                 })
                 .collect(Collectors.toList());
 
+        String corrId = UUID.randomUUID().toString().substring(0, 8);
+        long callStart = System.currentTimeMillis();
+        String reply;
+        try {
+            reply = aiMechanicProvider.complete(turns);
+        } catch (AiMechanicProvider.AiUnavailableException e) {
+            long duration = System.currentTimeMillis() - callStart;
+            log.warn("[AI-{}] Provider call failed after {}ms: category={}, httpStatus={}",
+                    corrId, duration, e.getCategory(), e.getHttpStatus());
+
+            HttpStatus status;
+            String code;
+            switch (e.getCategory()) {
+                case TIMEOUT:
+                    status = HttpStatus.GATEWAY_TIMEOUT;
+                    code = "AI_TIMEOUT";
+                    break;
+                case RATE_LIMITED:
+                    status = HttpStatus.TOO_MANY_REQUESTS;
+                    code = "AI_RATE_LIMIT";
+                    break;
+                case CONFIG_ERROR:
+                    status = HttpStatus.SERVICE_UNAVAILABLE;
+                    code = "AI_CONFIG_ERROR";
+                    break;
+                case MALFORMED_RESPONSE:
+                    status = HttpStatus.BAD_GATEWAY;
+                    code = "AI_MALFORMED_RESPONSE";
+                    break;
+                case UPSTREAM_ERROR:
+                default:
+                    status = HttpStatus.SERVICE_UNAVAILABLE;
+                    code = "AI_UNAVAILABLE";
+                    break;
+            }
+            throw new ApiException(status, code, e.getMessage());
+        }
+
         AiChatMessage assistantMessage = new AiChatMessage();
         assistantMessage.setSession(session);
         assistantMessage.setRole(AiChatMessage.Role.ASSISTANT);
-        boolean unavailable;
-        try {
-            assistantMessage.setContent(aiMechanicProvider.complete(turns));
-            unavailable = false;
-        } catch (AiMechanicProvider.AiUnavailableException e) {
-            // Honest unavailable notice, saved into the transcript as-is — never a fabricated
-            // diagnosis standing in for a real answer.
-            String unavailableMsg = (e.getMessage() != null && !e.getMessage().isBlank())
-                    ? e.getMessage()
-                    : "AI Mechanic is temporarily busy. Please try again in a moment, or use Roadside Help / Nearby Mechanics.";
-            assistantMessage.setContent(unavailableMsg);
-            unavailable = true;
-        }
+        assistantMessage.setContent(reply);
         messageRepository.save(assistantMessage);
 
         session.setLastMessageAt(Instant.now());
@@ -181,7 +209,7 @@ public class AiChatController {
         sessionRepository.save(session);
 
         MessageDto dto = toMessageDto(assistantMessage);
-        dto.unavailable = unavailable;
+        dto.unavailable = false;
         return ApiResponse.ok(dto);
     }
 

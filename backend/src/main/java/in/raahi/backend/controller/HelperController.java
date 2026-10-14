@@ -96,9 +96,6 @@ public class HelperController {
         User user = userRepository.findById(principal.userId())
                 .orElseThrow(() -> ApiException.notFound("USER_NOT_FOUND", "User not found"));
 
-        if (!user.isEmailVerified()) {
-            throw ApiException.badRequest("EMAIL_NOT_VERIFIED", "Email must be verified before submitting helper application");
-        }
         if (user.getPhone() == null || user.getPhone().isBlank()) {
             throw ApiException.badRequest("PHONE_NOT_VERIFIED", "Phone must be verified before submitting helper application");
         }
@@ -257,9 +254,6 @@ public class HelperController {
         User user = application.getUser();
         if (user.getPhone() == null || user.getPhone().isBlank()) {
             throw ApiException.badRequest("PHONE_NOT_VERIFIED", "Applicant phone must be verified before approval");
-        }
-        if (!user.isEmailVerified()) {
-            throw ApiException.badRequest("EMAIL_NOT_VERIFIED", "Applicant email must be verified before approval");
         }
         if (application.getAadhaarFront() == null || application.getAadhaarBack() == null) {
             throw ApiException.badRequest("DOCUMENTS_INCOMPLETE", "Both Aadhaar front and back documents are required");
