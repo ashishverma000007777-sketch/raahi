@@ -49,11 +49,7 @@ public class IntercityTripService {
             throw ApiException.forbidden("ACCOUNT_SUSPENDED", "Account is suspended");
         }
 
-        // Ensure user has travel agent permissions
-        if (agent.getRole() != User.Role.TRAVEL_AGENT && agent.getRole() != User.Role.ADMIN) {
-            agent.setRole(User.Role.TRAVEL_AGENT);
-            userRepository.save(agent);
-        }
+        // User is author of trip (as agent/organizer)
 
         if (req.departureTime.isBefore(Instant.now().minusSeconds(300))) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_DEPARTURE_TIME", "Departure time cannot be in the past");
