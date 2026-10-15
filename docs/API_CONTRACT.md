@@ -200,3 +200,27 @@ PENDING -> MATCHED -> ARRIVED -> IN_PROGRESS -> WORK_DONE -> COMPLETED (-> rated
 overview, users (+block/unblock), helpers (+suspend/reinstate), helper-applications approve/reject, jobs, jobs/{id}/history, reports (+resolve), cancellations (+excuse), ratings, commission/balances|ledger|settle, audit-logs
 ## Commission
 Ledger (not a wallet). `raahi.commission.rate` (default 10%). COMMISSION rows negative, SETTLEMENT rows positive; balance < 0 blocks accepting jobs.
+
+## Intercity Trips Marketplace (`/api/v1/intercity/**`)
+
+Primary commercial marketplace connecting Travel Agents and Verified Drivers for city-to-city trips.
+
+### Endpoints
+- `POST /api/v1/intercity/trips`: Create a new intercity trip. Caller must be authenticated; user role is upgraded to `TRAVEL_AGENT` if not already set. Status defaults to `PUBLISHED` (or `DRAFT` if requested).
+- `GET /api/v1/intercity/trips/search`: Search published trips by `pickupCity`, `destCity`, `vehicleCategory`, `fromTime`.
+- `GET /api/v1/intercity/trips/{id}`: Detailed trip view. Role-gated: only the trip owner (`AGENT`) sees the OTPs in the response payload. Drivers never receive OTPs via API.
+- `GET /api/v1/intercity/trips/agent`: List all trips posted by the authenticated travel agent.
+- `GET /api/v1/intercity/trips/driver`: List all trips assigned to the authenticated driver and trips where driver has applied.
+- `GET /api/v1/intercity/trips/active`: Get the single active trip (`ASSIGNED`, `ARRIVED`, or `IN_PROGRESS`) for the authenticated user.
+- `POST /api/v1/intercity/trips/{id}/apply`: Driver submits application for a published trip.
+- `GET /api/v1/intercity/trips/{id}/applications`: List all driver applications for a trip (Trip owner only).
+- `POST /api/v1/intercity/trips/{id}/select-driver/{driverId}`: Agent assigns driver atomically. Status moves to `ASSIGNED`, generates a 6-digit pickup OTP, and rejects all other pending applications.
+- `POST /api/v1/intercity/trips/{id}/arrive`: Assigned driver notifies arrival at pickup location. Status moves to `ARRIVED`.
+- `POST /api/v1/intercity/trips/{id}/verify-pickup-otp`: Assigned driver submits the 6-digit pickup OTP verbally received from agent/passenger. On success, status moves to `IN_PROGRESS` and a 6-digit completion OTP is generated. Max 5 failed attempts allowed before lockout.
+- `POST /api/v1/intercity/trips/{id}/verify-completion-otp`: Assigned driver submits the 6-digit completion OTP received at destination. On success, status moves to `COMPLETED`, payment status moves to `PAID`, and driver's `totalHelps` counter is incremented.
+- `POST /api/v1/intercity/trips/{id}/cancel`: Cancel trip with reason. Permitted only before trip is `IN_PROGRESS`.
+- `POST /api/v1/intercity/trips/{id}/settle`: Agent marks payment as `SETTLED`.
+
+### Status Progression
+`DRAFT` -> `PUBLISHED` -> `ASSIGNED` -> `ARRIVED` -> `IN_PROGRESS` -> `COMPLETED`. Terminal: `CANCELLED`.
+

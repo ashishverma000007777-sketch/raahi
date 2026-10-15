@@ -27,6 +27,20 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(ApiResponse.fail("VALIDATION_ERROR", message));
     }
 
+    @ExceptionHandler({
+            org.springframework.web.bind.MissingServletRequestParameterException.class,
+            org.springframework.web.multipart.support.MissingServletRequestPartException.class,
+            org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class,
+            org.springframework.web.multipart.MaxUploadSizeExceededException.class
+    })
+    public ResponseEntity<ApiResponse<Object>> handleBinding(Exception ex) {
+        String msg = ex.getMessage();
+        if (msg == null || msg.isBlank()) {
+            msg = "Invalid request parameter";
+        }
+        return ResponseEntity.badRequest().body(ApiResponse.fail("VALIDATION_ERROR", msg));
+    }
+
     @ExceptionHandler(org.springframework.dao.DataAccessException.class)
     public ResponseEntity<ApiResponse<Object>> handleDatabase(org.springframework.dao.DataAccessException ex) {
         log.error("Database error: {}: {}", ex.getClass().getName(), ex.getMessage(), ex);

@@ -83,7 +83,13 @@ public class User {
     @Column(name = "last_violation_at")
     private Instant lastViolationAt;
 
-    public enum Role { DRIVER, MECHANIC, HELPER, ADMIN }
+    @Column(name = "agency_name")
+    private String agencyName;
+
+    @Column(name = "agency_gst")
+    private String agencyGst;
+
+    public enum Role { DRIVER, MECHANIC, HELPER, ADMIN, TRAVEL_AGENT }
     public enum Status { ACTIVE, SUSPENDED }
 
     // getters/setters
@@ -138,4 +144,8 @@ public class User {
     public void setRatingAvg(Double v) { this.ratingAvg = v; }
     public void setTotalHelps(Integer v) { this.totalHelps = v; }
     public void setVerified(boolean v) { this.isVerified = v; }
+    public String getAgencyName() { return agencyName; }
+    public void setAgencyName(String v) { this.agencyName = v; }
+    public String getAgencyGst() { return agencyGst; }
+    public void setAgencyGst(String v) { this.agencyGst = v; }
 }
