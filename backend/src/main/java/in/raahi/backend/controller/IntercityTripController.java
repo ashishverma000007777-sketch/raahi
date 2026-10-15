@@ -51,6 +51,19 @@ public class IntercityTripController {
         return ApiResponse.ok(tripService.searchTrips(principal.userId(), pickupCity, destCity, vehicleCategory, fromTime));
     }
 
+    @GetMapping({"/status", "/marketplace/status"})
+    public ApiResponse<MarketplaceStatusDto> getMarketplaceStatus(@AuthenticationPrincipal AuthenticatedUser principal) {
+        return ApiResponse.ok(tripService.getMarketplaceStatus(principal.userId()));
+    }
+
+    @PutMapping({"/status", "/marketplace/status"})
+    public ApiResponse<MarketplaceStatusDto> updateMarketplaceStatus(
+            @AuthenticationPrincipal AuthenticatedUser principal,
+            @RequestBody UpdateMarketplaceStatusRequest req
+    ) {
+        return ApiResponse.ok(tripService.updateMarketplaceStatus(principal.userId(), req));
+    }
+
     @GetMapping("/active")
     public ApiResponse<IntercityTripDto> getActiveTrip(@AuthenticationPrincipal AuthenticatedUser principal) {
         IntercityTripDto active = tripService.getActiveTrip(principal.userId());

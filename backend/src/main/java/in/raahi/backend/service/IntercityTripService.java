@@ -22,11 +22,16 @@ import java.util.stream.Collectors;
 @Service
 public class IntercityTripService {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(IntercityTripService.class);
+
     private final IntercityTripRepository tripRepository;
     private final IntercityTripApplicationRepository applicationRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
     private final SecureRandom secureRandom = new SecureRandom();
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private in.raahi.backend.websocket.WebSocketSessionRegistry webSocketSessionRegistry;
 
     public IntercityTripService(
             IntercityTripRepository tripRepository,
@@ -85,16 +90,21 @@ public class IntercityTripService {
         trip.setStatus(Boolean.TRUE.equals(req.saveAsDraft) ? IntercityTrip.Status.DRAFT : IntercityTrip.Status.PUBLISHED);
 
         IntercityTrip saved = tripRepository.save(trip);
+        if (saved.getStatus() == IntercityTrip.Status.PUBLISHED) {
+            notifyOnlineDrivers(saved);
+        }
         return toDto(saved, agentId);
     }
 
     @Transactional(readOnly = true)
     public List<IntercityTripDto> searchTrips(UUID viewerId, String pickupCity, String destCity, String vehicleCategory, Instant fromTime) {
         Instant effectiveFrom = fromTime != null ? fromTime : Instant.now().minusSeconds(1800);
+        String category = (vehicleCategory != null && !vehicleCategory.isBlank() && !"ALL".equalsIgnoreCase(vehicleCategory.trim()))
+                ? vehicleCategory.trim() : null;
         List<IntercityTrip> trips = tripRepository.searchTrips(
                 (pickupCity != null && !pickupCity.isBlank()) ? pickupCity.trim() : null,
                 (destCity != null && !destCity.isBlank()) ? destCity.trim() : null,
-                (vehicleCategory != null && !vehicleCategory.isBlank()) ? vehicleCategory.trim() : null,
+                category,
                 effectiveFrom
         );
         return trips.stream().map(t -> toDto(t, viewerId)).collect(Collectors.toList());
@@ -500,5 +510,60 @@ public class IntercityTripService {
         dto.driverNotes = app.getDriverNotes();
         dto.createdAt = app.getCreatedAt();
         return dto;
+    }
+
+    @Transactional(readOnly = true)
+    public MarketplaceStatusDto getMarketplaceStatus(UUID userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> ApiException.notFound("NOT_FOUND", "User not found"));
+        return new MarketplaceStatusDto(user.isMarketplaceOnline(), user.getPreferredPickupCity());
+    }
+
+    @Transactional
+    public MarketplaceStatusDto updateMarketplaceStatus(UUID userId, UpdateMarketplaceStatusRequest req) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> ApiException.notFound("NOT_FOUND", "User not found"));
+        user.setMarketplaceOnline(req != null && req.online);
+        user.setPreferredPickupCity(req != null && req.pickupCity != null && !req.pickupCity.isBlank() ? req.pickupCity.trim() : null);
+        userRepository.save(user);
+        return new MarketplaceStatusDto(user.isMarketplaceOnline(), user.getPreferredPickupCity());
+    }
+
+    private void notifyOnlineDrivers(IntercityTrip trip) {
+        try {
+            List<User> onlineDrivers = userRepository.findOnlineMarketplaceDriversMatchingCity(
+                    trip.getPickupCity(),
+                    trip.getAgent().getId()
+            );
+            if (onlineDrivers == null || onlineDrivers.isEmpty()) {
+                return;
+            }
+
+            String title = "New Intercity Trip: " + trip.getPickupCity() + " → " + trip.getDestCity();
+            String body = "₹" + trip.getFare() + " • " + trip.getVehicleCategory() + " • Tap to view & apply";
+            Map<String, String> data = new HashMap<>();
+            data.put("type", "intercity_new_trip");
+            data.put("tripId", trip.getId().toString());
+            data.put("pickupCity", trip.getPickupCity());
+            data.put("destCity", trip.getDestCity());
+            data.put("fare", String.valueOf(trip.getFare()));
+
+            IntercityTripDto dto = toDto(trip, trip.getAgent().getId());
+
+            for (User driver : onlineDrivers) {
+                try {
+                    if (notificationService != null) {
+                        notificationService.send(driver, title, body, data);
+                    }
+                    if (webSocketSessionRegistry != null) {
+                        webSocketSessionRegistry.sendToUser(driver.getId(), "intercity_new_trip", dto);
+                    }
+                } catch (Exception ex) {
+                    log.warn("Failed to notify driver {} about new trip {}: {}", driver.getId(), trip.getId(), ex.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to dispatch notifications for trip {}: {}", trip.getId(), e.getMessage());
+        }
     }
 }

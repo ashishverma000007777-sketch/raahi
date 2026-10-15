@@ -104,6 +104,27 @@ class IntercityTripControllerTest {
     }
 
     @Test
+    void getMarketplaceStatus_delegatesToService() {
+        when(tripService.getMarketplaceStatus(userId)).thenReturn(new MarketplaceStatusDto(true, "Delhi"));
+        ApiResponse<MarketplaceStatusDto> res = controller.getMarketplaceStatus(principal);
+        assertTrue(res.success);
+        assertTrue(res.data.online);
+        assertEquals("Delhi", res.data.pickupCity);
+    }
+
+    @Test
+    void updateMarketplaceStatus_delegatesToService() {
+        UpdateMarketplaceStatusRequest req = new UpdateMarketplaceStatusRequest();
+        req.online = true;
+        req.pickupCity = "Jaipur";
+        when(tripService.updateMarketplaceStatus(eq(userId), any())).thenReturn(new MarketplaceStatusDto(true, "Jaipur"));
+        ApiResponse<MarketplaceStatusDto> res = controller.updateMarketplaceStatus(principal, req);
+        assertTrue(res.success);
+        assertTrue(res.data.online);
+        assertEquals("Jaipur", res.data.pickupCity);
+    }
+
+    @Test
     void applyForTrip_rateLimitAllowed_success() {
         UUID tripId = UUID.randomUUID();
         ApplyTripRequest req = new ApplyTripRequest();

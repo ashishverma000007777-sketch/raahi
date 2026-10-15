@@ -23,10 +23,10 @@ public interface IntercityTripRepository extends JpaRepository<IntercityTrip, UU
     List<IntercityTrip> findByDriverIdOrderByCreatedAtDesc(UUID driverId);
 
     @Query("SELECT t FROM IntercityTrip t WHERE t.status = 'PUBLISHED' " +
-           "AND (:pickupCity IS NULL OR LOWER(t.pickupCity) LIKE LOWER(CONCAT('%', :pickupCity, '%'))) " +
-           "AND (:destCity IS NULL OR LOWER(t.destCity) LIKE LOWER(CONCAT('%', :destCity, '%'))) " +
-           "AND (:vehicleCategory IS NULL OR LOWER(t.vehicleCategory) = LOWER(:vehicleCategory)) " +
-           "AND (:fromTime IS NULL OR t.departureTime >= :fromTime) " +
+           "AND (cast(:pickupCity as string) IS NULL OR LOWER(t.pickupCity) LIKE LOWER(CONCAT('%', cast(:pickupCity as string), '%'))) " +
+           "AND (cast(:destCity as string) IS NULL OR LOWER(t.destCity) LIKE LOWER(CONCAT('%', cast(:destCity as string), '%'))) " +
+           "AND (cast(:vehicleCategory as string) IS NULL OR LOWER(t.vehicleCategory) = LOWER(cast(:vehicleCategory as string))) " +
+           "AND (cast(:fromTime as java.time.Instant) IS NULL OR t.departureTime >= :fromTime) " +
            "ORDER BY t.departureTime ASC")
     List<IntercityTrip> searchTrips(
             @Param("pickupCity") String pickupCity,

@@ -156,4 +156,20 @@ public class IntercityTripDtos {
         public String driverNotes;
         public Instant createdAt;
     }
+
+    public static class MarketplaceStatusDto {
+        public boolean online;
+        public String pickupCity;
+
+        public MarketplaceStatusDto() {}
+        public MarketplaceStatusDto(boolean online, String pickupCity) {
+            this.online = online;
+            this.pickupCity = pickupCity;
+        }
+    }
+
+    public static class UpdateMarketplaceStatusRequest {
+        public boolean online;
+        public String pickupCity;
+    }
 }

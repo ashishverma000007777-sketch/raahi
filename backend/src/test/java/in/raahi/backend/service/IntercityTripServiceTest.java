@@ -526,6 +526,73 @@ class IntercityTripServiceTest {
         assertEquals("TRIP_NOT_COMPLETED", e.code);
     }
 
+    @Test
+    void getMarketplaceStatus_ReturnsCorrectStatus() {
+        driver.setMarketplaceOnline(true);
+        driver.setPreferredPickupCity("Delhi");
+        when(userRepository.findById(driver.getId())).thenReturn(Optional.of(driver));
+
+        MarketplaceStatusDto status = service.getMarketplaceStatus(driver.getId());
+        assertNotNull(status);
+        assertTrue(status.online);
+        assertEquals("Delhi", status.pickupCity);
+    }
+
+    @Test
+    void updateMarketplaceStatus_PersistsAndReturns() {
+        when(userRepository.findById(driver.getId())).thenReturn(Optional.of(driver));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        UpdateMarketplaceStatusRequest req = new UpdateMarketplaceStatusRequest();
+        req.online = true;
+        req.pickupCity = "Jaipur";
+
+        MarketplaceStatusDto status = service.updateMarketplaceStatus(driver.getId(), req);
+        assertNotNull(status);
+        assertTrue(status.online);
+        assertEquals("Jaipur", status.pickupCity);
+        assertTrue(driver.isMarketplaceOnline());
+        assertEquals("Jaipur", driver.getPreferredPickupCity());
+    }
+
+    @Test
+    void createTrip_PublishedTrip_NotifiesMatchingOnlineDrivers() {
+        when(userRepository.findById(agent.getId())).thenReturn(Optional.of(agent));
+        when(tripRepository.save(any(IntercityTrip.class))).thenAnswer(inv -> {
+            IntercityTrip t = inv.getArgument(0);
+            t.setId(UUID.randomUUID());
+            return t;
+        });
+
+        User onlineDriver = new User();
+        onlineDriver.setId(UUID.randomUUID());
+        onlineDriver.setMarketplaceOnline(true);
+        onlineDriver.setPreferredPickupCity("Delhi");
+
+        when(userRepository.findOnlineMarketplaceDriversMatchingCity(eq("Delhi"), eq(agent.getId())))
+                .thenReturn(List.of(onlineDriver));
+
+        CreateIntercityTripRequest req = new CreateIntercityTripRequest();
+        req.pickupCity = "Delhi";
+        req.destCity = "Agra";
+        req.pickupAddress = "Taj Palace, New Delhi";
+        req.destAddress = "Taj East Gate, Agra";
+        req.pickupLat = 28.6000;
+        req.pickupLng = 77.2000;
+        req.destLat = 27.1751;
+        req.destLng = 78.0421;
+        req.departureTime = Instant.now().plusSeconds(7200);
+        req.vehicleCategory = "SUV";
+        req.fare = new BigDecimal("4500.00");
+        req.saveAsDraft = false;
+
+        IntercityTripDto created = service.createTrip(agent.getId(), req);
+        assertNotNull(created);
+        assertEquals("PUBLISHED", created.status);
+
+        verify(notificationService, times(1)).send(eq(onlineDriver), contains("Delhi"), contains("4500"), any());
+    }
+
     private IntercityTrip createSampleTrip() {
         IntercityTrip trip = new IntercityTrip();
         trip.setId(UUID.randomUUID());

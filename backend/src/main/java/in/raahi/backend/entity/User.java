@@ -89,6 +89,12 @@ public class User {
     @Column(name = "agency_gst")
     private String agencyGst;
 
+    @Column(name = "marketplace_online")
+    private boolean marketplaceOnline = false;
+
+    @Column(name = "preferred_pickup_city")
+    private String preferredPickupCity;
+
     public enum Role { DRIVER, MECHANIC, HELPER, ADMIN, TRAVEL_AGENT }
     public enum Status { ACTIVE, SUSPENDED }
 
@@ -148,4 +154,8 @@ public class User {
     public void setAgencyName(String v) { this.agencyName = v; }
     public String getAgencyGst() { return agencyGst; }
     public void setAgencyGst(String v) { this.agencyGst = v; }
+    public boolean isMarketplaceOnline() { return marketplaceOnline; }
+    public void setMarketplaceOnline(boolean marketplaceOnline) { this.marketplaceOnline = marketplaceOnline; }
+    public String getPreferredPickupCity() { return preferredPickupCity; }
+    public void setPreferredPickupCity(String preferredPickupCity) { this.preferredPickupCity = preferredPickupCity; }
 }
