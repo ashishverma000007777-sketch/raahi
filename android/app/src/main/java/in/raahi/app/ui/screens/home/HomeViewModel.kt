@@ -48,6 +48,7 @@ sealed class HomeUiState {
         val user: UserDto?,
         val activeJob: JobDto?,
         val activeTrip: `in`.raahi.app.network.TripDto? = null,
+        val activeIntercityTrip: `in`.raahi.app.network.IntercityTripDto? = null,
         // Real vehicle + computed Car Health, or null if "Set up your car" hasn't been done
         // yet (or the calls simply failed) — either way, never fabricated, and never allowed
         // to block the rest of Home from loading (see the two independent runCatching below).
@@ -107,6 +108,7 @@ class HomeViewModel @Inject constructor(
     private val webSocketClient: RaahiWebSocketClient,
     private val tripRepository: `in`.raahi.app.data.TripRepository,
     private val incomingJobAlertManager: `in`.raahi.app.data.IncomingJobAlertManager,
+    private val intercityTripRepository: `in`.raahi.app.data.IntercityTripRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<HomeUiState>(HomeUiState.Loading)
@@ -308,6 +310,7 @@ class HomeViewModel @Inject constructor(
             val userDeferred = async { runCatching { authRepository.currentUser() } }
             val jobsDeferred = async { runCatching { jobsRepository.myJobs() } }
             val tripDeferred = async { runCatching { tripRepository.getActiveTrip() } }
+            val intercityTripDeferred = async { runCatching { intercityTripRepository.getActiveTrip() } }
             val vehicleDeferred = async { runCatching { vehicleRepository.myVehicle() } }
 
             val userResult = userDeferred.await()
@@ -316,6 +319,7 @@ class HomeViewModel @Inject constructor(
                 .getOrDefault(emptyList())
                 .firstOrNull { it.status in ACTIVE_JOB_STATUSES }
             val activeTrip = tripDeferred.await().getOrNull()
+            val activeIntercityTrip = intercityTripDeferred.await().getOrNull()
             val vehicle = vehicleDeferred.await().getOrNull()
             val carHealth = if (vehicle != null) runCatching { vehicleRepository.carHealth() }.getOrNull() else null
 
@@ -327,6 +331,7 @@ class HomeViewModel @Inject constructor(
                 user = user,
                 activeJob = activeJob,
                 activeTrip = activeTrip,
+                activeIntercityTrip = activeIntercityTrip,
                 vehicle = vehicle,
                 carHealth = carHealth,
                 offlineError = offlineError,

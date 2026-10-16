@@ -8,14 +8,18 @@ import retrofit2.http.*
 data class ApiEnvelope<T>(val success: Boolean, val data: T?, val error: ApiErrorBody?)
 data class ApiErrorBody(val code: String, val message: String)
 
-data class VerifyRequest(val idToken: String, val requestedRole: String? = null)
+data class VerifyRequest(val idToken: String, val requestedRole: String? = null, val email: String? = null)
 data class VerifyResponse(val token: String, val isNewUser: Boolean, val user: UserDto)
 data class UserDto(
     val id: String, val name: String?, val phone: String?, val role: String,
     val vehicleType: String?, val vehicleReg: String?,
     @com.google.gson.annotations.SerializedName(value = "isVerified", alternate = ["verified"])
     val isVerified: Boolean = false,
-    val ratingAvg: Double = 0.0, val totalHelps: Int = 0
+    val ratingAvg: Double = 0.0, val totalHelps: Int = 0,
+    val email: String? = null,
+    val emailVerified: Boolean = false,
+    val agencyName: String? = null,
+    val agencyGst: String? = null,
 )
 
 data class UpdateProfileRequest(
@@ -113,6 +117,8 @@ data class HelperApplicationDto(
     val vehicleModel: String? = null, val vehicleVariant: String? = null, val vehicleReg: String? = null,
     val serviceRadiusKm: Int? = null, val payoutUpi: String? = null, val payoutHolder: String? = null,
     val payoutBankAcctMasked: String? = null, val payoutIfsc: String? = null,
+    val emailVerified: Boolean = false,
+    val phoneVerified: Boolean = false,
 )
 data class RejectRequest(val reason: String)
 
@@ -398,10 +404,154 @@ data class TripSummaryDto(
     val storyCard: TripStoryCard?,
 )
 
+// ------------------------------------------------------------------------ Intercity Marketplace -----
+
+data class IntercityTripDto(
+    val id: String,
+    val rideType: String = "OWNER",
+    val agentId: String,
+    val agentName: String?,
+    val agentPhone: String?,
+    val agencyName: String?,
+    val driverId: String?,
+    val driverName: String?,
+    val driverPhone: String?,
+    val driverRatingAvg: Double?,
+    val driverVehicleType: String?,
+    val driverVehicleReg: String?,
+    val pickupCity: String,
+    val destCity: String,
+    val pickupAddress: String,
+    val destAddress: String,
+    val pickupLat: Double,
+    val pickupLng: Double,
+    val destLat: Double,
+    val destLng: Double,
+    val departureTime: String,
+    val tripType: String,
+    val returnTime: String?,
+    val vehicleCategory: String,
+    val estimatedDistanceKm: Double?,
+    val estimatedDurationMin: Int?,
+    val fare: Double,
+    val customerFare: Double? = null,
+    val driverPayout: Double? = null,
+    val agentCommission: Double? = null,
+    val paymentRecipient: String? = null,
+    val settlementResponsibility: String? = null,
+    val settlementRef: String? = null,
+    val settlementNotes: String? = null,
+    val settlementSubmittedAt: String? = null,
+    val settlementConfirmedAt: String? = null,
+    val paymentMode: String?,
+    val paymentStatus: String,
+    val cancellationTerms: String?,
+    val specialInstructions: String?,
+    val status: String,
+    val pickupOtp: String?,
+    val completionOtp: String?,
+    val cancelReason: String?,
+    val disputedAt: String? = null,
+    val disputedById: String? = null,
+    val disputeReason: String? = null,
+    val disputeEvidence: String? = null,
+    val disputeResolution: String? = null,
+    val resolvedAt: String? = null,
+    val createdAt: String,
+    val assignedAt: String?,
+    val arrivedAt: String?,
+    val startedAt: String?,
+    val completedAt: String?,
+    val cancelledAt: String?,
+    val applicantCount: Long = 0,
+    val viewerRole: String? = null,
+    val applicationStatus: String? = null,
+)
+
+data class IntercityTripApplicationDto(
+    val id: String,
+    val tripId: String,
+    val driverId: String,
+    val driverName: String?,
+    val driverPhone: String?,
+    val driverRatingAvg: Double?,
+    val driverTotalHelps: Int?,
+    val driverVehicleType: String?,
+    val driverVehicleReg: String?,
+    val status: String,
+    val driverNotes: String?,
+    val createdAt: String,
+    val updatedAt: String?,
+)
+
+data class CreateIntercityTripRequest(
+    val pickupCity: String,
+    val destCity: String,
+    val pickupAddress: String,
+    val destAddress: String,
+    val pickupLat: Double,
+    val pickupLng: Double,
+    val destLat: Double,
+    val destLng: Double,
+    val departureTime: String,
+    val tripType: String = "ONE_WAY",
+    val returnTime: String? = null,
+    val vehicleCategory: String = "SEDAN",
+    val estimatedDistanceKm: Double? = null,
+    val estimatedDurationMin: Int? = null,
+    val fare: Double,
+    val paymentMode: String = "DIRECT_CASH",
+    val cancellationTerms: String? = null,
+    val specialInstructions: String? = null,
+    val rideType: String = "OWNER",
+    val customerFare: Double? = null,
+    val driverPayout: Double? = null,
+    val agentCommission: Double? = null,
+    val paymentRecipient: String? = "DRIVER",
+    val settlementResponsibility: String? = "NONE",
+    val saveAsDraft: Boolean = false,
+)
+
+data class SubmitSettlementRequest(
+    val settlementRef: String,
+    val settlementNotes: String? = null,
+)
+
+data class RaiseDisputeRequest(
+    val reason: String,
+    val evidence: String? = null,
+)
+
+data class ResolveDisputeRequest(
+    val resolution: String,
+    val action: String,
+)
+
+data class ApplyTripRequest(
+    val driverNotes: String? = null,
+)
+
+data class CancelIntercityTripRequest(
+    val reason: String? = null,
+)
+
+data class MarketplaceStatusDto(
+    val online: Boolean = false,
+    val pickupCity: String? = null,
+)
+
+data class UpdateMarketplaceStatusRequest(
+    val online: Boolean,
+    val pickupCity: String? = null,
+)
+
 interface RaahiApi {
 
     @POST("auth/verify")
     suspend fun verify(@Body req: VerifyRequest): ApiEnvelope<VerifyResponse>
+
+    @POST("auth/sync-email")
+    suspend fun syncEmail(@Body req: VerifyRequest): ApiEnvelope<UserDto>
 
     @GET("auth/me")
     suspend fun me(): ApiEnvelope<UserDto>
@@ -619,4 +769,85 @@ interface RaahiApi {
     // Paisa Bachao / Savings endpoint
     @GET("savings")
     suspend fun getSavings(): ApiEnvelope<SavingsSummaryDto>
+
+    // Intercity Trips Marketplace endpoints
+    @POST("intercity/trips")
+    suspend fun createIntercityTrip(@Body req: CreateIntercityTripRequest): ApiEnvelope<IntercityTripDto>
+
+    @GET("intercity/trips/search")
+    suspend fun searchIntercityTrips(
+        @Query("pickupCity") pickupCity: String? = null,
+        @Query("destCity") destCity: String? = null,
+        @Query("vehicleCategory") vehicleCategory: String? = null,
+        @Query("fromTime") fromTime: String? = null,
+    ): ApiEnvelope<List<IntercityTripDto>>
+
+    @GET("intercity/trips/agent")
+    suspend fun getAgentIntercityTrips(): ApiEnvelope<List<IntercityTripDto>>
+
+    @GET("intercity/trips/driver")
+    suspend fun getDriverIntercityTrips(): ApiEnvelope<List<IntercityTripDto>>
+
+    @GET("intercity/trips/active")
+    suspend fun getActiveIntercityTrip(): ApiEnvelope<IntercityTripDto>
+
+    @GET("intercity/trips/{id}")
+    suspend fun getIntercityTripDetails(@Path("id") id: String): ApiEnvelope<IntercityTripDto>
+
+    @POST("intercity/trips/{id}/apply")
+    suspend fun applyForIntercityTrip(@Path("id") id: String, @Body req: ApplyTripRequest): ApiEnvelope<IntercityTripApplicationDto>
+
+    @GET("intercity/trips/{id}/applications")
+    suspend fun getIntercityTripApplications(@Path("id") id: String): ApiEnvelope<List<IntercityTripApplicationDto>>
+
+    @POST("intercity/trips/{id}/select-driver/{driverId}")
+    suspend fun selectIntercityDriver(@Path("id") id: String, @Path("driverId") driverId: String): ApiEnvelope<IntercityTripDto>
+
+    @POST("intercity/trips/{id}/arrive")
+    suspend fun arriveAtIntercityPickup(@Path("id") id: String): ApiEnvelope<IntercityTripDto>
+
+    @POST("intercity/trips/{id}/verify-pickup-otp")
+    suspend fun verifyIntercityPickupOtp(@Path("id") id: String, @Body req: VerifyOtpRequest): ApiEnvelope<IntercityTripDto>
+
+    @POST("intercity/trips/{id}/verify-completion-otp")
+    suspend fun verifyIntercityCompletionOtp(@Path("id") id: String, @Body req: VerifyOtpRequest): ApiEnvelope<IntercityTripDto>
+
+    @POST("intercity/trips/{id}/cancel")
+    suspend fun cancelIntercityTrip(@Path("id") id: String, @Body req: CancelIntercityTripRequest): ApiEnvelope<IntercityTripDto>
+
+    @POST("intercity/trips/{id}/settle")
+    suspend fun settleIntercityPayment(@Path("id") id: String): ApiEnvelope<IntercityTripDto>
+
+    @POST("intercity/trips/{id}/arrive-dest")
+    suspend fun arriveAtIntercityDestination(@Path("id") id: String): ApiEnvelope<IntercityTripDto>
+
+    @POST("intercity/trips/{id}/complete-owner")
+    suspend fun completeOwnerIntercityTrip(@Path("id") id: String): ApiEnvelope<IntercityTripDto>
+
+    @POST("intercity/trips/{id}/settlement/submit")
+    suspend fun submitIntercitySettlement(
+        @Path("id") id: String,
+        @Body req: SubmitSettlementRequest
+    ): ApiEnvelope<IntercityTripDto>
+
+    @POST("intercity/trips/{id}/settlement/confirm")
+    suspend fun confirmIntercitySettlement(@Path("id") id: String): ApiEnvelope<IntercityTripDto>
+
+    @POST("intercity/trips/{id}/dispute")
+    suspend fun raiseIntercityDispute(
+        @Path("id") id: String,
+        @Body req: RaiseDisputeRequest
+    ): ApiEnvelope<IntercityTripDto>
+
+    @POST("intercity/trips/{id}/dispute/resolve")
+    suspend fun resolveIntercityDispute(
+        @Path("id") id: String,
+        @Body req: ResolveDisputeRequest
+    ): ApiEnvelope<IntercityTripDto>
+
+    @GET("intercity/trips/marketplace/status")
+    suspend fun getMarketplaceStatus(): ApiEnvelope<MarketplaceStatusDto>
+
+    @PUT("intercity/trips/marketplace/status")
+    suspend fun updateMarketplaceStatus(@Body req: UpdateMarketplaceStatusRequest): ApiEnvelope<MarketplaceStatusDto>
 }

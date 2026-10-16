@@ -61,6 +61,15 @@ import `in`.raahi.app.ui.screens.trip.TripHistoryScreen
 import `in`.raahi.app.ui.screens.trip.TripOverviewScreen
 import `in`.raahi.app.ui.screens.trip.TripPlanScreen
 import `in`.raahi.app.ui.screens.trip.TripSummaryScreen
+import `in`.raahi.app.ui.screens.trip.TripsHubScreen
+import `in`.raahi.app.ui.screens.jobs.AssistanceHubScreen
+import `in`.raahi.app.ui.screens.intercity.IntercitySearchScreen
+import `in`.raahi.app.ui.screens.intercity.IntercityTripDetailScreen
+import `in`.raahi.app.ui.screens.intercity.IntercityCreateTripScreen
+import `in`.raahi.app.ui.screens.intercity.IntercityAgentDashboardScreen
+import `in`.raahi.app.ui.screens.intercity.IntercityActiveTripScreen
+import `in`.raahi.app.ui.screens.intercity.IntercityMarketplaceScreen
+import `in`.raahi.app.ui.screens.intercity.IntercityDriverTripsScreen
 import `in`.raahi.app.ui.screens.splash.RaahiSplashScreen
 import `in`.raahi.app.ui.theme.RaahiTheme
 import androidx.lifecycle.ViewModel
@@ -69,7 +78,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import `in`.raahi.app.data.TokenManager
 import javax.inject.Inject
 
-private object Routes {
+internal object Routes {
     const val PHONE_LOGIN = "phone_login"
     const val OTP = "otp"
     const val PROFILE_SETUP = "profile_setup"
@@ -108,6 +117,15 @@ private object Routes {
     const val TRIP_HISTORY = "trip_history"
     const val CAR_REPORT_CARD = "car_report_card"
     const val PAISA_BACHAO = "paisa_bachao"
+    const val INTERCITY_MARKETPLACE = "intercity_marketplace"
+    const val INTERCITY_SEARCH = "intercity_search?from={from}&to={to}"
+    const val INTERCITY_CREATE = "intercity_create"
+    const val INTERCITY_DETAIL = "intercity_detail/{tripId}"
+    const val INTERCITY_ACTIVE = "intercity_active/{tripId}"
+    const val INTERCITY_AGENT_DASHBOARD = "intercity_agent_dashboard"
+    const val INTERCITY_DRIVER_TRIPS = "intercity_driver_trips"
+    const val TRIPS = "trips_hub"
+    const val ASSISTANCE = "assistance_hub"
 
     private fun safeId(id: String): String = android.net.Uri.encode(id.ifBlank { "unknown" })
 
@@ -116,12 +134,16 @@ private object Routes {
     fun tripOverview(tripId: String) = "trip_overview/${safeId(tripId)}"
     fun tripActive(tripId: String) = "trip_active/${safeId(tripId)}"
     fun tripSummary(tripId: String) = "trip_summary/${safeId(tripId)}"
+    fun intercitySearch(from: String = "", to: String = "") =
+        "intercity_search?from=${android.net.Uri.encode(from)}&to=${android.net.Uri.encode(to)}"
+    fun intercityDetail(tripId: String) = "intercity_detail/${safeId(tripId)}"
+    fun intercityActive(tripId: String) = "intercity_active/${safeId(tripId)}"
 
     fun forTab(tab: RaahiTab): String = when (tab) {
         RaahiTab.HOME -> HOME
-        RaahiTab.MECHANICS -> MECHANICS_MAP
+        RaahiTab.SERVICES -> ASSISTANCE
         RaahiTab.AI_MECHANIC -> AI_MECHANIC
-        RaahiTab.SHOP -> SHOP
+        RaahiTab.GARAGE -> MY_GARAGE
         RaahiTab.PROFILE -> PROFILE
     }
 }
@@ -171,7 +193,10 @@ class MainActivity : ComponentActivity() {
         setContent {
             RaahiTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    RaahiRoot()
+                    RaahiRoot(
+                        pendingRoute = pendingNavigationRoute,
+                        onPendingRouteConsumed = { pendingNavigationRoute = null },
+                    )
                 }
             }
         }
@@ -187,12 +212,21 @@ class MainActivity : ComponentActivity() {
         handleIncomingIntent(intent)
     }
 
+    private var pendingNavigationRoute by mutableStateOf<String?>(null)
+
     private fun handleIncomingIntent(intent: android.content.Intent?) {
-        val jobId = intent?.getStringExtra("jobId") ?: return
+        if (intent == null) return
+        val jobId = intent.getStringExtra("jobId")
         val type = intent.getStringExtra("type")
-        android.util.Log.d("RAAHI_INCOMING_ALERT", "MainActivity.handleIncomingIntent: triggering alert for jobId=$jobId, type=$type")
-        if (type == "incoming_request" || type == "job_new_request") {
+        val tripId = intent.getStringExtra("tripId")
+        val route = intent.getStringExtra("route")
+        android.util.Log.d("RAAHI_INCOMING_ALERT", "MainActivity.handleIncomingIntent: jobId=$jobId, type=$type, tripId=$tripId, route=$route")
+        if (!jobId.isNullOrBlank() && (type == "incoming_request" || type == "job_new_request")) {
             incomingJobAlertManager.fetchAndTrigger(jobId)
+        } else if (!tripId.isNullOrBlank()) {
+            pendingNavigationRoute = Routes.intercityDetail(tripId)
+        } else if (!route.isNullOrBlank()) {
+            pendingNavigationRoute = route
         }
     }
 }
@@ -205,10 +239,20 @@ class MainActivity : ComponentActivity() {
  * from replaying the splash.
  */
 @Composable
-private fun RaahiRoot() {
+private fun RaahiRoot(
+    pendingRoute: String? = null,
+    onPendingRouteConsumed: () -> Unit = {},
+) {
     var splashDone by rememberSaveable { mutableStateOf(false) }
     Crossfade(targetState = splashDone, animationSpec = tween(200), label = "splash") { done ->
-        if (done) RaahiNavHost() else RaahiSplashScreen(onFinished = { splashDone = true })
+        if (done) {
+            RaahiNavHost(
+                pendingRoute = pendingRoute,
+                onPendingRouteConsumed = onPendingRouteConsumed,
+            )
+        } else {
+            RaahiSplashScreen(onFinished = { splashDone = true })
+        }
     }
 }
 
@@ -226,6 +270,8 @@ private fun RaahiRoot() {
 fun RaahiNavHost(
     navController: NavHostController = rememberNavController(),
     gate: AuthGateViewModel = androidx.hilt.navigation.compose.hiltViewModel(),
+    pendingRoute: String? = null,
+    onPendingRouteConsumed: () -> Unit = {},
 ) {
     val navigateToTab: (RaahiTab) -> Unit = { tab ->
         navController.navigate(Routes.forTab(tab)) {
@@ -242,6 +288,13 @@ fun RaahiNavHost(
     LaunchedEffect(Unit) {
         authenticated = gate.isAuthenticated()
         authReady = true
+    }
+
+    LaunchedEffect(pendingRoute, authenticated) {
+        if (authenticated && pendingRoute != null) {
+            navController.navigate(pendingRoute)
+            onPendingRouteConsumed()
+        }
     }
 
     if (!authReady) {
@@ -367,6 +420,7 @@ fun RaahiNavHost(
                 onAddVehicle = { navController.navigate(Routes.VEHICLE_SETUP) },
                 onEditVehicle = { vehicleId -> navController.navigate("${Routes.VEHICLE_EDIT}?vehicleId=$vehicleId") },
                 onViewCarHealth = { navController.navigate(Routes.CAR_REPORT_CARD) },
+                onNavigateTab = navigateToTab,
             )
         }
 
@@ -392,6 +446,14 @@ fun RaahiNavHost(
                 onPlanTrip = { navController.navigate(Routes.TRIP_PLAN) },
                 onOpenActiveTrip = { tripId -> navController.navigate(Routes.tripActive(tripId)) },
                 onTripHistory = { navController.navigate(Routes.TRIP_HISTORY) },
+                onSearchIntercityTrips = { from, to -> navController.navigate(Routes.intercitySearch(from, to)) },
+                onCreateIntercityTrip = { navController.navigate(Routes.INTERCITY_CREATE) },
+                onAgentIntercityDashboard = { navController.navigate(Routes.INTERCITY_AGENT_DASHBOARD) },
+                onDriverIntercityTrips = { navController.navigate(Routes.INTERCITY_DRIVER_TRIPS) },
+                onOpenActiveIntercityTrip = { tripId -> navController.navigate(Routes.intercityActive(tripId)) },
+                onOpenIntercityMarketplace = { navController.navigate(Routes.INTERCITY_MARKETPLACE) },
+                onFuelRates = { navController.navigate(Routes.FUEL_RATES) },
+                onShop = { navController.navigate(Routes.SHOP) },
                 onOpenDaily = { key ->
                     val route = when (key) {
                         "trips" -> Routes.TRIP_HISTORY
@@ -408,6 +470,119 @@ fun RaahiNavHost(
                     }
                     navController.navigate(route)
                 },
+                onNavigateTab = navigateToTab,
+            )
+        }
+
+        composable(
+            route = Routes.INTERCITY_SEARCH,
+            arguments = listOf(
+                navArgument("from") { type = NavType.StringType; defaultValue = "" },
+                navArgument("to") { type = NavType.StringType; defaultValue = "" },
+            )
+        ) { backStackEntry ->
+            val from = backStackEntry.arguments?.getString("from") ?: ""
+            val to = backStackEntry.arguments?.getString("to") ?: ""
+            IntercitySearchScreen(
+                initialPickupCity = from,
+                initialDestCity = to,
+                onBack = { navController.popBackStack() },
+                onOpenTripDetails = { tripId -> navController.navigate(Routes.intercityDetail(tripId)) },
+                onCreateTrip = { navController.navigate(Routes.INTERCITY_CREATE) },
+            )
+        }
+
+        composable(Routes.INTERCITY_CREATE) {
+            IntercityCreateTripScreen(
+                onBack = { navController.popBackStack() },
+                onTripCreated = { tripId ->
+                    navController.navigate(Routes.intercityDetail(tripId)) {
+                        popUpTo(Routes.INTERCITY_CREATE) { inclusive = true }
+                    }
+                },
+            )
+        }
+
+        composable(
+            route = Routes.INTERCITY_DETAIL,
+            arguments = listOf(navArgument("tripId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val tripId = backStackEntry.arguments?.getString("tripId") ?: ""
+            IntercityTripDetailScreen(
+                tripId = tripId,
+                onBack = { navController.popBackStack() },
+                onOpenActiveTrip = { id -> navController.navigate(Routes.intercityActive(id)) },
+            )
+        }
+
+        composable(
+            route = Routes.INTERCITY_ACTIVE,
+            arguments = listOf(navArgument("tripId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val tripId = backStackEntry.arguments?.getString("tripId") ?: ""
+            IntercityActiveTripScreen(
+                tripId = tripId,
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(Routes.INTERCITY_AGENT_DASHBOARD) {
+            IntercityAgentDashboardScreen(
+                onBack = { navController.popBackStack() },
+                onOpenTripDetails = { tripId -> navController.navigate(Routes.intercityDetail(tripId)) },
+                onCreateTrip = { navController.navigate(Routes.INTERCITY_CREATE) },
+            )
+        }
+
+        composable(Routes.INTERCITY_MARKETPLACE) {
+            IntercityMarketplaceScreen(
+                onBack = { navController.popBackStack() },
+                onNavigateToSearch = { navController.navigate(Routes.intercitySearch()) },
+                onNavigateToCreate = { navController.navigate(Routes.INTERCITY_CREATE) },
+                onNavigateToAgencyTrips = { navController.navigate(Routes.INTERCITY_AGENT_DASHBOARD) },
+                onNavigateToDriverTrips = { navController.navigate(Routes.INTERCITY_DRIVER_TRIPS) },
+                onNavigateToActiveTrip = { tripId -> navController.navigate(Routes.intercityActive(tripId)) },
+                onOpenTripDetails = { tripId -> navController.navigate(Routes.intercityDetail(tripId)) },
+            )
+        }
+
+        composable(Routes.INTERCITY_DRIVER_TRIPS) {
+            IntercityDriverTripsScreen(
+                onBack = { navController.popBackStack() },
+                onOpenTripDetails = { tripId -> navController.navigate(Routes.intercityDetail(tripId)) },
+                onOpenActiveTrip = { tripId -> navController.navigate(Routes.intercityActive(tripId)) },
+                onFindTrips = { navController.navigate(Routes.intercitySearch()) },
+            )
+        }
+
+        composable(Routes.TRIPS) {
+            TripsHubScreen(
+                onBack = { navController.popBackStack() },
+                onOpenIntercityMarketplace = { navController.navigate(Routes.INTERCITY_MARKETPLACE) },
+                onSearchIntercityTrips = { from, to -> navController.navigate(Routes.intercitySearch(from, to)) },
+                onCreateIntercityTrip = { navController.navigate(Routes.INTERCITY_CREATE) },
+                onAgentIntercityDashboard = { navController.navigate(Routes.INTERCITY_AGENT_DASHBOARD) },
+                onDriverIntercityTrips = { navController.navigate(Routes.INTERCITY_DRIVER_TRIPS) },
+                onPlanTrip = { navController.navigate(Routes.TRIP_PLAN) },
+                onTripHistory = { navController.navigate(Routes.TRIP_HISTORY) },
+                onNavigateTab = navigateToTab,
+            )
+        }
+
+        composable(Routes.ASSISTANCE) {
+            AssistanceHubScreen(
+                onBack = { navController.popBackStack() },
+                onRequestHelp = { navController.navigate(Routes.REQUEST_HELP) },
+                onNearbyMechanics = { navController.navigate(Routes.MECHANICS_MAP) },
+                onMyJobs = { navController.navigate(Routes.MY_JOBS) },
+                onSos = { navController.navigate(Routes.SOS) },
+                onAiMechanic = { navController.navigate(Routes.AI_MECHANIC) },
+                onCarHealth = { navController.navigate(Routes.CAR_REPORT_CARD) },
+                onFuelRates = { navController.navigate(Routes.FUEL_RATES) },
+                onMyGarage = { navController.navigate(Routes.MY_GARAGE) },
+                onExploreIntercity = { navController.navigate(Routes.INTERCITY_MARKETPLACE) },
+                onPostIntercityTrip = { navController.navigate(Routes.INTERCITY_CREATE) },
+                onAgencyHub = { navController.navigate(Routes.INTERCITY_AGENT_DASHBOARD) },
                 onNavigateTab = navigateToTab,
             )
         }
