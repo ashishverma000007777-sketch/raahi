@@ -16,6 +16,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     Optional<User> findByFirebaseUid(String firebaseUid);
     Optional<User> findByPhone(String phone);
     Optional<User> findByPhoneEndingWith(String suffix);
+    java.util.List<User> findByPhoneIn(java.util.Collection<String> phones);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT u FROM User u WHERE u.id = :id")
