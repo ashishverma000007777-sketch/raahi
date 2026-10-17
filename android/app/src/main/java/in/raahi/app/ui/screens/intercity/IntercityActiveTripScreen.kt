@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -22,6 +23,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -107,19 +109,50 @@ fun IntercityActiveTripScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Text("Live Trip Tracking", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = RaahiText)
+            Surface(
+                color = RaahiCharcoalHeader,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(RaahiDarkSurface)
+                            .border(1.dp, Color(0xFF2E3438), CircleShape),
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = RaahiBg)
-            )
+                    Spacer(Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            "Live Trip Tracking",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp,
+                            fontFamily = RaahiDisplayFont,
+                        )
+                        Text(
+                            "Route tracking & OTP verification",
+                            color = Color(0xFFA0AAB0),
+                            fontSize = 11.5.sp,
+                        )
+                    }
+                }
+            }
         },
-        containerColor = RaahiBg,
+        containerColor = RaahiLightBg,
     ) { padding ->
         Box(
             modifier = Modifier
@@ -129,7 +162,7 @@ fun IntercityActiveTripScreen(
             when (val state = detailState) {
                 is TripDetailUiState.Loading -> {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = RaahiOrange)
+                        CircularProgressIndicator(color = RaahiPrimaryTeal)
                     }
                 }
                 is TripDetailUiState.Error -> {
@@ -138,12 +171,12 @@ fun IntercityActiveTripScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        Text("Error", color = RaahiOrange, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text("Error", color = RaahiSosRed, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                         Spacer(Modifier.height(8.dp))
                         Text(state.message, color = RaahiTextDim, fontSize = 14.sp)
                         Spacer(Modifier.height(16.dp))
-                        Button(onClick = { viewModel.loadTripDetails(tripId) }, colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange)) {
-                            Text("Retry")
+                        Button(onClick = { viewModel.loadTripDetails(tripId) }, colors = ButtonDefaults.buttonColors(containerColor = RaahiPrimaryTeal)) {
+                            Text("Retry", color = Color.White)
                         }
                     }
                 }
@@ -213,9 +246,9 @@ fun IntercityActiveTripScreen(
                                     .padding(16.dp)
                                     .align(Alignment.TopStart),
                                 shape = RoundedCornerShape(12.dp),
-                                color = RaahiBg2.copy(alpha = 0.95f),
-                                border = BorderStroke(1.dp, RaahiBorderSoft),
-                                shadowElevation = 4.dp
+                                color = RaahiCardWhite.copy(alpha = 0.95f),
+                                border = BorderStroke(1.dp, RaahiCardBorder),
+                                shadowElevation = 2.dp
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
@@ -229,8 +262,8 @@ fun IntercityActiveTripScreen(
                                                 when (trip.status) {
                                                     "IN_PROGRESS" -> Color(0xFF22B573)
                                                     "COMPLETED" -> Color(0xFF4D9EFF)
-                                                    "DISPUTED" -> Color(0xFFE5484D)
-                                                    else -> RaahiOrange
+                                                    "DISPUTED" -> RaahiSosRed
+                                                    else -> RaahiPrimaryTeal
                                                 },
                                                 CircleShape
                                             )
@@ -251,10 +284,10 @@ fun IntercityActiveTripScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .heightIn(max = 420.dp),
-                            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-                            color = RaahiBg2,
-                            shadowElevation = 16.dp,
-                            border = BorderStroke(1.dp, RaahiBorderSoft),
+                            shape = RaahiSheetShape,
+                            color = RaahiCardWhite,
+                            shadowElevation = 8.dp,
+                            border = BorderStroke(1.dp, RaahiCardBorder),
                         ) {
                             Column(
                                 modifier = Modifier
@@ -272,7 +305,7 @@ fun IntercityActiveTripScreen(
                                     ) {
                                         Text(
                                             text = actionError ?: "",
-                                            color = Color(0xFFE5484D),
+                                            color = RaahiSosRed,
                                             fontSize = 12.sp,
                                             modifier = Modifier.padding(10.dp)
                                         )
@@ -281,13 +314,13 @@ fun IntercityActiveTripScreen(
 
                                 if (actionSuccess != null) {
                                     Surface(
-                                        color = Color(0xFFE8F8F0),
+                                        color = RaahiLightTeal,
                                         shape = RoundedCornerShape(10.dp),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Text(
                                             text = actionSuccess ?: "",
-                                            color = Color(0xFF22B573),
+                                            color = RaahiPrimaryTeal,
                                             fontSize = 12.sp,
                                             modifier = Modifier.padding(10.dp)
                                         )
@@ -299,13 +332,13 @@ fun IntercityActiveTripScreen(
                                     Surface(
                                         color = Color(0xFFFFECEC),
                                         shape = RoundedCornerShape(12.dp),
-                                        border = BorderStroke(1.5.dp, Color(0xFFE5484D)),
+                                        border = BorderStroke(1.5.dp, RaahiSosRed),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Column(modifier = Modifier.padding(12.dp)) {
                                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                Icon(Icons.Outlined.Warning, contentDescription = null, tint = Color(0xFFE5484D), modifier = Modifier.size(18.dp))
-                                                Text("TRIP UNDER DISPUTE", fontWeight = FontWeight.Bold, color = Color(0xFFE5484D), fontSize = 13.sp)
+                                                Icon(Icons.Outlined.Warning, contentDescription = null, tint = RaahiSosRed, modifier = Modifier.size(18.dp))
+                                                Text("TRIP UNDER DISPUTE", fontWeight = FontWeight.Bold, color = RaahiSosRed, fontSize = 13.sp)
                                             }
                                             Spacer(Modifier.height(4.dp))
                                             Text(
@@ -325,11 +358,11 @@ fun IntercityActiveTripScreen(
                                                 Spacer(Modifier.height(8.dp))
                                                 Button(
                                                     onClick = { showResolveDialog = true },
-                                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE5484D)),
+                                                    colors = ButtonDefaults.buttonColors(containerColor = RaahiSosRed),
                                                     shape = RoundedCornerShape(8.dp),
                                                     modifier = Modifier.fillMaxWidth()
                                                 ) {
-                                                    Text("Resolve Dispute", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                    Text("Resolve Dispute", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
                                                 }
                                             }
                                         }
@@ -347,15 +380,14 @@ fun IntercityActiveTripScreen(
                                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
                                         Text(trip.pickupCity, fontWeight = FontWeight.Bold, fontSize = 17.sp, color = RaahiText)
-                                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = RaahiOrange, modifier = Modifier.size(16.dp))
+                                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = RaahiPrimaryTeal, modifier = Modifier.size(16.dp))
                                         Text(trip.destCity, fontWeight = FontWeight.Bold, fontSize = 17.sp, color = RaahiText)
                                     }
 
-                                    Text("₹${trip.fare.toInt()}", fontWeight = FontWeight.ExtraBold, fontSize = 19.sp, color = RaahiOrange)
+                                    Text("₹${trip.fare.toInt()}", fontWeight = FontWeight.ExtraBold, fontSize = 19.sp, color = RaahiPriceText)
                                 }
 
                                 // Google Maps External Turn-by-Turn Navigation Button
-                                // Note: Launches Google Maps Turn-by-Turn without altering or completing the active trip session
                                 val targetLat = if (trip.status in listOf("ASSIGNED", "ARRIVED")) trip.pickupLat else trip.destLat
                                 val targetLng = if (trip.status in listOf("ASSIGNED", "ARRIVED")) trip.pickupLng else trip.destLng
                                 val targetLabel = if (trip.status in listOf("ASSIGNED", "ARRIVED")) "Pickup (${trip.pickupCity})" else "Destination (${trip.destCity})"
@@ -384,23 +416,23 @@ fun IntercityActiveTripScreen(
                                     shape = RoundedCornerShape(12.dp),
                                     colors = ButtonDefaults.buttonColors(containerColor = RaahiBlue),
                                 ) {
-                                    Icon(Icons.Default.Navigation, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.Navigation, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.White)
                                     Spacer(Modifier.width(8.dp))
-                                    Text("Turn-by-Turn Navigation (Google Maps)", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("Turn-by-Turn Navigation (Google Maps)", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.White)
                                 }
 
                                 // Financial Breakdown Surface
                                 Surface(
                                     shape = RoundedCornerShape(12.dp),
-                                    color = RaahiBg,
-                                    border = BorderStroke(1.dp, RaahiBorderSoft),
+                                    color = RaahiLightBg,
+                                    border = BorderStroke(1.dp, RaahiCardBorder),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                         if (isOwnerTrip) {
                                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                                 Text("Ride Type", fontSize = 12.sp, color = RaahiTextDim)
-                                                Text("Direct Owner Journey (0% Commission)", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = Color(0xFF22B573))
+                                                Text("Direct Owner Journey (0% Commission)", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = RaahiPrimaryTealDark)
                                             }
                                             if (trip.estimatedDistanceKm != null) {
                                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -419,11 +451,11 @@ fun IntercityActiveTripScreen(
                                             }
                                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                                 Text("Driver Payout", fontSize = 12.sp, color = RaahiTextDim)
-                                                Text("₹${(trip.driverPayout ?: trip.fare).toInt()}", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF22B573))
+                                                Text("₹${(trip.driverPayout ?: trip.fare).toInt()}", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RaahiPriceText)
                                             }
                                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                                 Text("Agent Commission", fontSize = 12.sp, color = RaahiTextDim)
-                                                Text("₹${(trip.agentCommission ?: 0.0).toInt()}", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = RaahiOrange)
+                                                Text("₹${(trip.agentCommission ?: 0.0).toInt()}", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = RaahiPriceText)
                                             }
                                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                                 Text("Settlement Responsibility", fontSize = 12.sp, color = RaahiTextDim)
@@ -461,8 +493,8 @@ fun IntercityActiveTripScreen(
                                         Surface(
                                             modifier = Modifier.fillMaxWidth(),
                                             shape = RoundedCornerShape(14.dp),
-                                            color = Color(0xFFFFF7ED),
-                                            border = BorderStroke(1.5.dp, RaahiOrange),
+                                            color = RaahiLightTeal,
+                                            border = BorderStroke(1.dp, RaahiPrimaryTeal),
                                         ) {
                                             Row(
                                                 modifier = Modifier.padding(14.dp),
@@ -470,10 +502,10 @@ fun IntercityActiveTripScreen(
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 Column {
-                                                    Text("Pickup OTP:", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RaahiOrange)
+                                                    Text("Pickup OTP:", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RaahiPrimaryTeal)
                                                     Text("Share with driver when they arrive", fontSize = 11.sp, color = RaahiTextDim)
                                                 }
-                                                Text(trip.pickupOtp, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp, color = RaahiOrange)
+                                                Text(trip.pickupOtp, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp, color = RaahiPrimaryTeal)
                                             }
                                         }
                                     }
@@ -483,11 +515,11 @@ fun IntercityActiveTripScreen(
                                         Surface(
                                             modifier = Modifier.fillMaxWidth(),
                                             shape = RoundedCornerShape(14.dp),
-                                            color = Color(0xFFFFF7ED),
-                                            border = BorderStroke(1.5.dp, RaahiOrange),
+                                            color = RaahiLightTeal,
+                                            border = BorderStroke(1.dp, RaahiPrimaryTeal),
                                         ) {
                                             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                Text("Settlement Submitted by Driver", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RaahiOrange)
+                                                Text("Settlement Submitted by Driver", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RaahiPrimaryTeal)
                                                 Text("Reference: ${trip.settlementRef ?: "N/A"}", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = RaahiText)
                                                 if (!trip.settlementNotes.isNullOrBlank()) {
                                                     Text("Notes: ${trip.settlementNotes}", fontSize = 12.sp, color = RaahiTextDim)
@@ -496,10 +528,10 @@ fun IntercityActiveTripScreen(
                                                     onClick = { viewModel.confirmSettlement(trip.id) },
                                                     modifier = Modifier.fillMaxWidth(),
                                                     shape = RoundedCornerShape(10.dp),
-                                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF22B573)),
+                                                    colors = ButtonDefaults.buttonColors(containerColor = RaahiPrimaryTealDark),
                                                     enabled = !actionLoading,
                                                 ) {
-                                                    Text("Confirm Settlement Received", fontWeight = FontWeight.Bold)
+                                                    Text("Confirm Settlement Received", fontWeight = FontWeight.Bold, color = Color.White)
                                                 }
                                             }
                                         }
@@ -548,10 +580,10 @@ fun IntercityActiveTripScreen(
                                                 onClick = { viewModel.arriveAtPickup(trip.id) },
                                                 modifier = Modifier.fillMaxWidth().height(50.dp),
                                                 shape = RoundedCornerShape(12.dp),
-                                                colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange),
+                                                colors = ButtonDefaults.buttonColors(containerColor = RaahiPrimaryTeal),
                                                 enabled = !actionLoading,
                                             ) {
-                                                Text("I Have Arrived at Pickup", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                                Text("I Have Arrived at Pickup", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
                                             }
                                         }
                                         "ARRIVED" -> {
@@ -563,12 +595,12 @@ fun IntercityActiveTripScreen(
                                                 },
                                                 modifier = Modifier.fillMaxWidth().height(50.dp),
                                                 shape = RoundedCornerShape(12.dp),
-                                                colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange),
+                                                colors = ButtonDefaults.buttonColors(containerColor = RaahiPrimaryTeal),
                                                 enabled = !actionLoading,
                                             ) {
-                                                Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(18.dp))
+                                                Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.White)
                                                 Spacer(Modifier.width(8.dp))
-                                                Text("Enter Pickup OTP from ${if (isOwnerTrip) "Owner" else "Agent/Customer"}", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                                Text("Enter Pickup OTP from ${if (isOwnerTrip) "Owner" else "Agent/Customer"}", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
                                             }
                                         }
                                         "IN_PROGRESS" -> {
@@ -578,12 +610,12 @@ fun IntercityActiveTripScreen(
                                                     onClick = { viewModel.completeOwnerTrip(trip.id) },
                                                     modifier = Modifier.fillMaxWidth().height(50.dp),
                                                     shape = RoundedCornerShape(12.dp),
-                                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF22B573)),
+                                                    colors = ButtonDefaults.buttonColors(containerColor = RaahiPrimaryTealDark),
                                                     enabled = !actionLoading,
                                                 ) {
-                                                    Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                                                    Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.White)
                                                     Spacer(Modifier.width(8.dp))
-                                                    Text("Arrived at Destination — Complete Trip", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                                    Text("Arrived at Destination — Complete Trip", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
                                                 }
                                             } else {
                                                 // AGENT RIDE: Move to settlement stage
@@ -591,24 +623,24 @@ fun IntercityActiveTripScreen(
                                                     onClick = { viewModel.arriveAtDestination(trip.id) },
                                                     modifier = Modifier.fillMaxWidth().height(50.dp),
                                                     shape = RoundedCornerShape(12.dp),
-                                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF22B573)),
+                                                    colors = ButtonDefaults.buttonColors(containerColor = RaahiPrimaryTealDark),
                                                     enabled = !actionLoading,
                                                 ) {
-                                                    Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                                                    Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.White)
                                                     Spacer(Modifier.width(8.dp))
-                                                    Text("Arrived at Destination — Begin Settlement", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                                    Text("Arrived at Destination — Begin Settlement", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
                                                 }
                                             }
                                         }
                                         "AWAITING_AGENT_SETTLEMENT" -> {
                                             Surface(
                                                 shape = RoundedCornerShape(12.dp),
-                                                color = Color(0xFFFFF7ED),
-                                                border = BorderStroke(1.dp, RaahiOrange),
+                                                color = RaahiLightTeal,
+                                                border = BorderStroke(1.dp, RaahiPrimaryTeal),
                                                 modifier = Modifier.fillMaxWidth()
                                             ) {
                                                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                    Text("Awaiting Settlement with Agent", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RaahiOrange)
+                                                    Text("Awaiting Settlement with Agent", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RaahiPrimaryTeal)
                                                     Text("Please transfer commission or submit payment reference to the Travel Agent.", fontSize = 12.sp, color = RaahiTextDim)
                                                     Button(
                                                         onClick = {
@@ -618,10 +650,10 @@ fun IntercityActiveTripScreen(
                                                         },
                                                         modifier = Modifier.fillMaxWidth(),
                                                         shape = RoundedCornerShape(10.dp),
-                                                        colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange),
+                                                        colors = ButtonDefaults.buttonColors(containerColor = RaahiPrimaryTeal),
                                                         enabled = !actionLoading
                                                     ) {
-                                                        Text("Submit Settlement Reference", fontWeight = FontWeight.Bold)
+                                                        Text("Submit Settlement Reference", fontWeight = FontWeight.Bold, color = Color.White)
                                                     }
                                                 }
                                             }
@@ -650,22 +682,22 @@ fun IntercityActiveTripScreen(
                                                 },
                                                 modifier = Modifier.fillMaxWidth().height(50.dp),
                                                 shape = RoundedCornerShape(12.dp),
-                                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF22B573)),
+                                                colors = ButtonDefaults.buttonColors(containerColor = RaahiPrimaryTealDark),
                                                 enabled = !actionLoading,
                                             ) {
-                                                Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                                                Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.White)
                                                 Spacer(Modifier.width(8.dp))
-                                                Text("Enter Completion OTP from Agent", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                                Text("Enter Completion OTP from Agent", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
                                             }
                                         }
                                         "COMPLETED" -> {
                                             Surface(
                                                 modifier = Modifier.fillMaxWidth(),
-                                                color = Color(0xFFE8F8F0),
+                                                color = RaahiLightTeal,
                                                 shape = RoundedCornerShape(12.dp),
                                             ) {
                                                 Column(modifier = Modifier.padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                                    Text("🎉 Trip Successfully Completed!", fontWeight = FontWeight.Bold, color = Color(0xFF22B573), fontSize = 15.sp)
+                                                    Text("🎉 Trip Successfully Completed!", fontWeight = FontWeight.Bold, color = RaahiPrimaryTealDark, fontSize = 15.sp)
                                                     Text("Fare ₹${trip.fare.toInt()} settled per agreement.", color = RaahiTextDim, fontSize = 12.sp)
                                                 }
                                             }
@@ -681,9 +713,9 @@ fun IntercityActiveTripScreen(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         TextButton(onClick = { showDisputeDialog = true }) {
-                                            Icon(Icons.Outlined.Warning, contentDescription = null, tint = Color(0xFFE5484D), modifier = Modifier.size(14.dp))
+                                            Icon(Icons.Outlined.Warning, contentDescription = null, tint = RaahiSosRed, modifier = Modifier.size(14.dp))
                                             Spacer(Modifier.width(4.dp))
-                                            Text("Report Dispute", color = Color(0xFFE5484D), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                            Text("Report Dispute", color = RaahiSosRed, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                                         }
 
                                         if (trip.status in listOf("ASSIGNED", "ARRIVED")) {
@@ -759,11 +791,11 @@ fun IntercityActiveTripScreen(
                         }
                     },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isPickupOtpVerification) RaahiOrange else Color(0xFF22B573)
+                        containerColor = if (isPickupOtpVerification) RaahiPrimaryTeal else RaahiPrimaryTealDark
                     ),
                     enabled = enteredOtp.length == 6,
                 ) {
-                    Text("Verify & Proceed")
+                    Text("Verify & Proceed", color = Color.White)
                 }
             },
             dismissButton = {
@@ -805,10 +837,10 @@ fun IntercityActiveTripScreen(
                         showSettlementDialog = false
                         viewModel.submitSettlement(tripId, settlementRefInput.trim(), settlementNotesInput.trim().takeIf { it.isNotBlank() })
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange),
+                    colors = ButtonDefaults.buttonColors(containerColor = RaahiPrimaryTeal),
                     enabled = settlementRefInput.isNotBlank() && !actionLoading
                 ) {
-                    Text("Submit")
+                    Text("Submit", color = Color.White)
                 }
             },
             dismissButton = {

@@ -28,8 +28,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import `in`.raahi.app.ui.components.RaahiBottomNavBar
-import `in`.raahi.app.ui.components.RaahiTab
+import `in`.raahi.app.ui.components.*
 import `in`.raahi.app.ui.theme.*
 
 /**
@@ -54,20 +53,21 @@ fun AssistanceHubScreen(
 ) {
     val scrollState = rememberScrollState()
 
-    Scaffold(
-        bottomBar = {
-            RaahiBottomNavBar(current = RaahiTab.SERVICES, onSelect = onNavigateTab)
-        },
-        containerColor = RaahiBg,
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .verticalScroll(scrollState)
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
-        ) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            bottomBar = {
+                RaahiBottomNavBar(current = RaahiTab.SERVICES, onSelect = onNavigateTab)
+            },
+            containerColor = RaahiBg,
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .verticalScroll(scrollState)
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp),
+            ) {
             // Header
             Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)) {
                 Text(
@@ -86,10 +86,10 @@ fun AssistanceHubScreen(
             // SECTION 1: ROADSIDE ASSISTANCE (Primary Hero Card)
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(18.dp),
+                shape = RaahiCardShape,
                 color = RaahiTypeScale.SurfaceElevated,
                 border = BorderStroke(1.dp, RaahiTypeScale.BorderSubtle),
-                shadowElevation = 1.5.dp,
+                shadowElevation = RaahiCardElevation,
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -102,14 +102,14 @@ fun AssistanceHubScreen(
                     ) {
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = RaahiOrange.copy(alpha = 0.10f),
-                            border = BorderStroke(1.dp, RaahiOrange.copy(alpha = 0.25f)),
+                            color = RaahiLightTeal,
+                            border = BorderStroke(1.dp, RaahiPrimaryTeal.copy(alpha = 0.25f)),
                         ) {
                             Text(
                                 text = "ON-DEMAND ROADSIDE",
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                                 style = RaahiTypeScale.caption,
-                                color = RaahiOrange,
+                                color = RaahiPrimaryTealDark,
                                 fontWeight = FontWeight.SemiBold,
                                 letterSpacing = 0.6.sp,
                             )
@@ -170,7 +170,7 @@ fun AssistanceHubScreen(
                                 .height(44.dp),
                             shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = RaahiOrange,
+                                containerColor = RaahiPrimaryTeal,
                                 contentColor = Color.White,
                             ),
                             contentPadding = PaddingValues(horizontal = 12.dp),
@@ -365,10 +365,10 @@ fun AssistanceHubScreen(
             // SECTION 3: INTERCITY TRAVEL
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(18.dp),
+                shape = RaahiCardShape,
                 color = RaahiTypeScale.SurfaceElevated,
                 border = BorderStroke(1.dp, RaahiTypeScale.BorderSubtle),
-                shadowElevation = 1.5.dp,
+                shadowElevation = RaahiCardElevation,
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -426,7 +426,7 @@ fun AssistanceHubScreen(
                                 .height(42.dp),
                             shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = RaahiOrange,
+                                containerColor = RaahiPrimaryTeal,
                                 contentColor = Color.White,
                             ),
                             contentPadding = PaddingValues(horizontal = 12.dp),
@@ -514,6 +514,13 @@ fun AssistanceHubScreen(
 
             Spacer(Modifier.height(8.dp))
         }
+    }
+        RaahiFloatingSosButton(
+            onSos = onSos,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 18.dp, bottom = 86.dp)
+        )
     }
 }
 

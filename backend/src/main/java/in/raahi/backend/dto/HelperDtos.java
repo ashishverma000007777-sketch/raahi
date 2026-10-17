@@ -6,6 +6,8 @@ public class HelperDtos {
         public String id;
         public String status;
         public String email;
+        public boolean emailVerified;
+        public boolean phoneVerified;
         public String rejectionReason;
         public String submittedAt;
         public String reviewedAt;

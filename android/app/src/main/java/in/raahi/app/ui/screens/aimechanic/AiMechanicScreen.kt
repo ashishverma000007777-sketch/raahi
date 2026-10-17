@@ -1,20 +1,30 @@
 package `in`.raahi.app.ui.screens.aimechanic
 
+import android.app.Activity
+import android.content.Intent
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.outlined.AutoAwesome
-import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.DirectionsCar
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.WarningAmber
@@ -22,23 +32,74 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import `in`.raahi.app.network.AiMessageDto
+import `in`.raahi.app.network.VehicleDto
 import `in`.raahi.app.ui.components.*
 import `in`.raahi.app.ui.theme.*
 import kotlinx.coroutines.launch
 
-private val TRY_THESE = listOf(
-    "Tyre puncture ho gaya",
-    "Engine heat ho raha hai",
-    "Battery down hai",
-    "Petrol khatam",
-    "AC kaam nahi kar raha"
+private data class IssueCategory(
+    val title: String,
+    val issues: List<String>
+)
+
+private val ISSUE_CATEGORIES = listOf(
+    IssueCategory(
+        "Battery / Starting",
+        listOf(
+            "Car won't start / clicking sound",
+            "Battery dead / jump start needed",
+            "Slow engine crank & dim headlights"
+        )
+    ),
+    IssueCategory(
+        "Engine Overheating",
+        listOf(
+            "Temperature gauge in red zone",
+            "Steam / coolant boiling under hood",
+            "Overheating when stuck in traffic"
+        )
+    ),
+    IssueCategory(
+        "Tyre Problems",
+        listOf(
+            "Puncture / tyre pressure completely flat",
+            "Tyre pressure warning light (TPMS)",
+            "Wheel wobble / vibration at speed"
+        )
+    ),
+    IssueCategory(
+        "Fuel / CNG",
+        listOf(
+            "Ran out of petrol / diesel",
+            "Strong CNG or petrol smell",
+            "Engine sputtering / fuel delivery jerk"
+        )
+    ),
+    IssueCategory(
+        "AC Problems",
+        listOf(
+            "AC blowing warm / hot air",
+            "Foul or burning smell from AC vents",
+            "Loud rattling noise when AC turned on"
+        )
+    ),
+    IssueCategory(
+        "Warning Lights",
+        listOf(
+            "Check Engine light illuminated",
+            "Oil pressure warning light (red)",
+            "Brake system warning indicator on"
+        )
+    )
 )
 
 @Composable
@@ -54,8 +115,12 @@ fun AiMechanicScreen(
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
-    // Step 1: Initial describe screen. Once messages exist or when user sends, transition directly to chat
-    val step = if (state.messages.isEmpty() && !state.sending) 1 else 3
+    // Step 1: Initial describe screen. Once in chat mode or when messages exist or sending, show results
+    val step = if (!state.inChatMode && state.messages.isEmpty() && !state.sending) 1 else 2
+
+    BackHandler(enabled = step == 2 && state.messages.isEmpty()) {
+        viewModel.resetToDescribe()
+    }
 
     LaunchedEffect(state.messages.size, state.sending) {
         if (state.messages.isNotEmpty() || state.sending) {
@@ -68,35 +133,74 @@ fun AiMechanicScreen(
         Box(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize()) {
                 Column(Modifier.weight(1f)) {
-                    HeaderRow(onBack)
+                    HeaderRow(onBack = {
+                        if (step == 2 && state.messages.isEmpty()) {
+                            viewModel.resetToDescribe()
+                        } else {
+                            onBack()
+                        }
+                    })
                     if (state.error != null) {
+                        val isSendFailure = state.lastFailedMessage != null
                         OfflineStatusBanner(
                             message = if (state.error!!.contains("503") || state.error!!.contains("Gemini")) {
                                 "AI Mechanic is temporarily busy. Please try again in a moment, or use Roadside Help / Nearby Mechanics."
                             } else {
                                 state.error!!
                             },
-                            onRetry = viewModel::start,
+                            onRetry = if (isSendFailure) viewModel::retry else viewModel::start,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
                         )
+                        if (isSendFailure && !state.lastFailedMessage.isNullOrBlank() && input.isBlank()) {
+                            Row(
+                                modifier = Modifier
+                                    .padding(horizontal = 16.dp, vertical = 2.dp)
+                                    .fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                Text(
+                                    "Restore question to edit",
+                                    color = RaahiPrimaryTeal,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier
+                                        .clickable {
+                                            input = state.lastFailedMessage!!
+                                            viewModel.clearFailedMessage()
+                                            viewModel.resetToDescribe()
+                                        }
+                                        .padding(4.dp)
+                                )
+                            }
+                        }
                     }
                     if (state.loading) {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = RaahiOrange)
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                CircularProgressIndicator(color = RaahiPrimaryTeal)
+                                Spacer(Modifier.height(14.dp))
+                                Text(
+                                    "Connecting to AI Mechanic…",
+                                    color = RaahiTextDim,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
                         }
                     } else {
                         StepperRow(step)
                         when (step) {
                             1 -> DescribeStep(
+                                vehicle = state.activeVehicle,
                                 input = input,
+                                sending = state.sending,
                                 onInputChange = { input = it },
                                 onAnalyze = {
-                                    if (input.isNotBlank()) {
+                                    if (input.isNotBlank() && !state.sending) {
                                         viewModel.send(input)
                                         input = ""
                                     }
-                                },
-                                onSuggestion = { viewModel.send(it) }
+                                }
                             )
                             else -> ResultsStep(
                                 state = state,
@@ -104,13 +208,21 @@ fun AiMechanicScreen(
                                 input = input,
                                 onInputChange = { input = it },
                                 onSend = {
-                                    if (input.isNotBlank()) {
+                                    if (input.isNotBlank() && !state.sending) {
                                         viewModel.send(input)
                                         input = ""
                                     }
                                 },
                                 onRequestHelp = onRequestHelp,
-                                onNearbyMechanics = onNearbyMechanics
+                                onNearbyMechanics = onNearbyMechanics,
+                                onRetry = viewModel::retry,
+                                onRestoreQuestion = {
+                                    if (!state.lastFailedMessage.isNullOrBlank()) {
+                                        input = state.lastFailedMessage!!
+                                        viewModel.clearFailedMessage()
+                                    }
+                                    viewModel.resetToDescribe()
+                                }
                             )
                         }
                     }
@@ -135,10 +247,10 @@ private fun HeaderRow(onBack: () -> Unit) {
         Box(
             modifier = Modifier
                 .size(40.dp)
-                .background(RaahiOrange.copy(alpha = 0.12f), RaahiShapeSmall),
+                .background(RaahiLightTeal, RaahiShapeSmall),
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = RaahiOrange, modifier = Modifier.size(20.dp))
+            Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = RaahiPrimaryTeal, modifier = Modifier.size(20.dp))
         }
         Spacer(Modifier.width(9.dp))
         Column(Modifier.weight(1f)) {
@@ -157,23 +269,22 @@ private fun StepperRow(step: Int) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 18.dp, vertical = 12.dp),
+            .padding(horizontal = 18.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        StepBadge(1, "Describe", step)
+        StepBadge(1, "Describe", step >= 1)
         StepDivider(step > 1)
-        StepBadge(2, "Troubleshoot", step)
+        StepBadge(2, "Diagnosis & Steps", step >= 2)
     }
 }
 
 @Composable
-private fun RowScope.StepBadge(index: Int, label: String, currentStep: Int) {
-    val active = (index == 1 && currentStep == 1) || (index == 2 && currentStep >= 2)
+private fun RowScope.StepBadge(index: Int, label: String, active: Boolean) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(
             modifier = Modifier
                 .size(22.dp)
-                .background(if (active) RaahiBrandGradient else Brush2(RaahiGlassStrong), CircleShape),
+                .background(if (active) Brush2(RaahiPrimaryTeal) else Brush2(RaahiGlassStrong), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             Text(
@@ -203,40 +314,150 @@ private fun RowScope.StepDivider(active: Boolean) {
             .weight(1f)
             .padding(horizontal = 8.dp)
             .height(1.dp)
-            .background(if (active) RaahiOrange else RaahiBorderSoft)
+            .background(if (active) RaahiPrimaryTeal else RaahiBorderSoft)
     )
 }
 
 @Composable
+private fun VehicleContextCard(vehicle: VehicleDto) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(RaahiGlass, RaahiShapeMedium)
+            .border(1.dp, RaahiPrimaryTeal.copy(alpha = 0.35f), RaahiShapeMedium)
+            .padding(horizontal = 14.dp, vertical = 10.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .background(RaahiLightTeal, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Outlined.DirectionsCar,
+                    contentDescription = null,
+                    tint = RaahiPrimaryTeal,
+                    modifier = Modifier.size(19.dp)
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "${vehicle.brand} ${vehicle.model}${if (!vehicle.variant.isNullOrBlank()) " ${vehicle.variant}" else ""}".trim(),
+                        color = RaahiText,
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = RaahiDisplayFont
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Box(
+                        modifier = Modifier
+                            .background(RaahiGreen.copy(alpha = 0.14f), RaahiShapePill)
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            "CONTEXT LINKED",
+                            color = RaahiGreen,
+                            fontSize = 8.5.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+                Spacer(Modifier.height(2.dp))
+                val details = listOfNotNull(
+                    vehicle.fuelType.ifBlank { null },
+                    vehicle.modelYear.takeIf { it > 0 }?.toString(),
+                    vehicle.registrationNumber.ifBlank { null },
+                    if (vehicle.odometerKm > 0) "${vehicle.odometerKm} km" else null
+                )
+                Text(
+                    details.joinToString(" · "),
+                    color = RaahiTextDim,
+                    fontSize = 11.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun DescribeStep(
+    vehicle: VehicleDto?,
     input: String,
+    sending: Boolean = false,
     onInputChange: (String) -> Unit,
-    onAnalyze: () -> Unit,
-    onSuggestion: (String) -> Unit
+    onAnalyze: () -> Unit
 ) {
+    val context = LocalContext.current
+    val speechAvailable = remember {
+        try {
+            SpeechRecognizer.isRecognitionAvailable(context)
+        } catch (_: Exception) {
+            false
+        }
+    }
+    val speechLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val spoken = result.data
+                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+                ?.firstOrNull()
+            if (!spoken.isNullOrBlank()) {
+                val updated = if (input.isBlank()) spoken else "$input $spoken"
+                onInputChange(updated)
+            }
+        }
+    }
+
+    var selectedCategoryIndex by remember { mutableIntStateOf(0) }
+    val scrollState = rememberScrollState()
+
     Column(
         Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp)
+            .verticalScroll(scrollState)
+            .padding(horizontal = 16.dp, vertical = 6.dp)
     ) {
+        if (vehicle != null) {
+            VehicleContextCard(vehicle)
+            Spacer(Modifier.height(12.dp))
+        }
+
+        // Problem Description Input Box
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(RaahiGlass, RaahiShapeLarge)
                 .border(1.dp, RaahiBorder, RaahiShapeLarge)
-                .padding(6.dp)
+                .padding(8.dp)
         ) {
             OutlinedTextField(
                 value = input,
-                onValueChange = onInputChange,
+                onValueChange = { if (it.length <= 2000) onInputChange(it) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(140.dp),
+                    .height(130.dp),
                 placeholder = {
                     Column {
-                        Text("Describe your vehicle problem...", color = RaahiTextDim, fontSize = 13.5.sp)
+                        Text(
+                            "Describe your vehicle problem…",
+                            color = RaahiTextDim,
+                            fontSize = 13.5.sp,
+                            fontWeight = FontWeight.Medium
+                        )
                         Spacer(Modifier.height(6.dp))
-                        Text("e.g. \"Engine is overheating when AC is on\"", color = RaahiTextFaint, fontSize = 11.5.sp)
+                        Text(
+                            "e.g. \"Temperature gauge rising into red zone and coolant smell near radiator\"",
+                            color = RaahiTextFaint,
+                            fontSize = 11.5.sp,
+                            lineHeight = 16.sp
+                        )
                     }
                 },
                 colors = OutlinedTextFieldDefaults.colors(
@@ -244,37 +465,180 @@ private fun DescribeStep(
                     unfocusedTextColor = RaahiText,
                     focusedBorderColor = Color.Transparent,
                     unfocusedBorderColor = Color.Transparent,
-                    cursorColor = RaahiOrange,
+                    cursorColor = RaahiPrimaryTeal,
                 ),
             )
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("${input.length} chars", color = RaahiTextFaint, fontSize = 10.sp, modifier = Modifier.weight(1f))
-                Box(
-                    modifier = Modifier
-                        .size(30.dp)
-                        .background(RaahiGlassStrong, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Outlined.Mic, contentDescription = "Voice input", tint = RaahiTextDim, modifier = Modifier.size(14.dp))
+                Text(
+                    "${input.length}/2000",
+                    color = RaahiTextFaint,
+                    fontSize = 10.5.sp,
+                    modifier = Modifier.weight(1f)
+                )
+
+                if (input.isNotBlank()) {
+                    IconButton(
+                        onClick = { onInputChange("") },
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            Icons.Outlined.Close,
+                            contentDescription = "Clear input",
+                            tint = RaahiTextDim,
+                            modifier = Modifier.size(15.dp)
+                        )
+                    }
+                    Spacer(Modifier.width(6.dp))
+                }
+
+                if (speechAvailable) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .background(RaahiLightTeal, CircleShape)
+                            .clickable {
+                                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                    putExtra(RecognizerIntent.EXTRA_PROMPT, "Describe symptoms or sounds…")
+                                }
+                                speechLauncher.launch(intent)
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Outlined.Mic,
+                            contentDescription = "Voice input",
+                            tint = RaahiPrimaryTeal,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
             }
         }
-        Spacer(Modifier.height(16.dp))
+
+        Spacer(Modifier.height(14.dp))
+
         GradientButton(
             onClick = onAnalyze,
-            enabled = input.isNotBlank(),
+            enabled = input.isNotBlank() && !sending,
             gradient = RaahiBrandGradient,
             icon = Icons.Outlined.Search,
-            label = "Diagnose Problem"
+            label = if (sending) "Diagnosing…" else "Diagnose Problem"
         )
-        Spacer(Modifier.height(18.dp))
-        SectionLabel("Common Roadside Issues")
-        SuggestionFlow(TRY_THESE, onSuggestion)
+
+        Spacer(Modifier.height(20.dp))
+
+        SectionLabel("Quick Issue Categories")
+        Spacer(Modifier.height(8.dp))
+
+        // Category Filter Chips
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            val allCategories = listOf("All") + ISSUE_CATEGORIES.map { it.title }
+            allCategories.forEachIndexed { index, catTitle ->
+                val active = selectedCategoryIndex == index
+                Box(
+                    modifier = Modifier
+                        .background(if (active) RaahiLightTeal else RaahiGlass, RaahiShapePill)
+                        .border(1.dp, if (active) RaahiPrimaryTeal else RaahiBorderSoft, RaahiShapePill)
+                        .clickable { selectedCategoryIndex = index }
+                        .padding(horizontal = 12.dp, vertical = 7.dp)
+                ) {
+                    Text(
+                        catTitle,
+                        color = if (active) RaahiPrimaryTealDark else RaahiTextDim,
+                        fontSize = 11.5.sp,
+                        fontWeight = if (active) FontWeight.Bold else FontWeight.Medium
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        // Categorized Issue Chips
+        val activeIssues = if (selectedCategoryIndex == 0) {
+            ISSUE_CATEGORIES.flatMap { cat -> cat.issues.map { cat.title to it } }
+        } else {
+            val cat = ISSUE_CATEGORIES[selectedCategoryIndex - 1]
+            cat.issues.map { cat.title to it }
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            activeIssues.forEach { (catTitle, issueText) ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(RaahiGlass, RaahiShapeMedium)
+                        .border(1.dp, RaahiBorderSoft, RaahiShapeMedium)
+                        .clickable {
+                            onInputChange(if (input.isBlank()) issueText else "$input, $issueText")
+                        }
+                        .padding(horizontal = 14.dp, vertical = 11.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                issueText,
+                                color = RaahiText,
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                catTitle,
+                                color = RaahiTextFaint,
+                                fontSize = 10.5.sp
+                            )
+                        }
+                        Text(
+                            "+ Add",
+                            color = RaahiPrimaryTeal,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(RaahiAmber.copy(alpha = 0.08f), RaahiShapeMedium)
+                .border(1.dp, RaahiAmber.copy(alpha = 0.25f), RaahiShapeMedium)
+                .padding(12.dp)
+        ) {
+            Row(verticalAlignment = Alignment.Top) {
+                Icon(
+                    Icons.Outlined.WarningAmber,
+                    contentDescription = null,
+                    tint = RaahiAmber,
+                    modifier = Modifier.size(16.dp).padding(top = 1.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Safety Note: For smoke, fire, fluid leaks, or brake issues, safely pull over immediately and do not drive. Request roadside assistance.",
+                    color = RaahiTextDim,
+                    fontSize = 11.sp,
+                    lineHeight = 15.sp
+                )
+            }
+        }
+
+        Spacer(Modifier.height(24.dp))
     }
 }
 
@@ -290,8 +654,8 @@ private fun GradientButton(
         modifier = Modifier
             .fillMaxWidth()
             .height(50.dp)
-            .shadow(elevation = if (enabled) 4.dp else 0.dp, shape = RaahiShapeMedium, spotColor = RaahiOrange)
-            .background(if (enabled) gradient else Brush2(RaahiGlassStrong), RaahiShapeMedium)
+            .shadow(elevation = if (enabled) 2.dp else 0.dp, shape = RaahiShapeMedium, spotColor = Color(0x10000000))
+            .background(if (enabled) Brush2(RaahiPrimaryTeal) else Brush2(RaahiGlassStrong), RaahiShapeMedium)
             .clickable(enabled = enabled, onClick = onClick),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
@@ -303,27 +667,6 @@ private fun GradientButton(
 }
 
 @Composable
-private fun SuggestionFlow(items: List<String>, onClick: (String) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        items.chunked(2).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                row.forEach { text ->
-                    Box(
-                        modifier = Modifier
-                            .background(RaahiGlass, RaahiShapePill)
-                            .border(1.dp, RaahiBorderSoft, RaahiShapePill)
-                            .clickable { onClick(text) }
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
-                    ) {
-                        Text(text, color = RaahiTextDim, fontSize = 11.5.sp, fontWeight = FontWeight.Medium)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun ColumnScope.ResultsStep(
     state: AiChatUiState,
     listState: androidx.compose.foundation.lazy.LazyListState,
@@ -331,18 +674,150 @@ private fun ColumnScope.ResultsStep(
     onInputChange: (String) -> Unit,
     onSend: () -> Unit,
     onRequestHelp: () -> Unit,
-    onNearbyMechanics: () -> Unit
+    onNearbyMechanics: () -> Unit,
+    onRetry: () -> Unit = {},
+    onRestoreQuestion: () -> Unit = {},
 ) {
-    var feedback by remember { mutableStateOf<Boolean?>(null) }
+    val context = LocalContext.current
+    val speechAvailable = remember {
+        try {
+            SpeechRecognizer.isRecognitionAvailable(context)
+        } catch (_: Exception) {
+            false
+        }
+    }
+    val speechLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val spoken = result.data
+                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+                ?.firstOrNull()
+            if (!spoken.isNullOrBlank()) {
+                onInputChange(if (input.isBlank()) spoken else "$input $spoken")
+            }
+        }
+    }
+
+    if (state.activeVehicle != null) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 6.dp)
+                .background(RaahiGlass, RaahiShapePill)
+                .border(1.dp, RaahiBorderSoft, RaahiShapePill)
+                .padding(horizontal = 12.dp, vertical = 6.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Outlined.DirectionsCar,
+                    contentDescription = null,
+                    tint = RaahiPrimaryTeal,
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "Vehicle: ${state.activeVehicle.brand} ${state.activeVehicle.model} · Active Context",
+                    color = RaahiTextDim,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+    }
 
     LazyColumn(
         state = listState,
         modifier = Modifier
             .fillMaxWidth()
             .weight(1f),
-        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 16.dp),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
+        if (state.messages.isEmpty() && !state.sending) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 24.dp, horizontal = 4.dp)
+                        .background(RaahiGlass, RaahiShapeMedium)
+                        .border(1.dp, RaahiBorder, RaahiShapeMedium)
+                        .padding(20.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .background(RaahiLightTeal, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Outlined.WarningAmber,
+                                contentDescription = null,
+                                tint = RaahiPrimaryTeal,
+                                modifier = Modifier.size(26.dp)
+                            )
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            "Diagnosis Incomplete",
+                            color = RaahiText,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = RaahiDisplayFont
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            state.error ?: "We could not reach the diagnosis server. Please retry or adjust your description.",
+                            color = RaahiTextDim,
+                            fontSize = 12.5.sp,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            lineHeight = 17.sp
+                        )
+                        if (!state.lastFailedMessage.isNullOrBlank()) {
+                            Spacer(Modifier.height(14.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(RaahiGlassStrong, RaahiShapeSmall)
+                                    .padding(10.dp)
+                            ) {
+                                Text(
+                                    "“${state.lastFailedMessage}”",
+                                    color = RaahiTextFaint,
+                                    fontSize = 11.5.sp,
+                                    maxLines = 3,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(16.dp))
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            OutlinedButton(
+                                onClick = onRestoreQuestion,
+                                modifier = Modifier.weight(1f),
+                                shape = RaahiShapeMedium,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, RaahiBorder)
+                            ) {
+                                Text("Edit Question", color = RaahiPrimaryTeal, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                            Button(
+                                onClick = onRetry,
+                                modifier = Modifier.weight(1f),
+                                shape = RaahiShapeMedium,
+                                colors = ButtonDefaults.buttonColors(containerColor = RaahiPrimaryTeal)
+                            ) {
+                                Text("Retry", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
         items(state.messages, key = { it.id }) { msg ->
             ChatBubble(
                 msg = msg,
@@ -355,12 +830,9 @@ private fun ColumnScope.ResultsStep(
                 AssistantTypingBubble()
             }
         }
-        if (!state.sending && state.messages.any { it.role != "USER" }) {
-            item { FeedbackRow(feedback) { feedback = it } }
-        }
     }
 
-    if (state.error != null) {
+    if (state.error != null && state.messages.isNotEmpty()) {
         Text(
             state.error,
             color = RaahiRed,
@@ -372,7 +844,7 @@ private fun ColumnScope.ResultsStep(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         OutlinedTextField(
@@ -381,12 +853,32 @@ private fun ColumnScope.ResultsStep(
             placeholder = { Text("Ask follow-up or symptom details…", color = RaahiTextDim, fontSize = 13.sp) },
             modifier = Modifier.weight(1f),
             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = ImeAction.Send),
+            trailingIcon = if (speechAvailable) {
+                {
+                    IconButton(
+                        onClick = {
+                            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                putExtra(RecognizerIntent.EXTRA_PROMPT, "Ask follow-up…")
+                            }
+                            speechLauncher.launch(intent)
+                        }
+                    ) {
+                        Icon(
+                            Icons.Outlined.Mic,
+                            contentDescription = "Voice input",
+                            tint = RaahiPrimaryTeal,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            } else null,
             colors = OutlinedTextFieldDefaults.colors(
                 focusedTextColor = RaahiText,
                 unfocusedTextColor = RaahiText,
-                focusedBorderColor = RaahiOrange,
+                focusedBorderColor = RaahiPrimaryTeal,
                 unfocusedBorderColor = RaahiBorder,
-                cursorColor = RaahiOrange,
+                cursorColor = RaahiPrimaryTeal,
             ),
         )
         Spacer(Modifier.width(8.dp))
@@ -394,7 +886,7 @@ private fun ColumnScope.ResultsStep(
             Box(
                 Modifier
                     .size(42.dp)
-                    .background(if (input.isNotBlank() && !state.sending) RaahiBrandGradient else Brush2(RaahiGlassStrong), CircleShape),
+                    .background(if (input.isNotBlank() && !state.sending) Brush2(RaahiPrimaryTeal) else Brush2(RaahiGlassStrong), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -442,37 +934,6 @@ private fun AssistantTypingBubble() {
 }
 
 @Composable
-private fun FeedbackRow(picked: Boolean?, onPick: (Boolean) -> Unit) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(top = 6.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text("Was this guidance helpful?", color = RaahiTextFaint, fontSize = 11.sp)
-        Spacer(Modifier.width(10.dp))
-        FeedbackButton(Icons.Outlined.CheckCircle, picked == true, RaahiGreen) { onPick(true) }
-        Spacer(Modifier.width(8.dp))
-        FeedbackButton(Icons.Outlined.WarningAmber, picked == false, RaahiRed) { onPick(false) }
-    }
-}
-
-@Composable
-private fun FeedbackButton(icon: androidx.compose.ui.graphics.vector.ImageVector, picked: Boolean, color: Color, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .size(30.dp)
-            .background(if (picked) color.copy(alpha = 0.15f) else Color.White, CircleShape)
-            .border(1.dp, if (picked) Color.Transparent else RaahiBorderSoft, CircleShape)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(icon, contentDescription = null, tint = if (picked) color else RaahiTextDim, modifier = Modifier.size(14.dp))
-    }
-}
-
-@Composable
 private fun ChatBubble(
     msg: AiMessageDto,
     onRequestHelp: () -> Unit,
@@ -485,15 +946,15 @@ private fun ChatBubble(
     ) {
         Column(
             modifier = Modifier
-                .widthIn(max = 310.dp)
+                .widthIn(max = 330.dp)
                 .then(
                     if (!isUser) Modifier.shadow(elevation = 2.dp, shape = RaahiShapeMedium, spotColor = Color(0x10000000)).border(1.dp, RaahiBorderSoft, RaahiShapeMedium)
-                    else Modifier.shadow(elevation = 2.dp, shape = RaahiShapeMedium, spotColor = RaahiOrange.copy(alpha = 0.25f))
+                    else Modifier.shadow(elevation = 2.dp, shape = RaahiShapeMedium, spotColor = Color(0x15000000))
                 )
                 .background(
                     when {
                         msg.unavailable -> RaahiAmber.copy(alpha = 0.08f)
-                        isUser -> RaahiOrange
+                        isUser -> Color(0xFF222629)
                         else -> Color.White
                     },
                     RaahiShapeMedium,
@@ -524,7 +985,7 @@ private fun ChatBubble(
                         onClick = onRequestHelp,
                         modifier = Modifier.weight(1f).height(36.dp),
                         shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange),
+                        colors = ButtonDefaults.buttonColors(containerColor = RaahiPrimaryTeal),
                         contentPadding = PaddingValues(horizontal = 6.dp)
                     ) {
                         Text("Roadside Help", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -533,11 +994,11 @@ private fun ChatBubble(
                         onClick = onNearbyMechanics,
                         modifier = Modifier.weight(1f).height(36.dp),
                         shape = RoundedCornerShape(10.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, RaahiOrange),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = RaahiOrange),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, RaahiPrimaryTeal),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = RaahiPrimaryTeal),
                         contentPadding = PaddingValues(horizontal = 6.dp)
                     ) {
-                        Text("Nearby Garages", color = RaahiOrange, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text("Nearby Garages", color = RaahiPrimaryTeal, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             } else if (isUser) {
@@ -548,6 +1009,74 @@ private fun ChatBubble(
                     lineHeight = 21.sp
                 )
             } else {
+                // Assistant Diagnosis Response
+                val isCriticalSafety = msg.content.contains("brake", ignoreCase = true) ||
+                    msg.content.contains("smoke", ignoreCase = true) ||
+                    msg.content.contains("fire", ignoreCase = true) ||
+                    msg.content.contains("coolant leak", ignoreCase = true) ||
+                    msg.content.contains("fuel leak", ignoreCase = true) ||
+                    msg.content.contains("overheat", ignoreCase = true) ||
+                    msg.content.contains("do not drive", ignoreCase = true) ||
+                    msg.content.contains("stop driving", ignoreCase = true) ||
+                    msg.content.contains("pull over", ignoreCase = true)
+
+                val urgency = when {
+                    isCriticalSafety -> "HIGH URGENCY" to RaahiRed
+                    msg.content.contains("battery", ignoreCase = true) ||
+                    msg.content.contains("puncture", ignoreCase = true) ||
+                    msg.content.contains("flat", ignoreCase = true) -> "MODERATE" to RaahiAmber
+                    else -> "ADVISORY" to RaahiGreen
+                }
+
+                // Safety Warning Banner
+                if (isCriticalSafety) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(RaahiRed.copy(alpha = 0.10f), RaahiShapeSmall)
+                            .border(1.dp, RaahiRed.copy(alpha = 0.35f), RaahiShapeSmall)
+                            .padding(horizontal = 10.dp, vertical = 8.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.Top) {
+                            Icon(
+                                Icons.Outlined.WarningAmber,
+                                contentDescription = null,
+                                tint = RaahiRed,
+                                modifier = Modifier.size(15.dp).padding(top = 1.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                "Safety Priority: Safely pull over immediately if experiencing brake loss, engine smoke, or fluid leaks.",
+                                color = RaahiRed,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                lineHeight = 15.sp
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+
+                // Urgency indicator pill
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(bottom = 6.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .background(urgency.second.copy(alpha = 0.12f), RaahiShapePill)
+                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            urgency.first,
+                            color = urgency.second,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                // Parsed diagnosis content
                 Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
                     msg.content.lines().forEach { rawLine ->
                         val line = rawLine.trim()
@@ -569,12 +1098,47 @@ private fun ChatBubble(
                                     else -> cleaned
                                 },
                                 color = RaahiText,
-                                fontSize = if (heading) 15.sp else 13.5.sp,
+                                fontSize = if (heading) 14.5.sp else 13.sp,
                                 fontWeight = if (heading) FontWeight.Bold else FontWeight.Normal,
-                                lineHeight = if (heading) 21.sp else 20.sp,
+                                lineHeight = if (heading) 20.sp else 19.sp,
                                 modifier = if (numbered || bullet) Modifier.padding(start = 3.dp) else Modifier
                             )
                         }
+                    }
+                }
+
+                Spacer(Modifier.height(10.dp))
+
+                // Honest AI Disclaimer
+                Text(
+                    "⚠️ AI Roadside Advisory: Guidance is preliminary and cannot replace physical inspection by a certified mechanic.",
+                    color = RaahiTextFaint,
+                    fontSize = 10.5.sp,
+                    lineHeight = 14.sp
+                )
+
+                Spacer(Modifier.height(12.dp))
+
+                // Contextual Roadside Help Action Buttons
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = onRequestHelp,
+                        modifier = Modifier.weight(1f).height(36.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = RaahiPrimaryTeal),
+                        contentPadding = PaddingValues(horizontal = 6.dp)
+                    ) {
+                        Text("Roadside Help", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                    OutlinedButton(
+                        onClick = onNearbyMechanics,
+                        modifier = Modifier.weight(1f).height(36.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, RaahiPrimaryTeal),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = RaahiPrimaryTeal),
+                        contentPadding = PaddingValues(horizontal = 6.dp)
+                    ) {
+                        Text("Nearby Garages", color = RaahiPrimaryTeal, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }

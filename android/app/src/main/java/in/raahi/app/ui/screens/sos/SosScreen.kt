@@ -13,6 +13,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -56,55 +57,78 @@ fun SosScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val contacts by viewModel.contacts.collectAsState()
+    val isActive = state.activeSos != null
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFFFFF4EE),
-                        Color(0xFFFFE9E2),
-                        Color(0xFFFFF7F2)
-                    )
-                )
-            )
+            .background(if (isActive) RaahiSosRed else RaahiLightBg)
     ) {
         Column(Modifier.fillMaxSize()) {
             // Header
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = if (isActive) RaahiSosRed else RaahiCharcoalHeader,
             ) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back", tint = Color(0xFF292524))
-                }
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        "SOS",
-                        color = Color(0xFF292524),
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = RaahiDisplayFont
-                    )
-                    Text(
-                        "Emergency Assistance",
-                        color = Color(0xFF78716C),
-                        fontSize = 11.5.sp
-                    )
-                }
-                TextButton(onClick = onEmergencyContacts) {
-                    Icon(Icons.Filled.ContactPhone, contentDescription = null, tint = Color(0xFFE11D48), modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Contacts", color = Color(0xFFE11D48), fontWeight = FontWeight.SemiBold)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier
+                            .size(38.dp)
+                            .background(if (isActive) Color.White.copy(alpha = 0.2f) else RaahiDarkSurface, CircleShape)
+                            .border(1.dp, if (isActive) Color.White.copy(alpha = 0.3f) else Color(0xFF2E3438), CircleShape),
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            text = if (isActive) "SOS Active" else "Emergency SOS",
+                            color = Color.White,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = RaahiDisplayFont,
+                        )
+                        Text(
+                            text = if (isActive) "Emergency broadcast live" else "Instant emergency response",
+                            color = Color.White.copy(alpha = 0.75f),
+                            fontSize = 11.5.sp,
+                        )
+                    }
+                    TextButton(
+                        onClick = onEmergencyContacts,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.ContactPhone,
+                            contentDescription = null,
+                            tint = if (isActive) Color.White else RaahiPrimaryTeal,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = "Contacts",
+                            color = if (isActive) Color.White else RaahiPrimaryTeal,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp,
+                        )
+                    }
                 }
             }
 
             if (state.loading) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Color.White)
+                    CircularProgressIndicator(color = if (isActive) Color.White else RaahiPrimaryTeal)
                 }
             } else if (state.activeSos != null) {
                 ActiveSosBody(
@@ -166,30 +190,30 @@ private fun IdleSosBody(
                     modifier = Modifier
                         .size(230.dp)
                         .scale(pulseScale)
-                        .background(Color.White.copy(alpha = 0.08f), CircleShape)
+                        .background(RaahiSosRed.copy(alpha = 0.08f), CircleShape)
                 )
                 // Outer ring 2
                 Box(
                     modifier = Modifier
                         .size(180.dp)
                         .scale(pulseScale)
-                        .background(Color.White.copy(alpha = 0.16f), CircleShape)
+                        .background(RaahiSosRed.copy(alpha = 0.16f), CircleShape)
                 )
                 // Center circle
                 Box(
                     modifier = Modifier
                         .size(130.dp)
-                        .shadow(elevation = 14.dp, shape = CircleShape, spotColor = Color(0x66000000))
+                        .shadow(elevation = 10.dp, shape = CircleShape, spotColor = Color(0x33000000))
                         .background(Color.White, CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
                     if (triggering) {
-                        CircularProgressIndicator(color = RaahiRed, strokeWidth = 3.dp)
+                        CircularProgressIndicator(color = RaahiSosRed, strokeWidth = 3.dp)
                     } else {
                         Icon(
                             imageVector = Icons.Filled.NotificationsActive,
                             contentDescription = "SOS",
-                            tint = Color(0xFFE11D48),
+                            tint = RaahiSosRed,
                             modifier = Modifier.size(54.dp)
                         )
                     }
@@ -200,7 +224,7 @@ private fun IdleSosBody(
 
             Text(
                 text = "Slide the slider below to alert\nnearby helpers and emergency contacts",
-                color = Color(0xFF57534E),
+                color = RaahiSecondaryText,
                 textAlign = TextAlign.Center,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
@@ -209,7 +233,7 @@ private fun IdleSosBody(
 
             if (error != null) {
                 Spacer(Modifier.height(14.dp))
-                Text(error, color = Color(0xFFB91C1C), fontSize = 12.5.sp, textAlign = TextAlign.Center)
+                Text(error, color = RaahiSosRed, fontSize = 12.5.sp, textAlign = TextAlign.Center)
             }
         }
 
@@ -242,8 +266,9 @@ fun SosSlider(
         modifier = modifier
             .fillMaxWidth()
             .height(58.dp)
-            .shadow(elevation = 8.dp, shape = CircleShape, spotColor = Color(0x33000000))
-            .background(Color.White, CircleShape)
+            .shadow(elevation = 4.dp, shape = CircleShape, spotColor = Color(0x20000000))
+            .background(RaahiWhiteSurface, CircleShape)
+            .border(1.dp, RaahiBorderColor, CircleShape)
             .padding(horizontal = paddingDp)
             .onSizeChanged { size ->
                 trackWidthPx = size.width.toFloat()
@@ -258,7 +283,7 @@ fun SosSlider(
         ) {
             Text(
                 text = if (triggering) "Sending SOS..." else "Slide to Send SOS",
-                color = Color(0xFFE11D48).copy(alpha = textAlpha),
+                color = RaahiSosRed.copy(alpha = textAlpha),
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
                 fontFamily = RaahiDisplayFont,
@@ -272,7 +297,7 @@ fun SosSlider(
                 .offset { IntOffset(dragOffset.value.roundToInt(), 0) }
                 .size(thumbSizeDp)
                 .shadow(elevation = 4.dp, shape = CircleShape, spotColor = Color(0x40000000))
-                .background(Color(0xFFE11D48), CircleShape)
+                .background(RaahiSosRed, CircleShape)
                 .pointerInput(triggering, maxOffset) {
                     if (triggering || maxOffset <= 0f) return@pointerInput
                     detectHorizontalDragGestures(

@@ -56,19 +56,43 @@ fun IntercityTripDetailScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Text("Trip Details", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = RaahiText)
+            Surface(
+                color = RaahiCharcoalHeader,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(RaahiDarkSurface)
+                            .border(1.dp, Color(0xFF2E3438), CircleShape),
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = RaahiBg)
-            )
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        "Trip Details",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        fontFamily = RaahiDisplayFont,
+                    )
+                }
+            }
         },
-        containerColor = RaahiBg,
+        containerColor = RaahiLightBg,
     ) { padding ->
         Box(
             modifier = Modifier
@@ -78,7 +102,7 @@ fun IntercityTripDetailScreen(
             when (val state = detailState) {
                 is TripDetailUiState.Loading -> {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = RaahiOrange)
+                        CircularProgressIndicator(color = RaahiPrimaryTeal)
                     }
                 }
                 is TripDetailUiState.Error -> {
@@ -89,15 +113,15 @@ fun IntercityTripDetailScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center,
                     ) {
-                        Text("Error", color = RaahiOrange, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text("Error", color = RaahiSosRed, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                         Spacer(Modifier.height(8.dp))
                         Text(state.message, color = RaahiTextDim, fontSize = 14.sp)
                         Spacer(Modifier.height(16.dp))
                         Button(
                             onClick = { viewModel.loadTripDetails(tripId) },
-                            colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange),
+                            colors = ButtonDefaults.buttonColors(containerColor = RaahiPrimaryTeal),
                         ) {
-                            Text("Retry")
+                            Text("Retry", color = Color.White)
                         }
                     }
                 }
@@ -119,7 +143,7 @@ fun IntercityTripDetailScreen(
                             Surface(
                                 color = Color(0xFFFFECEC),
                                 shape = RoundedCornerShape(12.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE5484D)),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, RaahiSosRed),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
@@ -127,17 +151,17 @@ fun IntercityTripDetailScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Icon(Icons.Outlined.Warning, contentDescription = null, tint = Color(0xFFE5484D))
-                                    Text(actionError ?: "", color = Color(0xFFE5484D), fontSize = 13.sp)
+                                    Icon(Icons.Outlined.Warning, contentDescription = null, tint = RaahiSosRed)
+                                    Text(actionError ?: "", color = RaahiSosRed, fontSize = 13.sp)
                                 }
                             }
                         }
 
                         if (actionSuccess != null) {
                             Surface(
-                                color = Color(0xFFE8F8F0),
+                                color = RaahiLightTeal,
                                 shape = RoundedCornerShape(12.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF22B573)),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, RaahiPrimaryTeal),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
@@ -145,8 +169,8 @@ fun IntercityTripDetailScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF22B573))
-                                    Text(actionSuccess ?: "", color = Color(0xFF22B573), fontSize = 13.sp)
+                                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = RaahiPrimaryTeal)
+                                    Text(actionSuccess ?: "", color = RaahiPrimaryTeal, fontSize = 13.sp)
                                 }
                             }
                         }
@@ -154,10 +178,10 @@ fun IntercityTripDetailScreen(
                         // Hero Card: Route & Fare
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(20.dp),
-                            color = RaahiBg2,
-                            border = androidx.compose.foundation.BorderStroke(1.dp, RaahiBorderSoft),
-                            shadowElevation = 2.dp,
+                            shape = RaahiCardShape,
+                            color = RaahiCardWhite,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, RaahiCardBorder),
+                            shadowElevation = RaahiCardElevation,
                         ) {
                             Column(modifier = Modifier.padding(18.dp)) {
                                 Row(
@@ -170,11 +194,11 @@ fun IntercityTripDetailScreen(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                                     ) {
                                         Text(trip.pickupCity, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = RaahiText)
-                                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = RaahiOrange)
+                                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = RaahiPrimaryTeal)
                                         Text(trip.destCity, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = RaahiText)
                                     }
 
-                                    Text("₹${trip.fare.toInt()}", fontWeight = FontWeight.ExtraBold, fontSize = 22.sp, color = RaahiOrange)
+                                    Text("₹${trip.fare.toInt()}", fontWeight = FontWeight.ExtraBold, fontSize = 22.sp, color = RaahiPriceText)
                                 }
 
                                 Spacer(Modifier.height(10.dp))
@@ -184,9 +208,9 @@ fun IntercityTripDetailScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     `in`.raahi.app.ui.components.RaahiRideTypeBadge(trip.rideType)
-                                    BadgePill(trip.vehicleCategory, RaahiOrange, RaahiSelectionBg)
+                                    BadgePill(trip.vehicleCategory, RaahiPrimaryTeal, RaahiLightTeal)
                                     BadgePill(if (trip.tripType == "ROUND_TRIP") "Round Trip" else "One Way", RaahiBlue, Color(0xFFEAF3FF))
-                                    BadgePill(trip.status, if (trip.status == "COMPLETED") Color(0xFF22B573) else RaahiOrange, Color(0xFFFFF0E8))
+                                    BadgePill(trip.status, if (trip.status == "COMPLETED") RaahiPrimaryTealDark else RaahiPrimaryTeal, RaahiLightTeal)
                                 }
                             }
                         }
@@ -195,17 +219,18 @@ fun IntercityTripDetailScreen(
                         if (isAgent && (trip.pickupOtp != null || trip.completionOtp != null)) {
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(16.dp),
-                                color = Color(0xFFFFF7ED),
-                                border = androidx.compose.foundation.BorderStroke(1.5.dp, RaahiOrange),
+                                shape = RaahiCardShape,
+                                color = RaahiLightTeal,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, RaahiPrimaryTeal),
+                                shadowElevation = RaahiCardElevation,
                             ) {
                                 Column(modifier = Modifier.padding(16.dp)) {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        Icon(Icons.Default.Lock, contentDescription = null, tint = RaahiOrange)
-                                        Text("Trip Verification OTPs (Confidential)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = RaahiOrange)
+                                        Icon(Icons.Default.Lock, contentDescription = null, tint = RaahiPrimaryTeal)
+                                        Text("Trip Verification OTPs (Confidential)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = RaahiPrimaryTeal)
                                     }
                                     Spacer(Modifier.height(8.dp))
 
@@ -216,7 +241,7 @@ fun IntercityTripDetailScreen(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text("Pickup OTP (Share with driver at start):", fontSize = 13.sp, color = RaahiText)
-                                            Text(trip.pickupOtp, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = RaahiOrange)
+                                            Text(trip.pickupOtp, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = RaahiPrimaryTeal)
                                         }
                                     }
 
@@ -228,24 +253,24 @@ fun IntercityTripDetailScreen(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text("Completion OTP (Verify upon drop):", fontSize = 13.sp, color = RaahiText)
-                                            Text(trip.completionOtp, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = Color(0xFF22B573))
+                                            Text(trip.completionOtp, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = RaahiPrimaryTealDark)
                                         }
                                     }
                                 }
                             }
                         }
-
                         // Addresses and Timing Card
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(18.dp),
-                            color = RaahiBg2,
-                            border = androidx.compose.foundation.BorderStroke(1.dp, RaahiBorderSoft),
+                            shape = RaahiCardShape,
+                            color = RaahiCardWhite,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, RaahiCardBorder),
+                            shadowElevation = RaahiCardElevation,
                         ) {
                             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                 Text("Trip Schedule & Locations", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = RaahiText)
 
-                                LocationRow("Pickup Address", trip.pickupAddress, Icons.Outlined.LocationOn, RaahiOrange)
+                                LocationRow("Pickup Address", trip.pickupAddress, Icons.Outlined.LocationOn, RaahiPrimaryTeal)
                                 LocationRow("Destination Address", trip.destAddress, Icons.Outlined.LocationOn, RaahiBlue)
 
                                 Row(
@@ -265,7 +290,7 @@ fun IntercityTripDetailScreen(
                                 }
 
                                 if (!trip.specialInstructions.isNullOrBlank()) {
-                                    HorizontalDivider(color = RaahiBorderSoft)
+                                    HorizontalDivider(color = RaahiCardBorder)
                                     Column {
                                         Text("Special Instructions", fontSize = 12.sp, color = RaahiTextDim)
                                         Text(trip.specialInstructions, fontSize = 13.sp, color = RaahiText)
@@ -277,19 +302,20 @@ fun IntercityTripDetailScreen(
                         // Counterparty Information Card (Agency or Driver)
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(18.dp),
-                            color = RaahiBg2,
-                            border = androidx.compose.foundation.BorderStroke(1.dp, RaahiBorderSoft),
+                            shape = RaahiCardShape,
+                            color = RaahiCardWhite,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, RaahiCardBorder),
+                            shadowElevation = RaahiCardElevation,
                         ) {
                             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Text("Travel Agency & Payment", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = RaahiText)
 
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                     Box(
-                                        Modifier.size(40.dp).background(RaahiSelectionBg, CircleShape),
+                                        Modifier.size(40.dp).background(RaahiLightTeal, CircleShape),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Icon(Icons.Default.Person, contentDescription = null, tint = RaahiOrange)
+                                        Icon(Icons.Default.Person, contentDescription = null, tint = RaahiPrimaryTeal)
                                     }
                                     Column {
                                         Text(trip.agencyName ?: trip.agentName ?: "Travel Agency", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = RaahiText)
@@ -312,32 +338,32 @@ fun IntercityTripDetailScreen(
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Text("Payment Status", fontSize = 13.sp, color = RaahiTextDim)
-                                    Text(trip.paymentStatus, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = if (trip.paymentStatus == "PAID") Color(0xFF22B573) else RaahiOrange)
+                                    Text(trip.paymentStatus, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = if (trip.paymentStatus == "PAID") RaahiPrimaryTeal else RaahiSosRed)
                                 }
 
                                 if (trip.rideType == "AGENT") {
-                                    HorizontalDivider(color = RaahiBorderSoft)
+                                    HorizontalDivider(color = RaahiCardBorder)
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                         Text("Customer Fare", fontSize = 13.sp, color = RaahiTextDim)
                                         Text("₹${(trip.customerFare ?: trip.fare).toInt()}", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = RaahiText)
                                     }
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                         Text("Driver Payout", fontSize = 13.sp, color = RaahiTextDim)
-                                        Text("₹${(trip.driverPayout ?: trip.fare).toInt()}", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF22B573))
+                                        Text("₹${(trip.driverPayout ?: trip.fare).toInt()}", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RaahiPriceText)
                                     }
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                         Text("Agent Commission", fontSize = 13.sp, color = RaahiTextDim)
-                                        Text("₹${(trip.agentCommission ?: 0.0).toInt()}", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = RaahiOrange)
+                                        Text("₹${(trip.agentCommission ?: 0.0).toInt()}", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = RaahiPriceText)
                                     }
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                         Text("Settlement Responsibility", fontSize = 13.sp, color = RaahiTextDim)
                                         Text(trip.settlementResponsibility?.replace("_", " ") ?: "Driver to Agent", fontWeight = FontWeight.Medium, fontSize = 12.sp, color = RaahiText)
                                     }
                                 } else {
-                                    HorizontalDivider(color = RaahiBorderSoft)
+                                    HorizontalDivider(color = RaahiCardBorder)
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                         Text("Owner Journey", fontSize = 13.sp, color = RaahiTextDim)
-                                        Text("Zero Commission (Free)", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color(0xFF22B573))
+                                        Text("Zero Commission (Free)", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = RaahiPrimaryTeal)
                                     }
                                     if (trip.estimatedDistanceKm != null) {
                                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -353,9 +379,10 @@ fun IntercityTripDetailScreen(
                         if (trip.driverId != null) {
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(18.dp),
-                                color = RaahiBg2,
-                                border = androidx.compose.foundation.BorderStroke(1.dp, RaahiBorderSoft),
+                                shape = RaahiCardShape,
+                                color = RaahiCardWhite,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, RaahiCardBorder),
+                                shadowElevation = RaahiCardElevation,
                             ) {
                                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                     Text("Assigned Driver", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = RaahiText)
@@ -388,9 +415,10 @@ fun IntercityTripDetailScreen(
                             if (state.applications.isEmpty()) {
                                 Surface(
                                     modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(14.dp),
-                                    color = RaahiBg2,
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, RaahiBorderSoft),
+                                    shape = RaahiCardShape,
+                                    color = RaahiCardWhite,
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, RaahiCardBorder),
+                                    shadowElevation = RaahiCardElevation,
                                 ) {
                                     Column(
                                         modifier = Modifier.padding(20.dp),
@@ -415,13 +443,13 @@ fun IntercityTripDetailScreen(
                         if (isDriver || (trip.status in listOf("ASSIGNED", "ARRIVED", "IN_PROGRESS") && isAgent)) {
                             Button(
                                 onClick = { onOpenActiveTrip(trip.id) },
-                                modifier = Modifier.fillMaxWidth().height(52.dp),
-                                shape = RoundedCornerShape(14.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange),
+                                modifier = Modifier.fillMaxWidth().height(50.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = RaahiPrimaryTeal),
                             ) {
-                                Icon(Icons.Outlined.Navigation, contentDescription = null)
+                                Icon(Icons.Outlined.Navigation, contentDescription = null, tint = Color.White)
                                 Spacer(Modifier.width(8.dp))
-                                Text("Open Live Trip Tracking & Verification", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                Text("Open Live Trip Tracking & Verification", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
                             }
                         }
 
@@ -429,28 +457,28 @@ fun IntercityTripDetailScreen(
                             if (hasApplied) {
                                 Surface(
                                     modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(14.dp),
-                                    color = Color(0xFFE8F8F0),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF22B573)),
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = RaahiLightTeal,
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, RaahiPrimaryTeal),
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(16.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF22B573))
-                                        Text("You have applied for this trip. The agent is reviewing your profile.", color = Color(0xFF22B573), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = RaahiPrimaryTeal)
+                                        Text("You have applied for this trip. The agent is reviewing your profile.", color = RaahiPrimaryTeal, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                                     }
                                 }
                             } else {
                                 Button(
                                     onClick = { showApplyDialog = true },
-                                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                                    shape = RoundedCornerShape(14.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange),
+                                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = RaahiPrimaryTeal),
                                     enabled = !actionLoading,
                                 ) {
-                                    Text("Apply as Driver (₹${trip.fare.toInt()})", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                    Text("Apply as Driver (₹${trip.fare.toInt()})", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
                                 }
                             }
                         }
@@ -461,10 +489,10 @@ fun IntercityTripDetailScreen(
                                 onClick = { showCancelDialog = true },
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFE5484D)),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE5484D)),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = RaahiSosRed),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, RaahiSosRed),
                             ) {
-                                Text("Cancel Trip", fontWeight = FontWeight.SemiBold)
+                                Text("Cancel Trip", fontWeight = FontWeight.SemiBold, color = RaahiSosRed)
                             }
                         }
                     }
@@ -497,9 +525,9 @@ fun IntercityTripDetailScreen(
                         showApplyDialog = false
                         viewModel.applyForTrip(tripId, applyNotes)
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange),
+                    colors = ButtonDefaults.buttonColors(containerColor = RaahiPrimaryTeal),
                 ) {
-                    Text("Confirm Application")
+                    Text("Confirm Application", color = Color.White)
                 }
             },
             dismissButton = {
@@ -551,9 +579,10 @@ private fun ApplicationCard(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        color = RaahiBg2,
-        border = androidx.compose.foundation.BorderStroke(1.dp, RaahiBorderSoft),
+        shape = RaahiCardShape,
+        color = RaahiCardWhite,
+        border = androidx.compose.foundation.BorderStroke(1.dp, RaahiCardBorder),
+        shadowElevation = RaahiCardElevation,
     ) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
@@ -583,10 +612,10 @@ private fun ApplicationCard(
                 onClick = onSelect,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange),
+                colors = ButtonDefaults.buttonColors(containerColor = RaahiPrimaryTeal),
                 enabled = !isLoading,
             ) {
-                Text("Select & Assign Driver", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text("Select & Assign Driver", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.White)
             }
         }
     }

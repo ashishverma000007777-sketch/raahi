@@ -24,8 +24,42 @@ public interface AiMechanicProvider {
 
     String providerName();
 
+    enum ErrorCategory {
+        TIMEOUT,
+        RATE_LIMITED,
+        CONFIG_ERROR,
+        UPSTREAM_ERROR,
+        MALFORMED_RESPONSE
+    }
+
     class AiUnavailableException extends Exception {
-        public AiUnavailableException(String message) { super(message); }
-        public AiUnavailableException(String message, Throwable cause) { super(message, cause); }
+        private final ErrorCategory category;
+        private final Integer httpStatus;
+
+        public AiUnavailableException(String message) {
+            super(message);
+            this.category = ErrorCategory.UPSTREAM_ERROR;
+            this.httpStatus = null;
+        }
+
+        public AiUnavailableException(String message, Throwable cause) {
+            super(message, cause);
+            this.category = ErrorCategory.UPSTREAM_ERROR;
+            this.httpStatus = null;
+        }
+
+        public AiUnavailableException(ErrorCategory category, String message, Integer httpStatus, Throwable cause) {
+            super(message, cause);
+            this.category = category;
+            this.httpStatus = httpStatus;
+        }
+
+        public ErrorCategory getCategory() {
+            return category != null ? category : ErrorCategory.UPSTREAM_ERROR;
+        }
+
+        public Integer getHttpStatus() {
+            return httpStatus;
+        }
     }
 }

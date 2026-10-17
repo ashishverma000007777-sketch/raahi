@@ -47,6 +47,9 @@ raahi:
   ai:
     provider: ${AI_PROVIDER:gemini}
     gemini-api-key: ${GEMINI_API_KEY:}   # backend-only, never sent to Android
+    gemini-model: ${GEMINI_MODEL:${RAAHI_AI_GEMINI_MODEL:gemini-1.5-flash}}
+    gemini-api-version: ${GEMINI_API_VERSION:v1beta}
+    gemini-endpoint: ${GEMINI_API_ENDPOINT:https://generativelanguage.googleapis.com}
   google:
     api-key: ${GOOGLE_MAPS_API_KEY:${GOOGLE_API_KEY:}}
   commission:

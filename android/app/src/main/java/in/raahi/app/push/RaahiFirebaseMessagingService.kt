@@ -71,6 +71,14 @@ class RaahiFirebaseMessagingService : FirebaseMessagingService() {
             return
         }
 
+        if (type == "intercity_new_trip" || (!data["tripId"].isNullOrBlank() && type != "job_status_change")) {
+            val tripId = data["tripId"].orEmpty()
+            val title = message.notification?.title ?: data["title"] ?: "New Intercity Trip Available"
+            val body = message.notification?.body ?: data["body"] ?: "A new intercity trip has been posted. Tap to view details and apply."
+            RaahiNotifications.showIntercityAlert(applicationContext, title, body, tripId, data)
+            return
+        }
+
         // Notification-only payloads are shown automatically by the system when the app is
         // backgrounded, but NOT when foregrounded — that gap is what RaahiNotifications.show
         // closes. Every push this backend actually sends (see NotificationService.java) sets

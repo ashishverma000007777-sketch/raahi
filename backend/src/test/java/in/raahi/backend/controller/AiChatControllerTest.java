@@ -147,4 +147,125 @@ class AiChatControllerTest {
         assertEquals(HttpStatus.BAD_REQUEST, ex.status);
         assertEquals("MAX_SESSIONS_REACHED", ex.code);
     }
+
+    @Test
+    void testSendMessageSuccess() throws Exception {
+        when(aiMechanicProvider.complete(any())).thenReturn("Check battery terminals and jump start if needed.");
+        when(messageRepository.save(any(AiChatMessage.class))).thenAnswer(i -> {
+            AiChatMessage m = i.getArgument(0);
+            org.springframework.test.util.ReflectionTestUtils.setField(m, "id", UUID.randomUUID());
+            return m;
+        });
+
+        SendMessageRequest req = new SendMessageRequest();
+        req.content = "Car won't start and clicking noise heard";
+
+        var res = controller.sendMessage(principal, sessionId, req);
+        assertNotNull(res);
+        assertTrue(res.success);
+        assertNotNull(res.data);
+        assertEquals("Check battery terminals and jump start if needed.", res.data.content);
+        assertFalse(res.data.unavailable);
+    }
+
+    @Test
+    void testSendMessageTimeoutThrowsGatewayTimeout() throws Exception {
+        when(aiMechanicProvider.complete(any())).thenThrow(
+                new AiMechanicProvider.AiUnavailableException(
+                        AiMechanicProvider.ErrorCategory.TIMEOUT,
+                        "AI Mechanic took too long to respond. Please check your connection and try again.", null, null));
+
+        SendMessageRequest req = new SendMessageRequest();
+        req.content = "Car won't start";
+
+        ApiException ex = assertThrows(ApiException.class, () -> controller.sendMessage(principal, sessionId, req));
+        assertEquals(HttpStatus.GATEWAY_TIMEOUT, ex.status);
+        assertEquals("AI_TIMEOUT", ex.code);
+        assertTrue(ex.getMessage().contains("too long"));
+    }
+
+    @Test
+    void testSendMessageRateLimitThrowsTooManyRequests() throws Exception {
+        when(aiMechanicProvider.complete(any())).thenThrow(
+                new AiMechanicProvider.AiUnavailableException(
+                        AiMechanicProvider.ErrorCategory.RATE_LIMITED,
+                        "AI Mechanic is currently handling high volume. Please wait a moment and try again.", 429, null));
+
+        SendMessageRequest req = new SendMessageRequest();
+        req.content = "Car won't start";
+
+        ApiException ex = assertThrows(ApiException.class, () -> controller.sendMessage(principal, sessionId, req));
+        assertEquals(HttpStatus.TOO_MANY_REQUESTS, ex.status);
+        assertEquals("AI_RATE_LIMIT", ex.code);
+    }
+
+    @Test
+    void testSendMessageUpstreamErrorThrowsServiceUnavailable() throws Exception {
+        when(aiMechanicProvider.complete(any())).thenThrow(
+                new AiMechanicProvider.AiUnavailableException(
+                        AiMechanicProvider.ErrorCategory.UPSTREAM_ERROR,
+                        "AI Mechanic service is temporarily down. Please try again shortly.", 503, null));
+
+        SendMessageRequest req = new SendMessageRequest();
+        req.content = "Car won't start";
+
+        ApiException ex = assertThrows(ApiException.class, () -> controller.sendMessage(principal, sessionId, req));
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, ex.status);
+        assertEquals("AI_UNAVAILABLE", ex.code);
+    }
+
+    @Test
+    void testSendMessageMalformedResponseThrowsBadGateway() throws Exception {
+        when(aiMechanicProvider.complete(any())).thenThrow(
+                new AiMechanicProvider.AiUnavailableException(
+                        AiMechanicProvider.ErrorCategory.MALFORMED_RESPONSE,
+                        "AI Mechanic response could not be parsed. Please try again.", null, null));
+
+        SendMessageRequest req = new SendMessageRequest();
+        req.content = "Car won't start";
+
+        ApiException ex = assertThrows(ApiException.class, () -> controller.sendMessage(principal, sessionId, req));
+        assertEquals(HttpStatus.BAD_GATEWAY, ex.status);
+        assertEquals("AI_MALFORMED_RESPONSE", ex.code);
+    }
+
+    @Test
+    void testSendMessageConfigErrorThrowsServiceUnavailable() throws Exception {
+        when(aiMechanicProvider.complete(any())).thenThrow(
+                new AiMechanicProvider.AiUnavailableException(
+                        AiMechanicProvider.ErrorCategory.CONFIG_ERROR,
+                        "AI Mechanic service is temporarily misconfigured. Please try again later.", null, null));
+
+        SendMessageRequest req = new SendMessageRequest();
+        req.content = "Car won't start";
+
+        ApiException ex = assertThrows(ApiException.class, () -> controller.sendMessage(principal, sessionId, req));
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, ex.status);
+        assertEquals("AI_CONFIG_ERROR", ex.code);
+    }
+
+    @Test
+    void testSendMessageContextTrimsToMaxContextTurns() throws Exception {
+        java.util.List<AiChatMessage> history = new java.util.ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            AiChatMessage m = new AiChatMessage();
+            m.setRole(i % 2 == 0 ? AiChatMessage.Role.USER : AiChatMessage.Role.ASSISTANT);
+            m.setContent("Turn " + i);
+            history.add(m);
+        }
+        when(messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId)).thenReturn(history);
+        when(aiMechanicProvider.complete(any())).thenReturn("Reply");
+        when(messageRepository.save(any(AiChatMessage.class))).thenAnswer(i -> {
+            AiChatMessage m = i.getArgument(0);
+            org.springframework.test.util.ReflectionTestUtils.setField(m, "id", UUID.randomUUID());
+            return m;
+        });
+
+        SendMessageRequest req = new SendMessageRequest();
+        req.content = "New turn";
+
+        controller.sendMessage(principal, sessionId, req);
+
+        verify(aiMechanicProvider).complete(argThat(turns -> turns.size() == AiChatController.MAX_CONTEXT_TURNS));
+    }
 }

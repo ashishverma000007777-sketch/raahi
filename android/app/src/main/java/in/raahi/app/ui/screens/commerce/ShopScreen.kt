@@ -98,7 +98,7 @@ fun ShopScreen(onBack: () -> Unit, onNavigateTab: (RaahiTab) -> Unit, viewModel:
                     CategoryChipRow(selectedCategory) { category -> selectedCategory = category; viewModel.refresh(category) }
 
                     when (val s = state) {
-                        is ShopUiState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = RaahiOrange) }
+                        is ShopUiState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = RaahiPrimaryTeal) }
                         is ShopUiState.Error -> UnavailableProductsState(s.message) { viewModel.refresh() }
                         is ShopUiState.Loaded -> {
                             if (s.errorMessage != null) {
@@ -136,7 +136,7 @@ private fun UnavailableProductsState(message: String, onRetry: () -> Unit) {
             Spacer(Modifier.height(16.dp))
             Button(
                 onClick = onRetry,
-                colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange),
+                colors = ButtonDefaults.buttonColors(containerColor = RaahiPrimaryTeal),
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp)
             ) {
                 Text("Retry")
@@ -168,7 +168,7 @@ private fun SearchBar(query: String, onQueryChange: (String) -> Unit) {
         colors = OutlinedTextFieldDefaults.colors(
             focusedTextColor = RaahiText, unfocusedTextColor = RaahiText,
             focusedContainerColor = androidx.compose.ui.graphics.Color.White, unfocusedContainerColor = androidx.compose.ui.graphics.Color.White,
-            focusedBorderColor = RaahiOrange, unfocusedBorderColor = RaahiBorderSoft, cursorColor = RaahiOrange,
+            focusedBorderColor = RaahiPrimaryTeal, unfocusedBorderColor = RaahiBorderSoft, cursorColor = RaahiPrimaryTeal,
         ),
     )
 }
@@ -213,6 +213,6 @@ private fun ProductCard(p: ShopProductDto, onOpen: () -> Unit) {
                 }
             }
         }
-        Icon(Icons.Outlined.OpenInNew, contentDescription = "Open on Amazon", tint = RaahiOrange, modifier = Modifier.size(17.dp))
+        Icon(Icons.Outlined.OpenInNew, contentDescription = "Open on Amazon", tint = RaahiPrimaryTeal, modifier = Modifier.size(17.dp))
     }
 }

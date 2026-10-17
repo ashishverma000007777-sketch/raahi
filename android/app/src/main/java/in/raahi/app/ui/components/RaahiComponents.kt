@@ -22,6 +22,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Call
 import `in`.raahi.app.network.IntercityTripDto
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Build
@@ -39,10 +40,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -65,20 +68,22 @@ import `in`.raahi.app.ui.theme.*
 @Composable
 fun GlassCard(
     modifier: Modifier = Modifier,
-    shape: androidx.compose.ui.graphics.Shape = RaahiShapeLarge,
+    shape: androidx.compose.ui.graphics.Shape = RaahiCardShape,
     background: Color = RaahiGlass,
     borderColor: Color = RaahiBorderSoft,
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val clickMod = if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
-    Column(
-        modifier
-            .shadow(elevation = 2.dp, shape = shape, spotColor = Color(0x10000000), ambientColor = Color(0x06000000))
-            .background(background, shape)
-            .border(1.dp, borderColor, shape)
-            .then(clickMod)
-    ) { content() }
+    Surface(
+        modifier = modifier.then(clickMod),
+        shape = shape,
+        color = background,
+        border = BorderStroke(1.dp, borderColor),
+        shadowElevation = RaahiCardElevation,
+    ) {
+        Column { content() }
+    }
 }
 
 @Composable
@@ -92,16 +97,19 @@ fun RowCard(
     val bg = if (urgent) (if (isDark) Color(0xFF381A1A) else Color(0xFFFEF2F2)) else RaahiGlass
     val border = if (urgent) RaahiRed.copy(alpha = 0.35f) else RaahiBorderSoft
     val clickMod = if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
-    Row(
-        modifier
-            .fillMaxWidth()
-            .shadow(elevation = 2.dp, shape = RaahiShapeMedium, spotColor = Color(0x10000000), ambientColor = Color(0x06000000))
-            .background(bg, RaahiShapeMedium)
-            .border(1.dp, border, RaahiShapeMedium)
-            .then(clickMod)
-            .padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) { content() }
+    Surface(
+        modifier = modifier.fillMaxWidth().then(clickMod),
+        shape = RaahiShapeMedium,
+        color = bg,
+        border = BorderStroke(1.dp, border),
+        shadowElevation = 1.5.dp,
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            content = content
+        )
+    }
 }
 
 @Composable
@@ -186,7 +194,7 @@ fun SectionLabel(text: String, trailing: String? = null, onTrailingClick: (() ->
         Text(text, color = RaahiTextDim, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.3.sp)
         if (trailing != null) {
             Text(
-                trailing, color = RaahiOrange, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                trailing, color = RaahiText, fontSize = 12.sp, fontWeight = FontWeight.Bold,
                 modifier = if (onTrailingClick != null) Modifier.clickable(onClick = onTrailingClick) else Modifier,
             )
         }
@@ -195,14 +203,14 @@ fun SectionLabel(text: String, trailing: String? = null, onTrailingClick: (() ->
 
 @Composable
 fun RaahiChip(label: String, active: Boolean, icon: ImageVector? = null, onClick: () -> Unit) {
-    val bg = if (active) RaahiOrange else RaahiGlass
-    val border = if (active) RaahiOrange else RaahiBorder
+    val bg = if (active) RaahiPrimaryTeal else RaahiGlass
+    val border = if (active) RaahiPrimaryTeal else RaahiBorder
     val textColor = if (active) Color.White else RaahiTextDim
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .then(
-                if (active) Modifier.shadow(elevation = 4.dp, shape = RaahiShapePill, spotColor = RaahiOrange)
+                if (active) Modifier.shadow(elevation = 4.dp, shape = RaahiShapePill, spotColor = RaahiPrimaryTeal)
                 else Modifier
             )
             .background(bg, RaahiShapePill)
@@ -297,38 +305,47 @@ fun Ticker(items: List<String>, modifier: Modifier = Modifier) {
     }
 
     val isDark = LocalRaahiColors.current.isDark
+    val tickerBg = if (isDark) Color(0xFF222629) else Color(0xFFFFFFFF)
+    val tickerBorder = if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)
+    val textColor = if (isDark) Color(0xFFF4F6F7) else Color(0xFF25282D)
+    val dividerColor = if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)
 
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .height(38.dp),
-        shape = RoundedCornerShape(10.dp),
-        color = RaahiBg2,
-        border = BorderStroke(1.dp, RaahiBorderSoft),
-        shadowElevation = 0.5.dp,
+            .height(42.dp)
+            .shadow(
+                elevation = 2.dp,
+                shape = RoundedCornerShape(14.dp),
+                spotColor = Color(0x10000000),
+                ambientColor = Color(0x06000000)
+            ),
+        shape = RoundedCornerShape(14.dp),
+        color = tickerBg,
+        border = BorderStroke(1.dp, tickerBorder),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 10.dp),
+                .padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Compact LIVE indicator badge
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(5.dp),
-                modifier = Modifier.padding(end = 8.dp)
+                modifier = Modifier.padding(end = 10.dp)
             ) {
                 Box(
                     modifier = Modifier
-                        .size(6.dp)
+                        .size(7.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF159A68))
+                        .background(Color(0xFF238765))
                 )
                 Text(
                     text = "LIVE",
-                    color = Color(0xFF159A68),
-                    fontSize = 10.sp,
+                    color = Color(0xFF238765),
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.5.sp
                 )
@@ -338,31 +355,32 @@ fun Ticker(items: List<String>, modifier: Modifier = Modifier) {
                 Modifier
                     .width(1.dp)
                     .height(18.dp)
-                    .background(RaahiBorderSoft)
+                    .background(dividerColor)
             )
 
             Row(
                 modifier = Modifier
                     .weight(1f)
+                    .clipToBounds()
                     .horizontalScroll(scrollState, enabled = true)
-                    .padding(horizontal = 8.dp),
+                    .padding(start = 10.dp, end = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 displayItems.forEachIndexed { index, item ->
                     Text(
                         text = item,
-                        color = RaahiText,
-                        fontSize = 11.5.sp,
-                        fontWeight = FontWeight.Medium,
+                        color = textColor,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         softWrap = false
                     )
                     if (index < displayItems.lastIndex) {
                         Text(
                             text = "•",
-                            color = RaahiTextDim.copy(alpha = 0.5f),
-                            fontSize = 10.sp
+                            color = Color(0xFF737D84),
+                            fontSize = 11.sp
                         )
                     }
                 }
@@ -400,8 +418,8 @@ fun RaahiBottomNavBar(
     modifier: Modifier = Modifier,
 ) {
     val isDark = LocalRaahiColors.current.isDark
-    val navBg = if (isDark) Color(0xFF241A1B) else Color.White
-    val navBorder = if (isDark) Color(0xFF483537) else Color(0xFFF2E6E6)
+    val navBg = if (isDark) Color(0xFF222629) else Color.White
+    val navBorder = if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)
 
     Box(
         modifier = modifier
@@ -412,7 +430,7 @@ fun RaahiBottomNavBar(
             .shadow(
                 elevation = 8.dp,
                 shape = RoundedCornerShape(28.dp),
-                spotColor = Color(0x18E76F73),
+                spotColor = Color(0x18000000),
                 ambientColor = Color(0x0A000000)
             )
             .background(navBg, RoundedCornerShape(28.dp))
@@ -445,9 +463,8 @@ private fun NavItem(
     modifier: Modifier = Modifier,
 ) {
     val active = tab == current
-    val isDark = LocalRaahiColors.current.isDark
-    val activeColor = if (isDark) RaahiSecondaryTeal else RaahiDeepTeal
-    val inactiveColor = if (isDark) Color(0xFF8B9CB2) else RaahiTextFaint
+    val activeColor = Color(0xFFF57C00)
+    val inactiveColor = Color(0xFF737D84)
     val tint = if (active) activeColor else inactiveColor
     val scale by animateFloatAsState(
         targetValue = if (active) 1.15f else 1f,
@@ -488,14 +505,16 @@ private fun CenterNavItem(current: RaahiTab, onSelect: (RaahiTab) -> Unit) {
         label = "navCenterScale",
     )
     val interactionSource = remember { MutableInteractionSource() }
+    val centerBg = if (active) Color(0xFFF57C00) else Color(0xFF17191B)
     Box(
         modifier = Modifier
             .size(42.dp)
             .scale(scale)
-            .shadow(elevation = 6.dp, shape = CircleShape, spotColor = RaahiDeepTeal)
-            .background(if (active) SolidColor(RaahiDeepTeal) else RaahiBrandGradient, CircleShape)
+            .shadow(elevation = 6.dp, shape = CircleShape, spotColor = Color(0x30000000))
+            .background(centerBg, CircleShape)
+            .border(1.dp, if (active) Color(0xFFF57C00) else Color(0xFF2E3338), CircleShape)
             .clickable(interactionSource = interactionSource, indication = null, onClick = { onSelect(RaahiTab.AI_MECHANIC) }),
-        contentAlignment = Alignment.Center,
+        contentAlignment = Alignment.Center
     ) {
         Icon(
             Icons.Outlined.AutoAwesome,
@@ -503,6 +522,43 @@ private fun CenterNavItem(current: RaahiTab, onSelect: (RaahiTab) -> Unit) {
             tint = Color.White,
             modifier = Modifier.size(20.dp)
         )
+    }
+}
+
+/**
+ * Circular red floating SOS emergency button positioned above the bottom navigation bar.
+ */
+@Composable
+fun RaahiFloatingSosButton(
+    onSos: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .size(50.dp)
+            .shadow(elevation = 6.dp, shape = CircleShape, spotColor = Color(0x50D94343))
+            .background(Color(0xFFD94343), CircleShape)
+            .clickable(onClick = onSos),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Call,
+                contentDescription = "Emergency SOS",
+                tint = Color.White,
+                modifier = Modifier.size(17.dp),
+            )
+            Text(
+                text = "SOS",
+                color = Color.White,
+                fontSize = 8.5.sp,
+                fontWeight = FontWeight.ExtraBold,
+                lineHeight = 9.sp,
+            )
+        }
     }
 }
 
@@ -524,7 +580,7 @@ fun RaahiPrimaryButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     loading: Boolean = false,
-    container: Color = RaahiOrange,
+    container: Color = RaahiPrimaryButton,
 ) {
     androidx.compose.material3.Button(
         onClick = onClick,
@@ -555,7 +611,7 @@ fun RaahiOutlineButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    tint: Color = RaahiOrange,
+    tint: Color = RaahiPrimaryButton,
 ) {
     androidx.compose.material3.OutlinedButton(
         onClick = onClick,
@@ -592,9 +648,9 @@ fun RaahiTextField(
         shape = RoundedCornerShape(14.dp),
         colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
             focusedTextColor = RaahiText, unfocusedTextColor = RaahiText,
-            focusedBorderColor = RaahiOrange, unfocusedBorderColor = RaahiBorder,
+            focusedBorderColor = RaahiPrimaryTeal, unfocusedBorderColor = RaahiBorder,
             focusedContainerColor = RaahiGlass, unfocusedContainerColor = RaahiGlass,
-            cursorColor = RaahiOrange,
+            cursorColor = RaahiPrimaryTeal,
         ),
     )
 }
@@ -638,15 +694,15 @@ fun RaahiRideTypeBadge(rideType: String?, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(6.dp),
-        color = if (isOwner) Color(0xFFFCE8E8) else Color(0xFFFFF1F1),
-        border = BorderStroke(1.dp, if (isOwner) Color(0xFFE76F73).copy(alpha = 0.4f) else Color(0xFFF08A8E).copy(alpha = 0.4f)),
+        color = Color(0xFFF4F6F7),
+        border = BorderStroke(1.dp, Color(0xFFE3E7E9)),
     ) {
         Text(
-            text = if (isOwner) "BY OWNER" else "BY TRAVEL AGENT",
-            color = if (isOwner) Color(0xFFE76F73) else Color(0xFFC95357),
+            text = if (isOwner) "By Owner" else "By Agent",
+            color = RaahiText,
             fontWeight = FontWeight.Bold,
-            fontSize = 10.sp,
-            letterSpacing = 0.4.sp,
+            fontSize = 10.5.sp,
+            letterSpacing = 0.3.sp,
             modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.5.dp),
         )
     }
@@ -656,10 +712,10 @@ fun RaahiRideTypeBadge(rideType: String?, modifier: Modifier = Modifier) {
 @Composable
 fun RaahiCard(
     modifier: Modifier = Modifier,
-    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(18.dp),
+    shape: androidx.compose.ui.graphics.Shape = RaahiCardShape,
     color: Color = RaahiGlass,
     border: BorderStroke? = BorderStroke(1.dp, RaahiBorderSoft),
-    elevation: Dp = 1.dp,
+    elevation: Dp = RaahiCardElevation,
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
@@ -709,7 +765,7 @@ fun RaahiSectionHeader(
                 text = actionText,
                 fontSize = 12.5.sp,
                 fontWeight = FontWeight.Bold,
-                color = RaahiOrange,
+                color = RaahiText,
                 modifier = Modifier
                     .clip(RoundedCornerShape(6.dp))
                     .clickable(onClick = onAction)
@@ -727,17 +783,17 @@ fun RaahiTripCard(
     modifier: Modifier = Modifier,
 ) {
     val isDark = LocalRaahiColors.current.isDark
-    val cardBg = if (isDark) Color(0xFF172033) else Color.White
-    val borderCol = if (isDark) Color(0xFF24344E) else Color(0xFFE2E8F0)
+    val cardBg = if (isDark) Color(0xFF222629) else Color.White
+    val borderCol = if (isDark) Color(0xFF2E3338) else Color(0xFFE2E5E8)
 
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(18.dp),
+        shape = RaahiCardShape,
         color = cardBg,
         border = BorderStroke(1.dp, borderCol),
-        shadowElevation = 1.5.dp,
+        shadowElevation = RaahiCardElevation,
     ) {
         Column(
             modifier = Modifier
@@ -766,7 +822,7 @@ fun RaahiTripCard(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                         contentDescription = null,
-                        tint = RaahiOrange,
+                        tint = RaahiTextDim,
                         modifier = Modifier.size(15.dp),
                     )
                     Text(
@@ -789,7 +845,7 @@ fun RaahiTripCard(
                             color = when (trip.status) {
                                 "COMPLETED" -> Color(0xFFE8F8F0)
                                 "IN_PROGRESS" -> Color(0xFFEAF3FF)
-                                else -> RaahiSelectionBg
+                                else -> if (isDark) Color(0xFF2A2E32) else Color(0xFFEDF0F2)
                             }
                         ) {
                             Text(
@@ -797,7 +853,7 @@ fun RaahiTripCard(
                                 color = when (trip.status) {
                                     "COMPLETED" -> Color(0xFF22B573)
                                     "IN_PROGRESS" -> Color(0xFF2563EB)
-                                    else -> RaahiOrange
+                                    else -> RaahiText
                                 },
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 10.sp,
@@ -827,7 +883,7 @@ fun RaahiTripCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Box(modifier = Modifier.size(7.dp).background(RaahiOrange, CircleShape))
+                    Box(modifier = Modifier.size(7.dp).background(RaahiText, CircleShape))
                     Text(
                         text = trip.destAddress.ifBlank { trip.destCity },
                         fontSize = 12.sp,
@@ -849,7 +905,7 @@ fun RaahiTripCard(
                         text = "₹${trip.fare.toInt()}",
                         fontWeight = FontWeight.ExtraBold,
                         fontSize = 20.sp,
-                        color = RaahiOrange,
+                        color = if (isDark) Color(0xFFF4F6F7) else Color(0xFF25282D),
                     )
                     Text(
                         text = if (trip.rideType == "OWNER") "Direct Owner (0% fee)" else (trip.paymentMode?.replace("_", " ") ?: "Agreed Fare"),
@@ -888,7 +944,7 @@ fun RaahiTripCard(
 
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = RaahiOrange.copy(alpha = 0.10f),
+                        color = if (isDark) Color(0xFF2A2E32) else Color(0xFFEDF0F2),
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -899,13 +955,13 @@ fun RaahiTripCard(
                                 text = "Details",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = RaahiOrange
+                                color = RaahiText
                             )
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                                 contentDescription = null,
                                 modifier = Modifier.size(12.dp),
-                                tint = RaahiOrange
+                                tint = RaahiText
                             )
                         }
                     }

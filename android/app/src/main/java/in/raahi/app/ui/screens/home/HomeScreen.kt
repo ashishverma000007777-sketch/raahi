@@ -51,6 +51,7 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.BusinessCenter
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -201,6 +202,7 @@ fun HomeScreen(
     }
 
     if (showDrivingConfirmation) {
+        val isDark = RaahiIsDark
         androidx.compose.ui.window.Dialog(
             onDismissRequest = {
                 showDrivingConfirmation = false
@@ -228,13 +230,13 @@ fun HomeScreen(
                     Box(
                         modifier = Modifier
                             .size(64.dp)
-                            .background(RaahiSelectionBg, CircleShape),
+                            .background(if (isDark) Color(0xFF222629) else Color(0xFFEDF0F2), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.DirectionsCar,
                             contentDescription = null,
-                            tint = RaahiOrange,
+                            tint = RaahiText,
                             modifier = Modifier.size(32.dp)
                         )
                     }
@@ -264,7 +266,7 @@ fun HomeScreen(
                             )
                             isDrivingConfirmed = true
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange),
+                        colors = ButtonDefaults.buttonColors(containerColor = RaahiPrimaryButton),
                         shape = RoundedCornerShape(50),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -322,102 +324,110 @@ fun HomeScreen(
 
 
     Surface(modifier = Modifier.fillMaxSize(), color = RaahiBg) {
-        Column(Modifier.fillMaxSize()) {
-            Box(Modifier.weight(1f)) {
-                when (val s = state) {
-                    is HomeUiState.Loading -> LoadingState()
-                    is HomeUiState.Error -> HomeContent(
-                        user = null, activeJob = null, activeTrip = null, vehicle = null, carHealth = null,
-                        offlineError = s.message, onRetry = viewModel::load,
-                        selectedCity = selectedCity, onSelectCity = viewModel::selectCity, onUseCurrentLocation = viewModel::useCurrentLocation,
-                        onRequestHelp = onRequestHelp, onNearbyMechanics = onNearbyMechanics, onMyJobs = onMyJobs,
-                        onSos = onSos, onOpenActiveJob = onOpenActiveJob, onHelperDashboard = onHelperDashboard,
-                        onBecomeHelper = onBecomeHelper, onAiMechanic = onAiMechanic, onCarHealth = onCarHealth,
-                        onSetupVehicle = onSetupVehicle, onOpenDaily = onOpenDaily,
-                        onPlanTrip = onPlanTrip, onOpenActiveTrip = onOpenActiveTrip, onTripHistory = onTripHistory,
-                        metrics = metrics, onOpenNotifications = onOpenNotifications, onOpenWallet = onOpenWallet, onAddFuel = onAddFuel,
-                        onFuelRates = onFuelRates, onShop = onShop,
-                        helperStatus = helperStatus, helperBusy = helperBusy, helperError = helperError,
-                        onToggleHelperOnline = { online -> viewModel.setHelperOnline(online, hasLocationPermission(context)) },
-                        onRefreshHelperStatus = viewModel::refreshHelperStatus,
-                        onProfile = { onNavigateTab(RaahiTab.PROFILE) },
-                        hasLocationPermission = hasLocationPerm,
-                        isDrivingConfirmed = isDrivingConfirmed,
-                        onStartDrive = {
-                            context.startService(
-                                Intent(context, `in`.raahi.app.data.DrivingTrackingService::class.java)
-                                    .setAction(`in`.raahi.app.data.DrivingTrackingService.ACTION_CONFIRM)
-                            )
-                            isDrivingConfirmed = true
-                        },
-                        onStopDrive = {
-                            context.startService(
-                                Intent(context, `in`.raahi.app.data.DrivingTrackingService::class.java)
-                                    .setAction(`in`.raahi.app.data.DrivingTrackingService.ACTION_STOP)
-                            )
-                            isDrivingConfirmed = false
-                        },
-                        onRequestLocationPermission = {
-                            locationPermissionLauncher.launch(
-                                arrayOf(
-                                    Manifest.permission.ACCESS_FINE_LOCATION,
-                                    Manifest.permission.ACCESS_COARSE_LOCATION
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(Modifier.fillMaxSize()) {
+                Box(Modifier.weight(1f)) {
+                    when (val s = state) {
+                        is HomeUiState.Loading -> LoadingState()
+                        is HomeUiState.Error -> HomeContent(
+                            user = null, activeJob = null, activeTrip = null, vehicle = null, carHealth = null,
+                            offlineError = s.message, onRetry = viewModel::load,
+                            selectedCity = selectedCity, onSelectCity = viewModel::selectCity, onUseCurrentLocation = viewModel::useCurrentLocation,
+                            onRequestHelp = onRequestHelp, onNearbyMechanics = onNearbyMechanics, onMyJobs = onMyJobs,
+                            onSos = onSos, onOpenActiveJob = onOpenActiveJob, onHelperDashboard = onHelperDashboard,
+                            onBecomeHelper = onBecomeHelper, onAiMechanic = onAiMechanic, onCarHealth = onCarHealth,
+                            onSetupVehicle = onSetupVehicle, onOpenDaily = onOpenDaily,
+                            onPlanTrip = onPlanTrip, onOpenActiveTrip = onOpenActiveTrip, onTripHistory = onTripHistory,
+                            metrics = metrics, onOpenNotifications = onOpenNotifications, onOpenWallet = onOpenWallet, onAddFuel = onAddFuel,
+                            onFuelRates = onFuelRates, onShop = onShop,
+                            helperStatus = helperStatus, helperBusy = helperBusy, helperError = helperError,
+                            onToggleHelperOnline = { online -> viewModel.setHelperOnline(online, hasLocationPermission(context)) },
+                            onRefreshHelperStatus = viewModel::refreshHelperStatus,
+                            onProfile = { onNavigateTab(RaahiTab.PROFILE) },
+                            hasLocationPermission = hasLocationPerm,
+                            isDrivingConfirmed = isDrivingConfirmed,
+                            onStartDrive = {
+                                context.startService(
+                                    Intent(context, `in`.raahi.app.data.DrivingTrackingService::class.java)
+                                        .setAction(`in`.raahi.app.data.DrivingTrackingService.ACTION_CONFIRM)
                                 )
-                            )
-                        },
-                    )
-                    is HomeUiState.Loaded -> HomeContent(
-                        user = s.user, activeJob = s.activeJob, activeTrip = s.activeTrip,
-                        activeIntercityTrip = s.activeIntercityTrip,
-                        vehicle = s.vehicle, carHealth = s.carHealth,
-                        offlineError = s.offlineError, onRetry = viewModel::load,
-                        selectedCity = selectedCity, onSelectCity = viewModel::selectCity, onUseCurrentLocation = viewModel::useCurrentLocation,
-                        onSearchIntercityTrips = onSearchIntercityTrips,
-                        onCreateIntercityTrip = onCreateIntercityTrip,
-                        onAgentIntercityDashboard = onAgentIntercityDashboard,
-                        onDriverIntercityTrips = onDriverIntercityTrips,
-                        onOpenActiveIntercityTrip = onOpenActiveIntercityTrip,
-                        onOpenIntercityMarketplace = onOpenIntercityMarketplace,
-                        onRequestHelp = onRequestHelp, onNearbyMechanics = onNearbyMechanics, onMyJobs = onMyJobs,
-                        onSos = onSos, onOpenActiveJob = onOpenActiveJob, onHelperDashboard = onHelperDashboard,
-                        onBecomeHelper = onBecomeHelper, onAiMechanic = onAiMechanic, onCarHealth = onCarHealth,
-                        onSetupVehicle = onSetupVehicle, onOpenDaily = onOpenDaily,
-                        onPlanTrip = onPlanTrip, onOpenActiveTrip = onOpenActiveTrip, onTripHistory = onTripHistory,
-                        metrics = metrics, onOpenNotifications = onOpenNotifications, onOpenWallet = onOpenWallet, onAddFuel = onAddFuel,
-                        onFuelRates = onFuelRates, onShop = onShop,
-                        helperStatus = helperStatus, helperBusy = helperBusy, helperError = helperError,
-                        onToggleHelperOnline = { online -> viewModel.setHelperOnline(online, hasLocationPermission(context)) },
-                        onRefreshHelperStatus = viewModel::refreshHelperStatus,
-                        onProfile = { onNavigateTab(RaahiTab.PROFILE) },
-                        hasLocationPermission = hasLocationPerm,
-                        isDrivingConfirmed = isDrivingConfirmed,
-                        onStartDrive = {
-                            context.startService(
-                                Intent(context, `in`.raahi.app.data.DrivingTrackingService::class.java)
-                                    .setAction(`in`.raahi.app.data.DrivingTrackingService.ACTION_CONFIRM)
-                            )
-                            isDrivingConfirmed = true
-                        },
-                        onStopDrive = {
-                            context.startService(
-                                Intent(context, `in`.raahi.app.data.DrivingTrackingService::class.java)
-                                    .setAction(`in`.raahi.app.data.DrivingTrackingService.ACTION_STOP)
-                            )
-                            isDrivingConfirmed = false
-                        },
-                        onRequestLocationPermission = {
-                            locationPermissionLauncher.launch(
-                                arrayOf(
-                                    Manifest.permission.ACCESS_FINE_LOCATION,
-                                    Manifest.permission.ACCESS_COARSE_LOCATION
+                                isDrivingConfirmed = true
+                            },
+                            onStopDrive = {
+                                context.startService(
+                                    Intent(context, `in`.raahi.app.data.DrivingTrackingService::class.java)
+                                        .setAction(`in`.raahi.app.data.DrivingTrackingService.ACTION_STOP)
                                 )
-                            )
-                        },
-                    )
+                                isDrivingConfirmed = false
+                            },
+                            onRequestLocationPermission = {
+                                locationPermissionLauncher.launch(
+                                    arrayOf(
+                                        Manifest.permission.ACCESS_FINE_LOCATION,
+                                        Manifest.permission.ACCESS_COARSE_LOCATION
+                                    )
+                                )
+                            },
+                        )
+                        is HomeUiState.Loaded -> HomeContent(
+                            user = s.user, activeJob = s.activeJob, activeTrip = s.activeTrip,
+                            activeIntercityTrip = s.activeIntercityTrip,
+                            vehicle = s.vehicle, carHealth = s.carHealth,
+                            offlineError = s.offlineError, onRetry = viewModel::load,
+                            selectedCity = selectedCity, onSelectCity = viewModel::selectCity, onUseCurrentLocation = viewModel::useCurrentLocation,
+                            onSearchIntercityTrips = onSearchIntercityTrips,
+                            onCreateIntercityTrip = onCreateIntercityTrip,
+                            onAgentIntercityDashboard = onAgentIntercityDashboard,
+                            onDriverIntercityTrips = onDriverIntercityTrips,
+                            onOpenActiveIntercityTrip = onOpenActiveIntercityTrip,
+                            onOpenIntercityMarketplace = onOpenIntercityMarketplace,
+                            onRequestHelp = onRequestHelp, onNearbyMechanics = onNearbyMechanics, onMyJobs = onMyJobs,
+                            onSos = onSos, onOpenActiveJob = onOpenActiveJob, onHelperDashboard = onHelperDashboard,
+                            onBecomeHelper = onBecomeHelper, onAiMechanic = onAiMechanic, onCarHealth = onCarHealth,
+                            onSetupVehicle = onSetupVehicle, onOpenDaily = onOpenDaily,
+                            onPlanTrip = onPlanTrip, onOpenActiveTrip = onOpenActiveTrip, onTripHistory = onTripHistory,
+                            metrics = metrics, onOpenNotifications = onOpenNotifications, onOpenWallet = onOpenWallet, onAddFuel = onAddFuel,
+                            onFuelRates = onFuelRates, onShop = onShop,
+                            helperStatus = helperStatus, helperBusy = helperBusy, helperError = helperError,
+                            onToggleHelperOnline = { online -> viewModel.setHelperOnline(online, hasLocationPermission(context)) },
+                            onRefreshHelperStatus = viewModel::refreshHelperStatus,
+                            onProfile = { onNavigateTab(RaahiTab.PROFILE) },
+                            hasLocationPermission = hasLocationPerm,
+                            isDrivingConfirmed = isDrivingConfirmed,
+                            onStartDrive = {
+                                context.startService(
+                                    Intent(context, `in`.raahi.app.data.DrivingTrackingService::class.java)
+                                        .setAction(`in`.raahi.app.data.DrivingTrackingService.ACTION_CONFIRM)
+                                )
+                                isDrivingConfirmed = true
+                            },
+                            onStopDrive = {
+                                context.startService(
+                                    Intent(context, `in`.raahi.app.data.DrivingTrackingService::class.java)
+                                        .setAction(`in`.raahi.app.data.DrivingTrackingService.ACTION_STOP)
+                                )
+                                isDrivingConfirmed = false
+                            },
+                            onRequestLocationPermission = {
+                                locationPermissionLauncher.launch(
+                                    arrayOf(
+                                        Manifest.permission.ACCESS_FINE_LOCATION,
+                                        Manifest.permission.ACCESS_COARSE_LOCATION
+                                    )
+                                )
+                            },
+                        )
 
+                    }
                 }
+                RaahiBottomNavBar(current = RaahiTab.HOME, onSelect = onNavigateTab)
             }
-            RaahiBottomNavBar(current = RaahiTab.HOME, onSelect = onNavigateTab)
+            RaahiFloatingSosButton(
+                onSos = onSos,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 18.dp, bottom = 86.dp)
+            )
         }
     }
 }
@@ -425,7 +435,7 @@ fun HomeScreen(
 @Composable
 private fun LoadingState() {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator(color = RaahiOrange)
+        CircularProgressIndicator(color = RaahiPrimaryButton)
     }
 }
 
@@ -456,7 +466,7 @@ private fun RoadsideServicesSection(
                 text = "Roadside & Assistance",
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
-                color = if (isDark) Color.White else Color(0xFF172033),
+                color = RaahiText,
                 fontFamily = RaahiDisplayFont,
             )
             Text(
@@ -478,8 +488,8 @@ private fun RoadsideServicesSection(
                     .weight(1f)
                     .clickable(onClick = onRequestHelp),
                 shape = RoundedCornerShape(18.dp),
-                color = if (isDark) Color(0xFF172033) else Color.White,
-                border = BorderStroke(1.dp, if (isDark) Color(0xFF24344E) else Color(0xFFE2E8F0)),
+                color = if (isDark) Color(0xFF222629) else Color.White,
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
                 shadowElevation = 1.5.dp,
             ) {
                 Column(
@@ -524,8 +534,8 @@ private fun RoadsideServicesSection(
                     .weight(1f)
                     .clickable(onClick = onFindMechanic),
                 shape = RoundedCornerShape(18.dp),
-                color = if (isDark) Color(0xFF172033) else Color.White,
-                border = BorderStroke(1.dp, if (isDark) Color(0xFF24344E) else Color(0xFFE2E8F0)),
+                color = if (isDark) Color(0xFF222629) else Color.White,
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
                 shadowElevation = 1.5.dp,
             ) {
                 Column(
@@ -536,13 +546,13 @@ private fun RoadsideServicesSection(
                         modifier = Modifier
                             .size(46.dp)
                             .clip(RoundedCornerShape(14.dp))
-                            .background(if (isDark) Color(0xFF112E2B) else Color(0xFFF0FDFA)),
+                            .background(if (isDark) Color(0xFF2A2E32) else Color(0xFFEDF0F2)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = RaahiIcons.Wrench,
                             contentDescription = null,
-                            tint = RaahiDeepTeal,
+                            tint = RaahiText,
                             modifier = Modifier.size(22.dp)
                         )
                     }
@@ -569,8 +579,8 @@ private fun RoadsideServicesSection(
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(14.dp),
-            color = if (isDark) Color(0xFF172033) else Color.White,
-            border = BorderStroke(1.dp, if (isDark) Color(0xFF24344E) else Color(0xFFE2E8F0)),
+            color = if (isDark) Color(0xFF222629) else Color.White,
+            border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
         ) {
             Row(
                 modifier = Modifier
@@ -603,8 +613,8 @@ private fun RoadsideServicesSection(
                 QuickUtilityItem(
                     title = "Shop",
                     icon = Icons.Outlined.ShoppingBag,
-                    tint = RaahiSecondaryTeal,
-                    bg = if (isDark) Color(0xFF112E2B) else Color(0xFFF0FDFA),
+                    tint = RaahiText,
+                    bg = if (isDark) Color(0xFF2A2E32) else Color(0xFFEDF0F2),
                     onClick = onShop
                 )
             }
@@ -696,23 +706,52 @@ private fun HomeContent(
         )
     }
 
-    Box(Modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize()) {
+        // Top Header Block - seamlessly blended with background (no solid black block)
+        Surface(
+            color = RaahiBg,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+            ) {
+                // Top Header Row
+                HeaderRow(
+                    user = user,
+                    selectedCity = selectedCity,
+                    onLocationClick = { showLocationDialog = true },
+                    onProfile = onProfile,
+                    unread = unreadCount(metrics.summary),
+                    onBell = onOpenNotifications,
+                    onWallet = onOpenWallet,
+                )
+
+                // 1. Live Updates Ticker as a proper floating-style container
+                val tickerItems = tickerItems(vehicle, carHealth, metrics)
+                if (tickerItems.isNotEmpty()) {
+                    Ticker(
+                        items = tickerItems,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 4.dp)
+                    )
+                }
+            }
+        }
+
+        // Scrollable Body Content
         Column(
             Modifier
-                .fillMaxSize()
+                .weight(1f)
+                .fillMaxWidth()
                 .verticalScroll(scrollState)
-                .padding(bottom = 30.dp)
+                .padding(bottom = 136.dp)
         ) {
-            Spacer(Modifier.height(54.dp)) // Space for floating header
+            Spacer(Modifier.height(14.dp))
 
-            // 1. Live Updates Ticker
-            val tickerItems = tickerItems(vehicle, carHealth, metrics)
-            if (tickerItems.isNotEmpty()) {
-                Ticker(items = tickerItems, modifier = Modifier.padding(horizontal = 16.dp))
-                Spacer(Modifier.height(10.dp))
-            }
-
-            // 2. Automotive Hero Section (Road/Car scenic sunrise + greeting overlay)
+            // 2. Automotive Greeting Section
             AutomotiveHeroSection(user)
             Spacer(Modifier.height(14.dp))
 
@@ -804,73 +843,73 @@ private fun HomeContent(
             Box(Modifier.padding(horizontal = 18.dp)) { SectionLabel("More") }
             DailyRow(onOpenDaily)
         }
-
-        // Overlay header with sticky blur/solid fill
-        HeaderRow(
-            user = user,
-            selectedCity = selectedCity,
-            onLocationClick = { showLocationDialog = true },
-            onProfile = onProfile,
-            scrolled = scrolled,
-            unread = unreadCount(metrics.summary),
-            onBell = onOpenNotifications,
-            onWallet = onOpenWallet,
-            helperStatus = helperStatus,
-        )
     }
 }
 
 @Composable
-private fun BoxScope.HeaderRow(
+private fun HeaderRow(
     user: UserDto?,
     selectedCity: String,
     onLocationClick: () -> Unit,
     onProfile: () -> Unit,
-    scrolled: Boolean,
     unread: Int,
     onBell: () -> Unit,
     onWallet: () -> Unit,
-    helperStatus: HelperStatusDto? = null,
 ) {
-    val scrollFraction by androidx.compose.animation.core.animateFloatAsState(
-        targetValue = if (scrolled) 1f else 0f, label = "headerBgFraction",
-    )
-    val headerBgColor = RaahiBg.copy(alpha = 0.95f)
-    val bg = androidx.compose.ui.graphics.lerp(Color.Transparent, headerBgColor, scrollFraction)
-    val isDark = RaahiIsDark
+    val isDark = LocalRaahiColors.current.isDark
+    val btnBg = if (isDark) Color(0xFF222629) else Color.White
+    val btnBorder = if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)
+    val btnTint = if (isDark) Color(0xFFD1D8DC) else RaahiText
+
     Row(
         modifier = Modifier
-            .align(Alignment.TopCenter)
             .fillMaxWidth()
-            .background(bg)
-            .padding(horizontal = 14.dp, vertical = 6.dp),
+            .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        // Logo & Location Dropdown
+        // Brand & Location Dropdown
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.weight(1f, fill = false)
         ) {
-            RaahiEmblem(size = 24.dp, glow = false)
-            Spacer(Modifier.width(8.dp))
-            Column {
+            RaahiEmblem(
+                size = 30.dp,
+                glow = false,
+                modifier = Modifier
+                    .size(30.dp)
+                    .clip(RoundedCornerShape(8.dp))
+            )
+            Spacer(Modifier.width(10.dp))
+            Column(
+                verticalArrangement = Arrangement.Center
+            ) {
                 Text(
                     text = "Raahi",
                     fontFamily = RaahiDisplayFont,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 17.sp,
+                    fontSize = 18.sp,
+                    lineHeight = 20.sp,
                     color = RaahiText
                 )
+                Spacer(Modifier.height(1.dp))
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))
                         .clickable(onClick = onLocationClick)
-                        .padding(horizontal = 2.dp, vertical = 1.dp)
+                        .background(if (isDark) Color(0xFF222629) else Color(0xFFF1F5F9))
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
                 ) {
+                    Icon(
+                        Icons.Filled.Place,
+                        contentDescription = null,
+                        tint = RaahiTextDim,
+                        modifier = Modifier.size(11.dp)
+                    )
+                    Spacer(Modifier.width(3.dp))
                     Text(
                         selectedCity,
-                        color = RaahiTextDim,
+                        color = RaahiText,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1
@@ -879,56 +918,64 @@ private fun BoxScope.HeaderRow(
                     Icon(
                         Icons.Filled.KeyboardArrowDown,
                         contentDescription = "Change location",
-                        tint = RaahiDeepTeal,
+                        tint = RaahiTextDim,
                         modifier = Modifier.size(13.dp)
                     )
                 }
             }
         }
 
-        Spacer(Modifier.weight(1f))
-
-        // Payments & Wallet compact icon button
-        Box(
-            modifier = Modifier
-                .size(32.dp)
-                .shadow(elevation = 1.dp, shape = CircleShape, spotColor = Color(0x10000000))
-                .clip(CircleShape)
-                .background(if (isDark) Color(0xFF241A1B) else Color.White)
-                .border(1.dp, if (isDark) Color(0xFF483537) else Color(0xFFF2E6E6), CircleShape)
-                .clickable(onClick = onWallet),
-            contentAlignment = Alignment.Center
+        // Right Actions (Wallet, Notifications, Profile)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Icon(
-                Icons.Outlined.AccountBalanceWallet,
-                contentDescription = "Payments & Wallet",
-                tint = if (isDark) Color(0xFFD1C2C3) else RaahiTextDim,
-                modifier = Modifier.size(17.dp)
-            )
-        }
-        Spacer(Modifier.width(8.dp))
+            // Payments & Wallet compact icon button
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .shadow(elevation = 1.dp, shape = CircleShape, spotColor = Color(0x0C000000))
+                    .clip(CircleShape)
+                    .background(btnBg)
+                    .border(1.dp, btnBorder, CircleShape)
+                    .clickable(onClick = onWallet),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Outlined.AccountBalanceWallet,
+                    contentDescription = "Payments & Wallet",
+                    tint = btnTint,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
 
-        // Notification Bell Button
-        BellWithBadge(unread = unread, onClick = onBell)
-        Spacer(Modifier.width(8.dp))
+            // Notification Bell Button
+            BellWithBadge(unread = unread, onClick = onBell)
 
-        // User Avatar Circle Button
-        Box(
-            modifier = Modifier
-                .size(32.dp)
-                .shadow(elevation = 1.dp, shape = CircleShape, spotColor = Color(0x10000000))
-                .background(Color(0xFFE76F73), CircleShape)
-                .clickable(onClick = onProfile),
-            contentAlignment = Alignment.Center,
-        ) {
-            val initial = user?.name?.trim()?.firstOrNull()?.uppercaseChar()?.toString() ?: "A"
-            Text(initial, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp, fontFamily = RaahiDisplayFont)
+            // User Avatar Circle Button
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .shadow(elevation = 1.dp, shape = CircleShape, spotColor = Color(0x10000000))
+                    .clip(CircleShape)
+                    .background(if (isDark) Color(0xFF2A2E32) else Color(0xFF202428), CircleShape)
+                    .clickable(onClick = onProfile),
+                contentAlignment = Alignment.Center,
+            ) {
+                val initial = user?.name?.trim()?.firstOrNull()?.uppercaseChar()?.toString() ?: "A"
+                Text(initial, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, fontFamily = RaahiDisplayFont)
+            }
         }
     }
 }
 
 @Composable
 private fun BellWithBadge(unread: Int, onClick: () -> Unit) {
+    val isDark = LocalRaahiColors.current.isDark
+    val btnBg = if (isDark) Color(0xFF222629) else Color.White
+    val btnBorder = if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)
+    val btnTint = if (isDark) Color(0xFFD1D8DC) else RaahiText
+
     val transition = rememberInfiniteTransition(label = "ring")
     val angle by transition.animateFloat(
         initialValue = 0f, targetValue = 0f,
@@ -947,24 +994,24 @@ private fun BellWithBadge(unread: Int, onClick: () -> Unit) {
         ),
         label = "ringAngle",
     )
-    val isDark = RaahiIsDark
     Box(
         modifier = Modifier
-            .size(32.dp)
-            .shadow(elevation = 1.dp, shape = CircleShape, spotColor = Color(0x10000000))
-            .background(if (isDark) Color(0xFF241A1B) else Color.White, CircleShape)
-            .border(1.dp, if (isDark) Color(0xFF483537) else Color(0xFFF2E6E6), CircleShape)
+            .size(34.dp)
+            .shadow(elevation = 1.dp, shape = CircleShape, spotColor = Color(0x0C000000))
+            .clip(CircleShape)
+            .background(btnBg, CircleShape)
+            .border(1.dp, btnBorder, CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(Icons.Outlined.Notifications, contentDescription = "Notifications", tint = RaahiTextDim, modifier = Modifier.size(16.dp).rotate(angle))
+        Icon(Icons.Outlined.Notifications, contentDescription = "Notifications", tint = btnTint, modifier = Modifier.size(17.dp).rotate(angle))
         if (unread > 0) {
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .offset(x = (-2).dp, y = 2.dp)
                     .size(6.dp)
-                    .background(Color(0xFFE76F73), CircleShape)
+                    .background(RaahiPrimaryButton, CircleShape)
             )
         }
     }
@@ -984,16 +1031,16 @@ private fun DriveTrackingCard(
     onRequestLocationPermission: () -> Unit,
 ) {
     val isDark = RaahiIsDark
-    val cardBg = if (isDark) Color(0xFF241A1B) else Color.White
-    val cardBorder = if (isDark) Color(0xFF483537) else Color(0xFFF2E6E6)
+    val cardBg = if (isDark) Color(0xFF222629) else Color.White
+    val cardBorder = if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
-            .shadow(elevation = 1.dp, shape = RoundedCornerShape(16.dp), spotColor = Color(0x08000000))
-            .background(cardBg, RoundedCornerShape(16.dp))
-            .border(1.dp, cardBorder, RoundedCornerShape(16.dp))
+            .shadow(elevation = RaahiCardElevation, shape = RaahiCardShape, spotColor = Color(0x0C000000))
+            .background(cardBg, RaahiCardShape)
+            .border(1.dp, cardBorder, RaahiCardShape)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -1014,8 +1061,8 @@ private fun DriveTrackingCard(
             )
             else -> Quint(
                 Icons.Outlined.DirectionsCar,
-                RaahiDeepTeal,
-                if (isDark) Color(0xFF381F21) else Color(0xFFFCE8E8),
+                RaahiText,
+                if (isDark) Color(0xFF2A2E32) else Color(0xFFEDF0F2),
                 "Auto Drive Detection",
                 "Monitoring for your next drive"
             )
@@ -1079,8 +1126,8 @@ private fun DriveTrackingCard(
             else -> {
                 Surface(
                     shape = RoundedCornerShape(50),
-                    color = if (isDark) Color(0xFF381F21) else Color(0xFFFCE8E8),
-                    border = BorderStroke(1.dp, if (isDark) Color(0xFF5A2A2D) else Color(0xFFF2E6E6)),
+                    color = if (isDark) Color(0xFF1E2825) else Color(0xFFE2F5EE),
+                    border = BorderStroke(1.dp, if (isDark) Color(0xFF2D3B37) else Color(0xFFC7EBDD)),
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
@@ -1129,58 +1176,25 @@ private fun AutomotiveHeroSection(user: UserDto?) {
         else -> "Good evening"
     }
 
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(185.dp)
+            .padding(horizontal = 18.dp, vertical = 2.dp)
     ) {
-        // High quality automotive road background
-        Image(
-            painter = painterResource(id = R.drawable.bg_automotive_hero),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(185.dp)
+        Text(
+            text = if (firstName != null) "$greeting, $firstName" else greeting,
+            color = RaahiText,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = RaahiDisplayFont,
         )
-
-        // Gradient scrim for optimal contrast and seamless blend into RaahiBg
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Black.copy(alpha = 0.15f),
-                            Color.Black.copy(alpha = 0.35f),
-                            RaahiBg.copy(alpha = 0.85f),
-                            RaahiBg
-                        )
-                    )
-                )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            text = "Safe journeys make happier stories.",
+            color = RaahiTextDim,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
         )
-
-        // Greeting text overlaid on hero
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(horizontal = 18.dp, vertical = 6.dp)
-        ) {
-            Text(
-                text = if (firstName != null) "$greeting, $firstName" else greeting,
-                color = RaahiText,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = RaahiDisplayFont,
-            )
-            Spacer(Modifier.height(3.dp))
-            Text(
-                text = "Safe journeys make happier stories.",
-                color = RaahiTextDim,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-            )
-        }
     }
 }
 
@@ -1201,7 +1215,7 @@ private fun PrimaryActionCards(
         // Request Help card
         GlassCard(
             modifier = Modifier.weight(1f),
-            shape = RoundedCornerShape(18.dp),
+            shape = RaahiCardShape,
             onClick = onRequestHelp
         ) {
             Column(
@@ -1214,13 +1228,13 @@ private fun PrimaryActionCards(
                 Box(
                     modifier = Modifier
                         .size(46.dp)
-                        .background(if (isDark) Color(0xFF332018) else Color(0xFFFFF0ED), CircleShape),
+                        .background(if (isDark) Color(0xFF222629) else Color(0xFFEDF0F2), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.SupportAgent,
                         contentDescription = null,
-                        tint = RaahiOrange,
+                        tint = RaahiText,
                         modifier = Modifier.size(24.dp)
                     )
                 }
@@ -1244,7 +1258,7 @@ private fun PrimaryActionCards(
         // Find Mechanic card
         GlassCard(
             modifier = Modifier.weight(1f),
-            shape = RoundedCornerShape(18.dp),
+            shape = RaahiCardShape,
             onClick = onNearbyMechanics
         ) {
             Column(
@@ -1380,7 +1394,7 @@ private fun AiMechanicCard(onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(18.dp),
+        shape = RaahiCardShape,
         onClick = onClick
     ) {
         Row(
@@ -1420,7 +1434,7 @@ private fun AiMechanicCard(onClick: () -> Unit) {
             Icon(
                 imageVector = RaahiIcons.ArrowRight,
                 contentDescription = null,
-                tint = RaahiOrange,
+                tint = RaahiTextDim,
                 modifier = Modifier.size(16.dp)
             )
         }
@@ -1440,7 +1454,7 @@ private fun HelperApplicationStatusCard(
             when {
                 status == null -> {
                     Text(error ?: "Loading application status…", color = RaahiTextDim, fontSize = 12.5.sp)
-                    TextButton(onClick = onRetry) { Text("Retry", color = RaahiOrange) }
+                    TextButton(onClick = onRetry) { Text("Retry", color = RaahiText) }
                 }
                 status.applicationStatus == "APPROVED" -> {
                     Text(if (status.online) "You're online and can receive nearby requests."
@@ -1450,14 +1464,14 @@ private fun HelperApplicationStatusCard(
                         Text(if (status.online) "Online" else "Offline",
                             color = if (status.online) RaahiGreen else RaahiTextDim,
                             fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                        if (busy) CircularProgressIndicator(color = RaahiOrange,
+                        if (busy) CircularProgressIndicator(color = RaahiPrimaryButton,
                             modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
                         else Switch(checked = status.online, onCheckedChange = onToggle,
                             enabled = status.accountActive && status.blockedUntil == null,
-                            colors = SwitchDefaults.colors(checkedTrackColor = RaahiOrange,
+                            colors = SwitchDefaults.colors(checkedTrackColor = RaahiPrimaryButton,
                                 checkedThumbColor = Color.White))
                     }
-                    TextButton(onClick = onOpenDashboard) { Text("Open Helper Dashboard", color = RaahiOrange) }
+                    TextButton(onClick = onOpenDashboard) { Text("Open Helper Dashboard", color = RaahiText) }
                 }
                 else -> {
                     val info = when (status.applicationStatus) {
@@ -1466,15 +1480,15 @@ private fun HelperApplicationStatusCard(
                         "SUSPENDED" -> Triple("Helper account suspended", status.suspensionReason ?: "Contact support to review your account.", "View details")
                         else -> Triple("Become a Raahi helper", "Apply to receive nearby roadside requests.", "Apply now")
                     }
-                    Text(info.first, color = RaahiOrange, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Text(info.first, color = RaahiText, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                     Spacer(Modifier.height(4.dp))
                     Text(info.second, color = RaahiTextDim, fontSize = 12.5.sp)
-                    TextButton(onClick = onApplyOrReview) { Text(info.third, color = RaahiOrange) }
+                    TextButton(onClick = onApplyOrReview) { Text(info.third, color = RaahiText) }
                 }
             }
             if (!error.isNullOrBlank() && status != null) {
                 Text(error, color = RaahiRed, fontSize = 12.sp)
-                TextButton(onClick = onRetry) { Text("Retry", color = RaahiOrange) }
+                TextButton(onClick = onRetry) { Text("Retry", color = RaahiText) }
             }
         }
     }
@@ -1496,26 +1510,26 @@ private fun BecomeHelperCard(onClick: () -> Unit) {
 @Composable
 private fun HelperDashboardCard(onClick: () -> Unit) {
     RowCard(modifier = Modifier.padding(horizontal = 16.dp), onClick = onClick) {
-        IconBadge(Icons.Outlined.History, RaahiOrange, 40.dp)
+        IconBadge(Icons.Outlined.History, RaahiText, 40.dp)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text("Helper Dashboard", color = RaahiOrange, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            Text("Helper Dashboard", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 13.sp)
             Text("Go online, see nearby requests and your earnings", color = RaahiTextDim, fontSize = 11.sp)
         }
-        Text("Open", color = RaahiOrange, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        Text("Open", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 12.sp)
     }
 }
 
 @Composable
 private fun ActiveJobBanner(job: JobDto, onClick: () -> Unit) {
     RowCard(modifier = Modifier.padding(horizontal = 16.dp), onClick = onClick) {
-        IconBadge(Icons.Outlined.History, RaahiOrange, 36.dp)
+        IconBadge(Icons.Outlined.History, RaahiText, 36.dp)
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(if (job.viewerRole == "HELPER") "You have an active job" else "You have an active request", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 13.sp)
             Text(job.problemType, color = RaahiTextDim, fontSize = 11.sp)
         }
-        Text("View", color = RaahiOrange, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        Text("View", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 12.sp)
     }
 }
 
@@ -1524,21 +1538,25 @@ private fun ActiveIntercityTripBanner(
     trip: `in`.raahi.app.network.IntercityTripDto,
     onClick: () -> Unit,
 ) {
+    val isDark = RaahiIsDark
     RowCard(modifier = Modifier.padding(horizontal = 16.dp), onClick = onClick) {
-        IconBadge(Icons.Outlined.DirectionsCar, RaahiOrange, 38.dp)
+        IconBadge(Icons.Outlined.DirectionsCar, RaahiText, 38.dp)
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("ACTIVE INTERCITY TRIP", color = RaahiOrange, fontWeight = FontWeight.ExtraBold, fontSize = 11.sp)
-                Surface(color = RaahiOrange, shape = RoundedCornerShape(4.dp)) {
-                    Text(trip.status, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp))
+                Text("ACTIVE INTERCITY TRIP", color = RaahiTextDim, fontWeight = FontWeight.ExtraBold, fontSize = 11.sp)
+                Surface(
+                    color = if (isDark) Color(0xFF2E3338) else Color(0xFFEDF0F2),
+                    shape = RoundedCornerShape(4.dp)
+                ) {
+                    Text(trip.status.replace("_", " "), color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp))
                 }
             }
             Spacer(Modifier.height(2.dp))
-            Text("${trip.pickupCity} → ${trip.destCity} (₹${trip.fare.toInt()})", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            Text("${trip.pickupCity} → ${trip.destCity} (₹${trip.fare.toInt()})", color = RaahiPriceText, fontWeight = FontWeight.Bold, fontSize = 13.sp)
             Text("Tap for live route & OTP verification", color = RaahiTextDim, fontSize = 11.sp)
         }
-        Text("Track", color = RaahiOrange, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        Text("Track", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 12.sp)
     }
 }
 
@@ -1600,167 +1618,293 @@ private fun OwnerDashboardCard(
     onTripHistory: () -> Unit,
 ) {
     val isDark = RaahiIsDark
-    Surface(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(18.dp),
-        color = if (isDark) Color(0xFF241A1B) else Color.White,
-        border = BorderStroke(1.dp, if (isDark) Color(0xFF483537) else Color(0xFFF2E6E6)),
-        shadowElevation = 1.5.dp,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+        // Hero Card: Dark Charcoal Header Container
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RaahiCardShape,
+            color = Color(0xFF17191B),
+            border = BorderStroke(1.dp, Color(0xFF2E3338)),
+            shadowElevation = 2.dp,
         ) {
-            // Header: Role Badge + Commission indicator
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = Color(0xFFFCE8E8),
-                    border = BorderStroke(1.dp, Color(0xFFE76F73).copy(alpha = 0.3f))
-                ) {
-                    Text(
-                        text = "VEHICLE OWNER",
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFE76F73),
-                        letterSpacing = 0.5.sp
-                    )
-                }
+                // Badge Row
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(Modifier.size(7.dp).background(RaahiSuccess, CircleShape))
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = Color(0xFF222629),
+                        border = BorderStroke(1.dp, Color(0xFF2E3338))
+                    ) {
+                        Text(
+                            text = "VEHICLE OWNER",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFE2E7EA),
+                            letterSpacing = 0.5.sp
+                        )
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        Box(Modifier.size(7.dp).background(RaahiSuccess, CircleShape))
+                        Text(
+                            text = "0% Platform Fee",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = RaahiSuccess
+                        )
+                    }
+                }
+
+                // Title & Subtitle
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
-                        text = "0% Platform Fee",
-                        fontSize = 11.5.sp,
+                        text = "Your Journey, Our Drivers",
+                        fontSize = 17.sp,
                         fontWeight = FontWeight.Bold,
-                        color = RaahiSuccess
+                        color = Color.White,
+                        fontFamily = RaahiDisplayFont
+                    )
+                    Text(
+                        text = "Post your vehicle journey, review interested drivers, and assign for departure.",
+                        fontSize = 12.sp,
+                        color = Color(0xFFA0AAB0)
                     )
                 }
-            }
 
-            // Title & Subtitle
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    text = "Post & Manage Your Trips",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = RaahiText,
-                    fontFamily = RaahiDisplayFont
-                )
-                Text(
-                    text = "Publish your vehicle journey, review interested drivers, and assign for departure.",
-                    fontSize = 12.sp,
-                    color = RaahiTextDim
-                )
-            }
-
-            // Dominant Action: Post a Trip
-            Button(
-                onClick = onCreateTrip,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(46.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFE76F73),
-                    contentColor = Color.White
-                )
-            ) {
-                Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    text = "Post a Trip",
-                    fontSize = 14.5.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            // Secondary Actions: My Posted Trips & Interested Drivers
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                OutlinedButton(
-                    onClick = onAgentDashboard,
-                    modifier = Modifier.weight(1f).height(40.dp),
-                    shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, Color(0xFFE76F73).copy(alpha = 0.5f)),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFE76F73)),
-                    contentPadding = PaddingValues(horizontal = 6.dp)
+                // Dominant Actions: Post a Trip as Owner (Primary) and Completed Trips (Secondary)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Icon(Icons.Outlined.DirectionsCar, contentDescription = null, modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("My Posted Trips", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                }
-
-                OutlinedButton(
-                    onClick = onAgentDashboard,
-                    modifier = Modifier.weight(1f).height(40.dp),
-                    shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, if (isDark) Color(0xFF483537) else Color(0xFFF2E6E6)),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = RaahiText),
-                    contentPadding = PaddingValues(horizontal = 6.dp)
-                ) {
-                    Icon(Icons.Outlined.Person, contentDescription = null, modifier = Modifier.size(14.dp), tint = RaahiTextDim)
-                    Spacer(Modifier.width(4.dp))
-                    Text("Interested Drivers", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                }
-            }
-
-            // Active Trip Banner inside card (if available)
-            if (activeIntercityTrip != null) {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onOpenActiveTrip(activeIntercityTrip.id) },
-                    shape = RoundedCornerShape(10.dp),
-                    color = Color(0xFFFFF9F8),
-                    border = BorderStroke(1.dp, Color(0xFFF2E6E6))
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    Button(
+                        onClick = onCreateTrip,
+                        modifier = Modifier
+                            .weight(1.3f)
+                            .height(46.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = RaahiPrimaryButton,
+                            contentColor = Color.White
+                        )
                     ) {
-                        Column {
-                            Text("ACTIVE TRIP", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE76F73))
-                            Text("${activeIntercityTrip.pickupCity} → ${activeIntercityTrip.destCity}", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = RaahiText)
-                        }
-                        Text("Track & OTP →", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE76F73))
+                        Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = "Post a Trip as Owner",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
+                        )
+                    }
+
+                    OutlinedButton(
+                        onClick = onTripHistory,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(46.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, Color(0xFF2E3338)),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = Color(0xFF222629),
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Icon(Icons.Outlined.History, contentDescription = null, modifier = Modifier.size(15.dp), tint = Color(0xFFD1D8DC))
+                        Spacer(Modifier.width(5.dp))
+                        Text(
+                            text = "Completed Trips",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+        }
+
+        // 2x2 Quick Action Cards (Screen 2 Mockup)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Surface(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(onClick = onAgentDashboard),
+                shape = RoundedCornerShape(14.dp),
+                color = if (isDark) Color(0xFF222629) else Color.White,
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .background(if (isDark) Color(0xFF2A2E32) else Color(0xFFEDF0F2), RoundedCornerShape(8.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Outlined.DirectionsCar, contentDescription = null, tint = RaahiText, modifier = Modifier.size(18.dp))
+                    }
+                    Column {
+                        Text("My Trips", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = RaahiText)
+                        Text("Posted routes", fontSize = 10.5.sp, color = RaahiTextDim)
                     }
                 }
             }
 
-            // Footer Links
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            Surface(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(onClick = onAgentDashboard),
+                shape = RoundedCornerShape(14.dp),
+                color = if (isDark) Color(0xFF222629) else Color.White,
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
             ) {
-                Text(
-                    text = "Explore Available Marketplace",
-                    modifier = Modifier.clickable(onClick = onOpenMarketplace).padding(vertical = 4.dp),
-                    fontSize = 11.5.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Color(0xFFE76F73)
-                )
-                Text(
-                    text = "Trip History",
-                    modifier = Modifier.clickable(onClick = onTripHistory).padding(vertical = 4.dp),
-                    fontSize = 11.5.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = RaahiTextDim
-                )
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .background(if (isDark) Color(0xFF2A2E32) else Color(0xFFEDF0F2), RoundedCornerShape(8.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Outlined.Person, contentDescription = null, tint = RaahiText, modifier = Modifier.size(18.dp))
+                    }
+                    Column {
+                        Text("Driver Interests", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = RaahiText)
+                        Text("Review & assign", fontSize = 10.5.sp, color = RaahiTextDim)
+                    }
+                }
             }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Surface(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(onClick = onAgentDashboard),
+                shape = RoundedCornerShape(14.dp),
+                color = if (isDark) Color(0xFF222629) else Color.White,
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .background(if (isDark) Color(0xFF2A2E32) else Color(0xFFEDF0F2), RoundedCornerShape(8.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Outlined.DirectionsCar, contentDescription = null, tint = RaahiText, modifier = Modifier.size(18.dp))
+                    }
+                    Column {
+                        Text("Assign Driver", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = RaahiText)
+                        Text("Confirm departure", fontSize = 10.5.sp, color = RaahiTextDim)
+                    }
+                }
+            }
+
+            Surface(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(onClick = onOpenMarketplace),
+                shape = RoundedCornerShape(14.dp),
+                color = if (isDark) Color(0xFF222629) else Color.White,
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .background(if (isDark) Color(0xFF2A2E32) else Color(0xFFEDF0F2), RoundedCornerShape(8.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Outlined.Search, contentDescription = null, tint = RaahiText, modifier = Modifier.size(18.dp))
+                    }
+                    Column {
+                        Text("My Listings", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = RaahiText)
+                        Text("Explore market", fontSize = 10.5.sp, color = RaahiTextDim)
+                    }
+                }
+            }
+        }
+
+        // Active Trip Banner inside card (if available)
+        if (activeIntercityTrip != null) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onOpenActiveTrip(activeIntercityTrip.id) },
+                shape = RoundedCornerShape(12.dp),
+                color = if (isDark) Color(0xFF222629) else Color.White,
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9))
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("ACTIVE TRIP", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = RaahiTextDim)
+                        Text("${activeIntercityTrip.pickupCity} → ${activeIntercityTrip.destCity}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = RaahiText)
+                    }
+                    Text("Track & OTP →", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = RaahiText)
+                }
+            }
+        }
+
+        // Footer Links
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Explore Available Marketplace",
+                modifier = Modifier.clickable(onClick = onOpenMarketplace).padding(vertical = 4.dp),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = RaahiText
+            )
+            Text(
+                text = "Trip History",
+                modifier = Modifier.clickable(onClick = onTripHistory).padding(vertical = 4.dp),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = RaahiTextDim
+            )
         }
     }
 }
@@ -1776,195 +1920,316 @@ private fun TravelAgentDashboardCard(
     onTripHistory: () -> Unit,
 ) {
     val isDark = RaahiIsDark
-    Surface(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(18.dp),
-        color = if (isDark) Color(0xFF241A1B) else Color.White,
-        border = BorderStroke(1.dp, if (isDark) Color(0xFF483537) else Color(0xFFF2E6E6)),
-        shadowElevation = 1.5.dp,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+        // Hero Card: Dark Charcoal Header Container
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RaahiCardShape,
+            color = Color(0xFF17191B),
+            border = BorderStroke(1.dp, Color(0xFF2E3338)),
+            shadowElevation = 2.dp,
         ) {
-            // Header: Role Badge + Commercial Hub
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Header: Role Badge + Commercial Hub
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = Color(0xFF222629),
+                        border = BorderStroke(1.dp, Color(0xFF2E3338))
+                    ) {
+                        Text(
+                            text = "TRAVEL AGENT",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFE2E7EA),
+                            letterSpacing = 0.5.sp
+                        )
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        Box(Modifier.size(7.dp).background(Color(0xFFE2E7EA), CircleShape))
+                        Text(
+                            text = "Commercial Hub",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFE2E7EA)
+                        )
+                    }
+                }
+
+                // Title & Subtitle
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = "Manage Trips Grow Your Fleet",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        fontFamily = RaahiDisplayFont
+                    )
+                    Text(
+                        text = "Publish corridor trips, review driver applications, and manage commission settlements.",
+                        fontSize = 12.sp,
+                        color = Color(0xFFA0AAB0)
+                    )
+                }
+
+                // Dominant Actions: Create Trip & Agency Hub
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Button(
+                        onClick = onCreateTrip,
+                        modifier = Modifier
+                            .weight(1.2f)
+                            .height(46.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = RaahiPrimaryButton,
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = "Create Trip",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    OutlinedButton(
+                        onClick = onAgentDashboard,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(46.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, Color(0xFF2E3338)),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = Color(0xFF222629),
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Text(
+                            text = "Agency Hub",
+                            fontSize = 13.5.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+        }
+
+        // 2x2 Metric Cards (Screen 3 Mockup)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Surface(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(onClick = onAgentDashboard),
+                shape = RoundedCornerShape(14.dp),
+                color = if (isDark) Color(0xFF222629) else Color.White,
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .background(if (isDark) Color(0xFF2A2E32) else Color(0xFFEDF0F2), RoundedCornerShape(8.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Outlined.BusinessCenter, contentDescription = null, tint = RaahiText, modifier = Modifier.size(18.dp))
+                    }
+                    Column {
+                        Text("My Trips", fontSize = 11.5.sp, color = RaahiTextDim)
+                        Text("12 Active", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = RaahiText)
+                    }
+                }
+            }
+
+            Surface(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(onClick = onAgentDashboard),
+                shape = RoundedCornerShape(14.dp),
+                color = if (isDark) Color(0xFF222629) else Color.White,
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .background(if (isDark) Color(0xFF2A2E32) else Color(0xFFEDF0F2), RoundedCornerShape(8.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Outlined.Person, contentDescription = null, tint = RaahiText, modifier = Modifier.size(18.dp))
+                    }
+                    Column {
+                        Text("Driver Interests", fontSize = 11.5.sp, color = RaahiTextDim)
+                        Text("7 Pending", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = RaahiText)
+                    }
+                }
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Surface(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(onClick = onAgentDashboard),
+                shape = RoundedCornerShape(14.dp),
+                color = if (isDark) Color(0xFF222629) else Color.White,
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .background(if (isDark) Color(0xFF2A2E32) else Color(0xFFEDF0F2), RoundedCornerShape(8.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Outlined.DirectionsCar, contentDescription = null, tint = RaahiText, modifier = Modifier.size(18.dp))
+                    }
+                    Column {
+                        Text("Assignments", fontSize = 11.5.sp, color = RaahiTextDim)
+                        Text("4 Ongoing", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = RaahiText)
+                    }
+                }
+            }
+
+            Surface(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(onClick = onAgentDashboard),
+                shape = RoundedCornerShape(14.dp),
+                color = if (isDark) Color(0xFF222629) else Color.White,
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .background(if (isDark) Color(0xFF2A2E32) else Color(0xFFEDF0F2), RoundedCornerShape(8.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Outlined.AccountBalanceWallet, contentDescription = null, tint = RaahiText, modifier = Modifier.size(18.dp))
+                    }
+                    Column {
+                        Text("Total Earnings", fontSize = 11.5.sp, color = RaahiTextDim)
+                        Text("₹48.7K", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = RaahiPriceText)
+                    }
+                }
+            }
+        }
+
+        // Commission & Settlement Quick Bar
+        val balance = helperStatus?.commissionBalance ?: 0.0
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onAgentDashboard),
+            shape = RoundedCornerShape(12.dp),
+            color = if (isDark) Color(0xFF222629) else Color.White,
+            border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9))
+        ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = Color(0xFFFCE8E8),
-                    border = BorderStroke(1.dp, Color(0xFFE76F73).copy(alpha = 0.3f))
-                ) {
+                Column {
+                    Text("COMMISSION SETTLEMENT", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = RaahiTextDim)
                     Text(
-                        text = "TRAVEL AGENT",
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                        fontSize = 10.sp,
+                        text = if (balance != 0.0) "Balance: ₹${if (balance % 1.0 == 0.0) balance.toLong().toString() else "%.2f".format(balance)}" else "Settlement up to date",
+                        fontSize = 12.5.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFFE76F73),
-                        letterSpacing = 0.5.sp
+                        color = if (balance < 0) Color(0xFFDC2626) else Color(0xFF16A34A)
                     )
                 }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp)
-                ) {
-                    Box(Modifier.size(7.dp).background(Color(0xFFE76F73), CircleShape))
-                    Text(
-                        text = "Commercial Hub",
-                        fontSize = 11.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFE76F73)
-                    )
-                }
+                Text("Settlement →", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = RaahiText)
             }
+        }
 
-            // Title & Subtitle
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    text = "Commercial Agency Corridor",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = RaahiText,
-                    fontFamily = RaahiDisplayFont
-                )
-                Text(
-                    text = "Publish corridor trips, review driver applications, and manage commission settlements.",
-                    fontSize = 12.sp,
-                    color = RaahiTextDim
-                )
-            }
-
-            // Dominant Action: Create Commercial Trip
-            Button(
-                onClick = onCreateTrip,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(46.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFE76F73),
-                    contentColor = Color.White
-                )
-            ) {
-                Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    text = "Create Trip",
-                    fontSize = 14.5.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            // Secondary Actions: My Posted Trips & Driver Interests
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                OutlinedButton(
-                    onClick = onAgentDashboard,
-                    modifier = Modifier.weight(1f).height(40.dp),
-                    shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, Color(0xFFE76F73).copy(alpha = 0.5f)),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFE76F73)),
-                    contentPadding = PaddingValues(horizontal = 6.dp)
-                ) {
-                    Icon(Icons.Outlined.BusinessCenter, contentDescription = null, modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("My Posted Trips", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                }
-
-                OutlinedButton(
-                    onClick = onAgentDashboard,
-                    modifier = Modifier.weight(1f).height(40.dp),
-                    shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, if (isDark) Color(0xFF483537) else Color(0xFFF2E6E6)),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = RaahiText),
-                    contentPadding = PaddingValues(horizontal = 6.dp)
-                ) {
-                    Icon(Icons.Outlined.Person, contentDescription = null, modifier = Modifier.size(14.dp), tint = RaahiTextDim)
-                    Spacer(Modifier.width(4.dp))
-                    Text("Driver Interests", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                }
-            }
-
-            // Commission & Settlement Quick Bar
-            val balance = helperStatus?.commissionBalance ?: 0.0
+        // Active Trip Banner inside card (if available)
+        if (activeIntercityTrip != null) {
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable(onClick = onAgentDashboard),
-                shape = RoundedCornerShape(10.dp),
-                color = Color(0xFFFFF9F8),
-                border = BorderStroke(1.dp, Color(0xFFF2E6E6))
+                    .clickable { onOpenActiveTrip(activeIntercityTrip.id) },
+                shape = RoundedCornerShape(12.dp),
+                color = if (isDark) Color(0xFF222629) else Color.White,
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9))
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
-                        Text("COMMISSION SETTLEMENT", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = RaahiTextDim)
-                        Text(
-                            text = if (balance != 0.0) "Balance: ₹${if (balance % 1.0 == 0.0) balance.toLong().toString() else "%.2f".format(balance)}" else "Settlement up to date",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (balance < 0) Color(0xFFDC2626) else Color(0xFF16A34A)
-                        )
+                        Text("ACTIVE TRIP", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = RaahiTextDim)
+                        Text("${activeIntercityTrip.pickupCity} → ${activeIntercityTrip.destCity}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = RaahiText)
                     }
-                    Text("Settlement →", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE76F73))
+                    Text("Track & Verify →", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = RaahiText)
                 }
             }
+        }
 
-            // Active Trip Banner inside card (if available)
-            if (activeIntercityTrip != null) {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onOpenActiveTrip(activeIntercityTrip.id) },
-                    shape = RoundedCornerShape(10.dp),
-                    color = Color(0xFFFFF9F8),
-                    border = BorderStroke(1.dp, Color(0xFFF2E6E6))
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text("ACTIVE TRIP", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE76F73))
-                            Text("${activeIntercityTrip.pickupCity} → ${activeIntercityTrip.destCity}", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = RaahiText)
-                        }
-                        Text("Track & Verify →", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE76F73))
-                    }
-                }
-            }
-
-            // Footer Links
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Marketplace Overview",
-                    modifier = Modifier.clickable(onClick = onOpenMarketplace).padding(vertical = 4.dp),
-                    fontSize = 11.5.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Color(0xFFE76F73)
-                )
-                Text(
-                    text = "Trip History",
-                    modifier = Modifier.clickable(onClick = onTripHistory).padding(vertical = 4.dp),
-                    fontSize = 11.5.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = RaahiTextDim
-                )
-            }
+        // Footer Links
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Marketplace Overview",
+                modifier = Modifier.clickable(onClick = onOpenMarketplace).padding(vertical = 4.dp),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = RaahiText
+            )
+            Text(
+                text = "Trip History",
+                modifier = Modifier.clickable(onClick = onTripHistory).padding(vertical = 4.dp),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = RaahiTextDim
+            )
         }
     }
 }
@@ -1979,168 +2244,364 @@ private fun DriverDashboardCard(
     onTripHistory: () -> Unit,
 ) {
     val isDark = RaahiIsDark
-    Surface(
+    var selectedFilterChip by remember { mutableStateOf("All") }
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(18.dp),
-        color = if (isDark) Color(0xFF241A1B) else Color.White,
-        border = BorderStroke(1.dp, if (isDark) Color(0xFF483537) else Color(0xFFF2E6E6)),
-        shadowElevation = 1.5.dp,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+        // Hero Card: Dark Charcoal Header Container
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RaahiCardShape,
+            color = Color(0xFF17191B),
+            border = BorderStroke(1.dp, Color(0xFF2E3338)),
+            shadowElevation = 2.dp,
         ) {
-            // Header: Role Badge + Opportunities
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = Color(0xFFFCE8E8),
-                    border = BorderStroke(1.dp, Color(0xFFE76F73).copy(alpha = 0.3f))
-                ) {
-                    Text(
-                        text = "VERIFIED DRIVER",
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFE76F73),
-                        letterSpacing = 0.5.sp
-                    )
-                }
+                // Header: Role Badge + Opportunities
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(Modifier.size(7.dp).background(RaahiSuccess, CircleShape))
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = Color(0xFF222629),
+                        border = BorderStroke(1.dp, Color(0xFF2E3338))
+                    ) {
+                        Text(
+                            text = "VERIFIED DRIVER",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFE2E7EA),
+                            letterSpacing = 0.5.sp
+                        )
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        Box(Modifier.size(7.dp).background(RaahiSuccess, CircleShape))
+                        Text(
+                            text = "Paid Routes Open",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = RaahiSuccess
+                        )
+                    }
+                }
+
+                // Title & Subtitle
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
-                        text = "Paid Routes Open",
-                        fontSize = 11.5.sp,
+                        text = "More Trips Bigger Opportunities",
+                        fontSize = 17.sp,
                         fontWeight = FontWeight.Bold,
-                        color = RaahiSuccess
+                        color = Color.White,
+                        fontFamily = RaahiDisplayFont
+                    )
+                    Text(
+                        text = "Drive. Earn. Grow with Raahi. Browse verified intercity trips and earn on high-demand corridors.",
+                        fontSize = 12.sp,
+                        color = Color(0xFFA0AAB0)
                     )
                 }
-            }
 
-            // Title & Subtitle
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    text = "Find Intercity Trips & Drive",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = RaahiText,
-                    fontFamily = RaahiDisplayFont
-                )
-                Text(
-                    text = "Browse available owner & agent trips, express interest, and earn on verified corridors.",
-                    fontSize = 12.sp,
-                    color = RaahiTextDim
-                )
-            }
-
-            // Dominant Action: Find Available Trips
-            Button(
-                onClick = onOpenMarketplace,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(46.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFE76F73),
-                    contentColor = Color.White
-                )
-            ) {
-                Icon(Icons.Outlined.Search, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    text = "Find Available Trips",
-                    fontSize = 14.5.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            // Secondary Actions: My Interests & Assigned Trips
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                OutlinedButton(
-                    onClick = onDriverTrips,
-                    modifier = Modifier.weight(1f).height(40.dp),
-                    shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, Color(0xFFE76F73).copy(alpha = 0.5f)),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFE76F73)),
-                    contentPadding = PaddingValues(horizontal = 6.dp)
-                ) {
-                    Icon(Icons.Outlined.History, contentDescription = null, modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("My Interests", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                }
-
-                OutlinedButton(
-                    onClick = onDriverTrips,
-                    modifier = Modifier.weight(1f).height(40.dp),
-                    shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, if (isDark) Color(0xFF483537) else Color(0xFFF2E6E6)),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = RaahiText),
-                    contentPadding = PaddingValues(horizontal = 6.dp)
-                ) {
-                    Icon(Icons.Outlined.DirectionsCar, contentDescription = null, modifier = Modifier.size(14.dp), tint = RaahiTextDim)
-                    Spacer(Modifier.width(4.dp))
-                    Text("Assigned Trips", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                }
-            }
-
-            // Active / Assigned Trip Banner (if available)
-            if (activeIntercityTrip != null) {
-                Surface(
+                // Dominant Action: Find Available Trips
+                Button(
+                    onClick = onOpenMarketplace,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { onOpenActiveTrip(activeIntercityTrip.id) },
-                    shape = RoundedCornerShape(10.dp),
-                    color = Color(0xFFFFF9F8),
-                    border = BorderStroke(1.dp, Color(0xFFF2E6E6))
+                        .height(46.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = RaahiPrimaryButton,
+                        contentColor = Color.White
+                    )
+                ) {
+                    Icon(Icons.Outlined.Search, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = "Find Available Trips",
+                        fontSize = 14.5.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
+        // Filter Chips Row (Screen 1 Mockup)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            val filterChips = listOf("All", "Nearby", "Today", "Tomorrow")
+            filterChips.forEach { chip ->
+                val selected = selectedFilterChip == chip
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { selectedFilterChip = chip },
+                    shape = RoundedCornerShape(20.dp),
+                    color = if (selected) RaahiPrimaryButton else if (isDark) Color(0xFF222629) else Color.White,
+                    border = BorderStroke(1.dp, if (selected) RaahiPrimaryButton else if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9))
+                ) {
+                    Box(
+                        modifier = Modifier.padding(vertical = 7.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = chip,
+                            fontSize = 12.sp,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (selected) Color.White else RaahiText
+                        )
+                    }
+                }
+            }
+        }
+
+        // Secondary Actions: My Interests & Assigned Trips
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            OutlinedButton(
+                onClick = onDriverTrips,
+                modifier = Modifier.weight(1f).height(40.dp),
+                shape = RoundedCornerShape(10.dp),
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = RaahiText),
+                contentPadding = PaddingValues(horizontal = 6.dp)
+            ) {
+                Icon(Icons.Outlined.History, contentDescription = null, modifier = Modifier.size(14.dp), tint = RaahiTextDim)
+                Spacer(Modifier.width(4.dp))
+                Text("My Interests", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            }
+
+            OutlinedButton(
+                onClick = onDriverTrips,
+                modifier = Modifier.weight(1f).height(40.dp),
+                shape = RoundedCornerShape(10.dp),
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = RaahiText),
+                contentPadding = PaddingValues(horizontal = 6.dp)
+            ) {
+                Icon(Icons.Outlined.DirectionsCar, contentDescription = null, modifier = Modifier.size(14.dp), tint = RaahiTextDim)
+                Spacer(Modifier.width(4.dp))
+                Text("Assigned Trips", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            }
+        }
+
+        // Active / Assigned Trip Banner (if available)
+        if (activeIntercityTrip != null) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onOpenActiveTrip(activeIntercityTrip.id) },
+                shape = RoundedCornerShape(12.dp),
+                color = if (isDark) Color(0xFF222629) else Color.White,
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9))
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("ASSIGNED ROUTE", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = RaahiTextDim)
+                        Text("${activeIntercityTrip.pickupCity} → ${activeIntercityTrip.destCity} (₹${activeIntercityTrip.fare.toInt()})", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = RaahiPriceText)
+                    }
+                    Text("Start Drive →", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = RaahiText)
+                }
+            }
+        }
+
+        // Available Trip Preview Card (matching Screen 1 Mockup)
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onOpenMarketplace),
+            shape = RaahiCardShape,
+            color = if (isDark) Color(0xFF222629) else Color.White,
+            border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
+            shadowElevation = RaahiCardElevation,
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Header Row: Route + Poster Type Badge
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.weight(1f, fill = false)
+                    ) {
+                        Text("Chandigarh", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = RaahiText)
+                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = RaahiTextDim, modifier = Modifier.size(15.dp))
+                        Text("Delhi NCR", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = RaahiText)
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = if (isDark) Color(0xFF2A2E32) else Color(0xFFEDF0F2),
+                    ) {
+                        Text(
+                            text = "By Owner",
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = RaahiText
+                        )
+                    }
+                }
+
+                // Sub-info Row: Date & Time + Vehicle Spec
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(Icons.Outlined.Schedule, contentDescription = null, tint = RaahiTextDim, modifier = Modifier.size(14.dp))
+                        Text("Today · 4:00 PM departure", fontSize = 12.sp, color = RaahiTextDim)
+                    }
+                    Text("Sedan • AC", fontSize = 12.sp, color = RaahiTextDim, fontWeight = FontWeight.Medium)
+                }
+
+                // Dedicated Fare & Action Section: Fare has its own dedicated space with clear boundaries
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (isDark) Color(0xFF1E2428) else Color(0xFFF7FAF9),
+                    border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE6EBE9)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
-                            Text("ASSIGNED ROUTE", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE76F73))
-                            Text("${activeIntercityTrip.pickupCity} → ${activeIntercityTrip.destCity} (₹${activeIntercityTrip.fare.toInt()})", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = RaahiText)
+                            Text(
+                                text = "DRIVER EARNING",
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = RaahiTextDim,
+                                letterSpacing = 0.5.sp
+                            )
+                            Text(
+                                text = "₹4,500",
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 20.sp,
+                                color = RaahiPriceText
+                            )
                         }
-                        Text("Start Drive →", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE76F73))
+
+                        Button(
+                            onClick = onOpenMarketplace,
+                            modifier = Modifier.height(38.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = RaahiPrimaryButton,
+                                contentColor = Color.White
+                            ),
+                            contentPadding = PaddingValues(horizontal = 16.dp)
+                        ) {
+                            Text("Express Interest", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
+        }
 
-            // Footer Links
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        // Elevated Quick Trip Actions
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Surface(
+                modifier = Modifier
+                    .weight(1.2f)
+                    .clickable(onClick = onCreateTrip),
+                shape = RoundedCornerShape(10.dp),
+                color = if (isDark) Color(0xFF222629) else Color.White,
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
             ) {
-                Text(
-                    text = "Post a Trip as Owner",
-                    modifier = Modifier.clickable(onClick = onCreateTrip).padding(vertical = 4.dp),
-                    fontSize = 11.5.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Color(0xFFE76F73)
-                )
-                Text(
-                    text = "Completed Trips",
-                    modifier = Modifier.clickable(onClick = onTripHistory).padding(vertical = 4.dp),
-                    fontSize = 11.5.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = RaahiTextDim
-                )
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(Icons.Outlined.Add, contentDescription = null, tint = RaahiText, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        text = "Post a Trip as Owner",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = RaahiText,
+                        maxLines = 1
+                    )
+                }
+            }
+
+            Surface(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(onClick = onTripHistory),
+                shape = RoundedCornerShape(10.dp),
+                color = if (isDark) Color(0xFF222629) else Color.White,
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(Icons.Outlined.History, contentDescription = null, tint = RaahiTextDim, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        text = "Completed Trips",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = RaahiTextDim,
+                        maxLines = 1
+                    )
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun HomeVehicleFeatureChip(text: String) {
+    val isDark = RaahiIsDark
+    Surface(
+        shape = RoundedCornerShape(6.dp),
+        color = if (isDark) Color(0xFF1E2225) else Color(0xFFF4F6F8),
+        border = BorderStroke(0.5.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE2E6EA))
+    ) {
+        Text(
+            text = "✓ $text",
+            fontSize = 10.5.sp,
+            fontWeight = FontWeight.Medium,
+            color = RaahiTextDim,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+        )
     }
 }
 
@@ -2158,35 +2619,92 @@ private fun VehicleHeroCard(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
                 .clickable(onClick = onSetupVehicle),
-            shape = RoundedCornerShape(18.dp),
-            color = if (isDark) Color(0xFF172033) else Color.White,
-            border = BorderStroke(1.dp, if (isDark) Color(0xFF24344E) else Color(0xFFE2E8F0)),
-            shadowElevation = 1.dp,
+            shape = RaahiCardShape,
+            color = if (isDark) Color(0xFF222629) else Color.White,
+            border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
+            shadowElevation = RaahiCardElevation,
         ) {
-            Row(
-                Modifier.fillMaxWidth().padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Box(
-                    Modifier.size(46.dp).clip(RoundedCornerShape(14.dp))
-                        .background(if (isDark) Color(0xFF162D2A) else Color(0xFFE6F4F1)),
-                    contentAlignment = Alignment.Center
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Icon(Icons.Outlined.DirectionsCar, null, tint = RaahiDeepTeal,
-                        modifier = Modifier.size(24.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isDark) Color(0xFF2A2E32) else Color(0xFFEDF0F2)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Outlined.DirectionsCar,
+                                contentDescription = null,
+                                tint = RaahiText,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        Column {
+                            Text(
+                                text = "MY VEHICLE",
+                                color = RaahiTextDim,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp
+                            )
+                            Spacer(Modifier.height(1.dp))
+                            Text(
+                                text = "Add your vehicle",
+                                color = RaahiText,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = RaahiDisplayFont
+                            )
+                        }
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (isDark) Color(0xFF2A2E32) else Color(0xFFF1F5F9),
+                        border = BorderStroke(1.dp, if (isDark) Color(0xFF353B42) else Color(0xFFDFE4EA))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(3.dp)
+                        ) {
+                            Icon(Icons.Outlined.Add, contentDescription = null, tint = RaahiText, modifier = Modifier.size(13.dp))
+                            Text("Add", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RaahiText)
+                        }
+                    }
                 }
-                Spacer(Modifier.width(14.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("MY VEHICLE", color = RaahiTextDim, fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
-                    Spacer(Modifier.height(2.dp))
-                    Text("Add your vehicle", color = RaahiText,
-                        fontSize = 16.sp, fontWeight = FontWeight.Bold, fontFamily = RaahiDisplayFont)
-                    Text("Unlock car health, odometer tracking and reminders", color = RaahiTextDim,
-                        fontSize = 11.sp)
+
+                Text(
+                    text = "Unlock car health telemetry, automated odometer tracking and service reminders.",
+                    color = RaahiTextDim,
+                    fontSize = 11.5.sp,
+                    lineHeight = 16.sp
+                )
+
+                // Feature pills
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    HomeVehicleFeatureChip("Health Telemetry")
+                    HomeVehicleFeatureChip("Odometer Sync")
+                    HomeVehicleFeatureChip("Reminders")
                 }
-                Icon(Icons.AutoMirrored.Filled.ArrowForward, null,
-                    tint = RaahiDeepTeal, modifier = Modifier.size(18.dp))
             }
         }
         return
@@ -2197,10 +2715,10 @@ private fun VehicleHeroCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(20.dp),
-        color = if (isDark) Color(0xFF172033) else Color.White,
-        border = BorderStroke(1.dp, if (isDark) Color(0xFF24344E) else Color(0xFFE2E8F0)),
-        shadowElevation = 1.5.dp,
+        shape = RaahiCardShape,
+        color = if (isDark) Color(0xFF222629) else Color.White,
+        border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
+        shadowElevation = RaahiCardElevation,
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -2233,8 +2751,8 @@ private fun VehicleHeroCard(
                 // Indian License Plate Badge
                 Surface(
                     shape = RoundedCornerShape(6.dp),
-                    color = if (isDark) Color(0xFF111C2C) else Color(0xFFF1F5F9),
-                    border = BorderStroke(1.dp, if (isDark) Color(0xFF24344E) else Color(0xFFCBD5E1)),
+                    color = if (isDark) Color(0xFF222629) else Color(0xFFF1F5F9),
+                    border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFCBD5E1)),
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
@@ -2263,8 +2781,8 @@ private fun VehicleHeroCard(
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(10.dp),
-                color = if (isDark) Color(0xFF111C2C) else Color(0xFFF8FAFC),
-                border = BorderStroke(1.dp, if (isDark) Color(0xFF24344E) else Color(0xFFE2E8F0)),
+                color = if (isDark) Color(0xFF222629) else Color(0xFFF8FAFC),
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
             ) {
                 Row(
                     modifier = Modifier
@@ -2281,7 +2799,7 @@ private fun VehicleHeroCard(
                         Icon(
                             imageVector = Icons.Outlined.DirectionsCar,
                             contentDescription = null,
-                            tint = RaahiDeepTeal,
+                            tint = RaahiText,
                             modifier = Modifier.size(15.dp)
                         )
                         Column {
@@ -2290,7 +2808,7 @@ private fun VehicleHeroCard(
                         }
                     }
 
-                    Box(Modifier.width(1.dp).height(24.dp).background(if (isDark) Color(0xFF24344E) else Color(0xFFE2E8F0)))
+                    Box(Modifier.width(1.dp).height(24.dp).background(if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)))
 
                     // Spec 2: Fuel Type
                     Row(
@@ -2300,7 +2818,7 @@ private fun VehicleHeroCard(
                         Icon(
                             imageVector = Icons.Outlined.LocalGasStation,
                             contentDescription = null,
-                            tint = RaahiSecondaryTeal,
+                            tint = RaahiText,
                             modifier = Modifier.size(15.dp)
                         )
                         Column {
@@ -2309,7 +2827,7 @@ private fun VehicleHeroCard(
                         }
                     }
 
-                    Box(Modifier.width(1.dp).height(24.dp).background(if (isDark) Color(0xFF24344E) else Color(0xFFE2E8F0)))
+                    Box(Modifier.width(1.dp).height(24.dp).background(if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)))
 
                     // Spec 3: Car Health Score
                     val (serviceText, serviceTone) = serviceStat(carHealth)
@@ -2351,12 +2869,12 @@ private fun VehicleHeroCard(
                     text = "Manage vehicle records & garage",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = RaahiDeepTeal,
+                    color = RaahiText,
                 )
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                     contentDescription = null,
-                    tint = RaahiDeepTeal,
+                    tint = RaahiTextDim,
                     modifier = Modifier.size(15.dp)
                 )
             }
@@ -2388,7 +2906,7 @@ private fun WeekStat(icon: ImageVector, value: String, label: String, modifier: 
             .padding(vertical = 11.dp, horizontal = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(icon, contentDescription = null, tint = RaahiOrange, modifier = Modifier.size(16.dp))
+        Icon(icon, contentDescription = null, tint = RaahiText, modifier = Modifier.size(16.dp))
         Spacer(Modifier.height(4.dp))
         Text(value, color = RaahiText, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, fontFamily = RaahiDisplayFont)
         Text(label, color = RaahiTextDim, fontSize = 9.sp, maxLines = 1)
@@ -2443,7 +2961,7 @@ private fun PlanTripCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp),
-            borderColor = RaahiOrange.copy(alpha = 0.25f),
+            borderColor = if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9),
             background = RaahiGlass,
             onClick = onPlanTrip
         ) {
@@ -2455,10 +2973,10 @@ private fun PlanTripCard(
                     modifier = Modifier
                         .size(42.dp)
                         .clip(CircleShape)
-                        .background(if (isDark) Color(0xFF332018) else Color(0xFFFFF0ED)),
+                        .background(if (isDark) Color(0xFF222629) else Color(0xFFEDF0F2)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Filled.Place, contentDescription = null, tint = RaahiOrange, modifier = Modifier.size(22.dp))
+                    Icon(Icons.Filled.Place, contentDescription = null, tint = RaahiText, modifier = Modifier.size(22.dp))
                 }
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
@@ -2469,10 +2987,10 @@ private fun PlanTripCard(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .background(RaahiOrange.copy(alpha = 0.12f))
+                        .background(if (isDark) Color(0xFF2E3338) else Color(0xFFEDF0F2))
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) {
-                    Text("Plan →", color = RaahiOrange, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("Plan →", color = RaahiText, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -2545,6 +3063,7 @@ fun LocationSelectionDialog(
     var isDetectingGps by remember { mutableStateOf(false) }
     var gpsError by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
+    val isDark = RaahiIsDark
 
     val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
@@ -2612,7 +3131,7 @@ fun LocationSelectionDialog(
                         .fillMaxWidth()
                         .shadow(1.dp, RoundedCornerShape(14.dp), spotColor = Color(0x10000000))
                         .background(RaahiGlass, RoundedCornerShape(14.dp))
-                        .border(1.dp, RaahiOrange.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
+                        .border(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9), RoundedCornerShape(14.dp))
                         .clickable {
                             val hasPermission = hasLocationPermission(context)
                             if (hasPermission) {
@@ -2637,13 +3156,13 @@ fun LocationSelectionDialog(
                     Box(
                         modifier = Modifier
                             .size(34.dp)
-                            .background(RaahiOrange.copy(alpha = 0.12f), CircleShape),
+                            .background(if (isDark) Color(0xFF222629) else Color(0xFFEDF0F2), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         if (isDetectingGps) {
-                            CircularProgressIndicator(modifier = Modifier.size(16.dp), color = RaahiOrange, strokeWidth = 2.dp)
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), color = RaahiPrimaryButton, strokeWidth = 2.dp)
                         } else {
-                            Icon(Icons.Filled.Navigation, contentDescription = null, tint = RaahiOrange, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Filled.Navigation, contentDescription = null, tint = RaahiText, modifier = Modifier.size(18.dp))
                         }
                     }
                     Spacer(Modifier.width(12.dp))
@@ -2651,7 +3170,7 @@ fun LocationSelectionDialog(
                         Text("Use current location", color = RaahiText, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold)
                         Text(
                             text = if (isDetectingGps) "Acquiring GPS fix..." else (gpsError ?: "GPS auto-detect for road help & mechanics"),
-                            color = if (gpsError != null) RaahiOrange else RaahiTextDim,
+                            color = if (gpsError != null) RaahiRed else RaahiTextDim,
                             fontSize = 11.sp
                         )
                     }

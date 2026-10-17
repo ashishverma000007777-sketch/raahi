@@ -70,12 +70,12 @@ fun FuelRatesScreen(onBack: () -> Unit, viewModel: FuelRatesViewModel = hiltView
             }
 
             when (val s = state) {
-                is FuelUiState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = RaahiOrange) }
+                is FuelUiState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = RaahiPrimaryTeal) }
                 is FuelUiState.Error -> Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(s.message, color = RaahiTextDim)
                         Spacer(Modifier.height(12.dp))
-                        Button(onClick = viewModel::refresh, colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange)) { Text("Retry") }
+                        Button(onClick = viewModel::refresh, colors = ButtonDefaults.buttonColors(containerColor = RaahiPrimaryTeal)) { Text("Retry") }
                     }
                 }
                 is FuelUiState.Loaded -> LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -108,6 +108,6 @@ private fun FuelRateCard(rate: FuelRateDto) {
 private fun RateColumn(label: String, value: Double) {
     Column {
         Text(label, color = RaahiTextDim, fontSize = 11.sp)
-        Text("₹%.2f".format(value), color = RaahiOrange, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+        Text("₹%.2f".format(value), color = RaahiPriceText, fontWeight = FontWeight.Bold, fontSize = 15.sp)
     }
 }

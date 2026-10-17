@@ -5,12 +5,17 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -133,7 +138,14 @@ private fun Wizard(s: HelperApplicationUiState, vm: HelperApplicationViewModel) 
             }
             s.error?.let { Spacer(Modifier.height(12.dp)); Text(it, color = RaahiRed, fontSize = 13.sp, fontWeight = FontWeight.Medium) }
         }
-        Column(Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .background(RaahiBg)
+                .imePadding()
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 14.dp)
+        ) {
             if (s.step == WizardStep.REVIEW) {
                 RaahiPrimaryButton("Submit application", onClick = vm::submit, loading = s.submitting)
             } else {
@@ -155,13 +167,214 @@ private fun FieldLabel(text: String) {
     Text(text, color = RaahiTextDim, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 6.dp, top = 12.dp))
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun BasicsStep(f: HelperApplicationForm, vm: HelperApplicationViewModel) {
-    StepTitle("Tell us about you", "Your name and verified phone number come from your Raahi account — nothing to re-enter.")
-    FieldLabel("Years of experience")
-    RaahiTextField(f.experienceYears, { v -> vm.update { it.copy(experienceYears = v.filter(Char::isDigit).take(2)) } }, "e.g. 5", keyboardType = KeyboardType.Number)
-    FieldLabel("Service area")
-    RaahiTextField(f.serviceArea, { v -> vm.update { it.copy(serviceArea = v.take(120)) } }, "e.g. Mohali, Chandigarh, Zirakpur")
+    StepTitle(
+        "Start Earning with Raahi",
+        "Join our trusted network of roadside assistance helpers across Chandigarh Tricity."
+    )
+
+    // Trust badge
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(RaahiGreen.copy(alpha = 0.08f), RaahiShapeMedium)
+            .border(1.dp, RaahiGreen.copy(alpha = 0.25f), RaahiShapeMedium)
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                Icons.Outlined.CheckCircle,
+                contentDescription = null,
+                tint = RaahiGreen,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "Profile Linked: Name & phone are securely retrieved from your Raahi account.",
+                color = RaahiGreen,
+                fontSize = 11.5.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
+
+    Spacer(Modifier.height(14.dp))
+
+    // Experience Selection
+    FieldLabel("Experience in Vehicle Assistance")
+    Text(
+        "Select your experience level or enter exact years below:",
+        color = RaahiTextDim,
+        fontSize = 11.5.sp,
+        modifier = Modifier.padding(bottom = 8.dp)
+    )
+
+    val experiencePresets = listOf(
+        "1 year" to "1",
+        "2 years" to "2",
+        "3–5 years" to "4",
+        "5–10 years" to "7",
+        "10+ years" to "10"
+    )
+
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        experiencePresets.forEach { (label, presetVal) ->
+            val isSelected = f.experienceYears == presetVal
+            RaahiChip(
+                label = label,
+                active = isSelected
+            ) {
+                vm.update { it.copy(experienceYears = presetVal) }
+            }
+        }
+    }
+
+    Spacer(Modifier.height(8.dp))
+    RaahiTextField(
+        value = f.experienceYears,
+        onValueChange = { v -> vm.update { it.copy(experienceYears = v.filter(Char::isDigit).take(2)) } },
+        placeholder = "Or enter exact years (e.g. 5)",
+        keyboardType = KeyboardType.Number
+    )
+
+    val expInt = f.experienceYears.toIntOrNull()
+    if (expInt != null && expInt in 0..60) {
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "✓ $expInt years of experience recorded",
+            color = RaahiGreen,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium
+        )
+    } else if (f.experienceYears.isNotEmpty()) {
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "Please enter between 0 and 60 years",
+            color = RaahiRed,
+            fontSize = 11.sp
+        )
+    }
+
+    Spacer(Modifier.height(16.dp))
+
+    // Service Area Selection
+    FieldLabel("Service Area Coverage")
+    Text(
+        "Select suggested Tricity areas where you can respond to requests:",
+        color = RaahiTextDim,
+        fontSize = 11.5.sp,
+        modifier = Modifier.padding(bottom = 8.dp)
+    )
+
+    val currentAreas = remember(f.serviceArea) {
+        f.serviceArea.split(",")
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+    }
+
+    val tricityAreas = listOf(
+        "Chandigarh",
+        "Mohali",
+        "Panchkula",
+        "Zirakpur",
+        "Kharar",
+        "Dera Bassi"
+    )
+
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        tricityAreas.forEach { area ->
+            val isSelected = currentAreas.any { it.equals(area, ignoreCase = true) }
+            RaahiChip(
+                label = area,
+                active = isSelected
+            ) {
+                val newAreas = if (isSelected) {
+                    currentAreas.filterNot { it.equals(area, ignoreCase = true) }
+                } else {
+                    currentAreas + area
+                }
+                vm.update { it.copy(serviceArea = newAreas.joinToString(", ")) }
+            }
+        }
+    }
+
+    Spacer(Modifier.height(8.dp))
+    RaahiTextField(
+        value = f.serviceArea,
+        onValueChange = { v -> vm.update { it.copy(serviceArea = v.take(120)) } },
+        placeholder = "Type sectors or coverage areas, e.g. Sector 17, Phase 7, Kharar"
+    )
+
+    if (currentAreas.isNotEmpty()) {
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "✓ Coverage set: ${currentAreas.joinToString(", ")}",
+            color = RaahiGreen,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium
+        )
+    }
+
+    Spacer(Modifier.height(20.dp))
+
+    // Compact Checklist explaining remaining application requirements
+    GlassCard(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Outlined.Info,
+                    contentDescription = null,
+                    tint = RaahiOrange,
+                    modifier = Modifier.size(15.dp)
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "Onboarding Checklist (7 Steps)",
+                    color = RaahiText,
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = RaahiDisplayFont
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            val checklist = listOf(
+                "Step 1: Basics (Current: Experience & Service Area)" to true,
+                "Step 2: Services Offered (Tyre, Battery, Towing, Jumpstart…)" to false,
+                "Step 3: Tools & Equipment (Jack, Jumper cables, Air pump…)" to false,
+                "Step 4: KYC Verification (Aadhaar & Driving Licence)" to false,
+                "Step 5: Helper Vehicle (Bike, Car, Van, Tow truck)" to false,
+                "Step 6: Payout Setup (UPI ID or Bank Account)" to false,
+                "Step 7: Final Review & Submit" to false
+            )
+            checklist.forEach { (title, isCurrent) ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(vertical = 3.dp)
+                ) {
+                    Box(
+                        Modifier
+                            .size(6.dp)
+                            .background(if (isCurrent) RaahiOrange else RaahiBorder, CircleShape)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        title,
+                        color = if (isCurrent) RaahiOrange else RaahiTextDim,
+                        fontSize = 11.sp,
+                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal
+                    )
+                }
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)

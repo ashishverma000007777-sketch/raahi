@@ -42,6 +42,10 @@
             android:exported="false"
             android:foregroundServiceType="location" />
 
+        <receiver
+            android:name=".data.AutoDriveAlarmReceiver"
+            android:exported="false" />
+
         <service
             android:name=".push.RaahiFirebaseMessagingService"
             android:exported="false">

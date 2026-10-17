@@ -55,26 +55,58 @@ fun IntercitySearchScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Text("Intercity Marketplace", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = RaahiText)
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = RaahiCharcoalHeader,
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier
+                            .size(38.dp)
+                            .background(RaahiDarkSurface, CircleShape)
+                            .border(1.dp, Color(0xFF2E3438), CircleShape),
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp),
+                        )
                     }
-                },
-                actions = {
-                    TextButton(onClick = onCreateTrip) {
-                        Icon(Icons.Default.Add, contentDescription = null, tint = RaahiOrange, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        text = "Find Intercity Trips",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        fontFamily = RaahiDisplayFont,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Button(
+                        onClick = onCreateTrip,
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = RaahiPrimaryTeal,
+                            contentColor = Color.White,
+                        ),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        modifier = Modifier.height(36.dp),
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text("Post Trip", color = RaahiOrange, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text("Post", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = RaahiBg)
-            )
+                }
+            }
         },
-        containerColor = RaahiBg,
+        containerColor = RaahiLightBg,
     ) { padding ->
         Column(
             modifier = Modifier
@@ -87,16 +119,16 @@ fun IntercitySearchScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 shape = RoundedCornerShape(18.dp),
-                color = RaahiBg2,
-                border = androidx.compose.foundation.BorderStroke(1.dp, RaahiBorderSoft),
-                shadowElevation = 2.dp,
+                color = RaahiWhiteSurface,
+                border = androidx.compose.foundation.BorderStroke(1.dp, RaahiBorderColor),
+                shadowElevation = 1.dp,
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
                     Text(
                         text = "Where do you want to start?",
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp,
-                        color = RaahiText,
+                        color = RaahiPrimaryText,
                         fontFamily = RaahiDisplayFont,
                     )
                     Spacer(Modifier.height(8.dp))
@@ -109,29 +141,31 @@ fun IntercitySearchScreen(
                         OutlinedTextField(
                             value = pickupCity,
                             onValueChange = { pickupCity = it },
-                            placeholder = { Text("Pickup City (e.g. Delhi)", fontSize = 13.sp) },
+                            placeholder = { Text("Pickup City (e.g. Delhi)", fontSize = 13.sp, color = RaahiSecondaryText) },
                             singleLine = true,
                             modifier = Modifier.weight(1.1f),
                             shape = RoundedCornerShape(12.dp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = RaahiOrange,
-                                unfocusedBorderColor = RaahiBorderSoft,
+                                focusedBorderColor = RaahiPrimaryTeal,
+                                unfocusedBorderColor = RaahiBorderColor,
+                                cursorColor = RaahiPrimaryTeal,
                             ),
                             leadingIcon = {
-                                Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = RaahiOrange, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = RaahiPrimaryTeal, modifier = Modifier.size(18.dp))
                             }
                         )
 
                         OutlinedTextField(
                             value = destCity,
                             onValueChange = { destCity = it },
-                            placeholder = { Text("To (Optional)", fontSize = 13.sp) },
+                            placeholder = { Text("To (Optional)", fontSize = 13.sp, color = RaahiSecondaryText) },
                             singleLine = true,
                             modifier = Modifier.weight(0.9f),
                             shape = RoundedCornerShape(12.dp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = RaahiOrange,
-                                unfocusedBorderColor = RaahiBorderSoft,
+                                focusedBorderColor = RaahiPrimaryTeal,
+                                unfocusedBorderColor = RaahiBorderColor,
+                                cursorColor = RaahiPrimaryTeal,
                             ),
                             leadingIcon = {
                                 Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = RaahiBlue, modifier = Modifier.size(18.dp))
@@ -166,12 +200,12 @@ fun IntercitySearchScreen(
                                     { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
                                 } else null,
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = RaahiSelectionBg,
-                                    selectedLabelColor = RaahiOrange,
-                                    selectedLeadingIconColor = RaahiOrange,
+                                    selectedContainerColor = RaahiLightTeal,
+                                    selectedLabelColor = RaahiPrimaryTeal,
+                                    selectedLeadingIconColor = RaahiPrimaryTeal,
                                 ),
                                 border = FilterChipDefaults.filterChipBorder(
-                                    borderColor = if (isSelected) RaahiOrange else RaahiBorderSoft,
+                                    borderColor = if (isSelected) RaahiPrimaryTeal else RaahiBorderColor,
                                     enabled = true,
                                     selected = isSelected,
                                 )
@@ -185,7 +219,7 @@ fun IntercitySearchScreen(
                         onClick = { viewModel.searchTrips(pickupCity, destCity, selectedCategory) },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange),
+                        colors = ButtonDefaults.buttonColors(containerColor = RaahiPrimaryTeal),
                     ) {
                         Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
@@ -199,7 +233,7 @@ fun IntercitySearchScreen(
                 when (val state = searchState) {
                     is SearchTripsUiState.Loading -> {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = RaahiOrange)
+                            CircularProgressIndicator(color = RaahiPrimaryTeal)
                         }
                     }
                     is SearchTripsUiState.Error -> {
@@ -210,13 +244,13 @@ fun IntercitySearchScreen(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center,
                         ) {
-                            Text("Unable to load trips", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text("Unable to load trips", color = RaahiPrimaryText, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                             Spacer(Modifier.height(8.dp))
-                            Text(state.message, color = RaahiTextDim, fontSize = 13.sp)
+                            Text(state.message, color = RaahiSecondaryText, fontSize = 13.sp)
                             Spacer(Modifier.height(16.dp))
                             Button(
                                 onClick = { viewModel.searchTrips(pickupCity, destCity, selectedCategory) },
-                                colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange),
+                                colors = ButtonDefaults.buttonColors(containerColor = RaahiPrimaryTeal),
                             ) {
                                 Text("Retry")
                             }

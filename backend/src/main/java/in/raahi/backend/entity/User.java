@@ -19,6 +19,9 @@ public class User {
     private String phone;
 
     private String email;
+
+    @Column(name = "email_verified")
+    private boolean emailVerified = false;
     private String name;
 
     @Column(name = "profile_photo")
@@ -80,7 +83,19 @@ public class User {
     @Column(name = "last_violation_at")
     private Instant lastViolationAt;
 
-    public enum Role { DRIVER, MECHANIC, HELPER, ADMIN }
+    @Column(name = "agency_name")
+    private String agencyName;
+
+    @Column(name = "agency_gst")
+    private String agencyGst;
+
+    @Column(name = "marketplace_online")
+    private boolean marketplaceOnline = false;
+
+    @Column(name = "preferred_pickup_city")
+    private String preferredPickupCity;
+
+    public enum Role { DRIVER, MECHANIC, HELPER, ADMIN, TRAVEL_AGENT }
     public enum Status { ACTIVE, SUSPENDED }
 
     // getters/setters
@@ -92,6 +107,8 @@ public class User {
     public void setPhone(String v) { this.phone = v; }
     public String getEmail() { return email; }
     public void setEmail(String v) { this.email = v; }
+    public boolean isEmailVerified() { return emailVerified; }
+    public void setEmailVerified(boolean v) { this.emailVerified = v; }
     public String getName() { return name; }
     public void setName(String v) { this.name = v; }
     public Role getRole() { return role; }
@@ -133,4 +150,12 @@ public class User {
     public void setRatingAvg(Double v) { this.ratingAvg = v; }
     public void setTotalHelps(Integer v) { this.totalHelps = v; }
     public void setVerified(boolean v) { this.isVerified = v; }
+    public String getAgencyName() { return agencyName; }
+    public void setAgencyName(String v) { this.agencyName = v; }
+    public String getAgencyGst() { return agencyGst; }
+    public void setAgencyGst(String v) { this.agencyGst = v; }
+    public boolean isMarketplaceOnline() { return marketplaceOnline; }
+    public void setMarketplaceOnline(boolean marketplaceOnline) { this.marketplaceOnline = marketplaceOnline; }
+    public String getPreferredPickupCity() { return preferredPickupCity; }
+    public void setPreferredPickupCity(String preferredPickupCity) { this.preferredPickupCity = preferredPickupCity; }
 }

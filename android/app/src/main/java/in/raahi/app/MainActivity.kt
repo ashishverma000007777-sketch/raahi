@@ -22,6 +22,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import `in`.raahi.app.ui.components.RaahiTab
@@ -150,7 +151,7 @@ internal object Routes {
 
 @HiltViewModel
 class AuthGateViewModel @Inject constructor(
-    private val tokens: TokenManager,
+    val tokens: TokenManager,
     private val authRepository: `in`.raahi.app.data.AuthRepository,
     val incomingJobAlertManager: `in`.raahi.app.data.IncomingJobAlertManager,
 ) : ViewModel() {
@@ -282,23 +283,30 @@ fun RaahiNavHost(
     }
 
     // Splash -> real auth state -> Home or Phone Login.
-    var authReady by remember { mutableStateOf(false) }
-    var authenticated by remember { mutableStateOf(false) }
+    val token by gate.tokens.tokenFlow.collectAsState(initial = gate.tokens.getCachedToken())
+    val authenticated = !token.isNullOrBlank()
+    val currentBackStackEntry by navController.currentBackStackEntryAsState()
+    var wasAuthenticated by remember { mutableStateOf(authenticated) }
 
-    LaunchedEffect(Unit) {
-        authenticated = gate.isAuthenticated()
-        authReady = true
+    // When an authenticated user signs out during an active session, navigate to Phone Login
+    // and clear the backstack. This never triggers on initial startup because wasAuthenticated
+    // is initialized to the current auth state, preventing premature navigation before NavHost
+    // has established its graph.
+    LaunchedEffect(authenticated, currentBackStackEntry) {
+        if (wasAuthenticated && !authenticated && currentBackStackEntry != null) {
+            navController.navigate(Routes.PHONE_LOGIN) {
+                popUpTo(0) { inclusive = true }
+            }
+        }
+        wasAuthenticated = authenticated
     }
 
-    LaunchedEffect(pendingRoute, authenticated) {
-        if (authenticated && pendingRoute != null) {
+    // Handle deep links or pending routes passed via intent once NavHost is ready.
+    LaunchedEffect(pendingRoute, authenticated, currentBackStackEntry) {
+        if (authenticated && pendingRoute != null && currentBackStackEntry != null) {
             navController.navigate(pendingRoute)
             onPendingRouteConsumed()
         }
-    }
-
-    if (!authReady) {
-        return
     }
 
     val incomingJob by gate.incomingJobAlertManager.incomingJob.collectAsState()
@@ -566,6 +574,7 @@ fun RaahiNavHost(
                 onPlanTrip = { navController.navigate(Routes.TRIP_PLAN) },
                 onTripHistory = { navController.navigate(Routes.TRIP_HISTORY) },
                 onNavigateTab = navigateToTab,
+                onSos = { navController.navigate(Routes.SOS) },
             )
         }
 

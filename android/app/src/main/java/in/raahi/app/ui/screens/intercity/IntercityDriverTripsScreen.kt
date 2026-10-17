@@ -1,11 +1,14 @@
 package `in`.raahi.app.ui.screens.intercity
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -41,28 +44,50 @@ fun IntercityDriverTripsScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "My Driver Trips",
-                        color = RaahiText,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp,
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
+            Surface(
+                color = RaahiCharcoalHeader,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(RaahiDarkSurface)
+                            .border(1.dp, Color(0xFF2E3438), CircleShape),
+                    ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
-                            tint = RaahiText
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
                         )
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = RaahiBg),
-            )
+                    Spacer(Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = "My Driver Trips",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp,
+                            fontFamily = RaahiDisplayFont,
+                        )
+                        Text(
+                            text = "View assigned trips & applications",
+                            color = Color(0xFFA0AAB0),
+                            fontSize = 11.5.sp,
+                        )
+                    }
+                }
+            }
         },
-        containerColor = RaahiBg,
+        containerColor = RaahiLightBg,
     ) { padding ->
         Column(
             modifier = Modifier
@@ -72,30 +97,48 @@ fun IntercityDriverTripsScreen(
             // Tabs: Assigned vs Applied vs Completed
             TabRow(
                 selectedTabIndex = selectedTab,
-                containerColor = RaahiBg2,
-                contentColor = RaahiOrange,
+                containerColor = RaahiWhiteSurface,
+                contentColor = RaahiPrimaryTeal,
             ) {
                 Tab(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
-                    text = { Text("Active & Assigned", fontWeight = FontWeight.Bold) }
+                    text = {
+                        Text(
+                            "Active & Assigned",
+                            fontWeight = FontWeight.Bold,
+                            color = if (selectedTab == 0) RaahiPrimaryTeal else RaahiTextDim,
+                        )
+                    }
                 )
                 Tab(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    text = { Text("Applications", fontWeight = FontWeight.Bold) }
+                    text = {
+                        Text(
+                            "Applications",
+                            fontWeight = FontWeight.Bold,
+                            color = if (selectedTab == 1) RaahiPrimaryTeal else RaahiTextDim,
+                        )
+                    }
                 )
                 Tab(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
-                    text = { Text("Completed", fontWeight = FontWeight.Bold) }
+                    text = {
+                        Text(
+                            "Completed",
+                            fontWeight = FontWeight.Bold,
+                            color = if (selectedTab == 2) RaahiPrimaryTeal else RaahiTextDim,
+                        )
+                    }
                 )
             }
 
             when (val s = state) {
                 is DriverTripsUiState.Loading -> {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = RaahiOrange)
+                        CircularProgressIndicator(color = RaahiPrimaryTeal)
                     }
                 }
                 is DriverTripsUiState.Error -> {
@@ -123,10 +166,10 @@ fun IntercityDriverTripsScreen(
                         Spacer(Modifier.height(16.dp))
                         Button(
                             onClick = { viewModel.loadDriverTrips() },
-                            colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange),
+                            colors = ButtonDefaults.buttonColors(containerColor = RaahiPrimaryTeal),
                             shape = RoundedCornerShape(12.dp)
                         ) {
-                            Text("Retry")
+                            Text("Retry", color = Color.White)
                         }
                     }
                 }
@@ -176,12 +219,12 @@ fun IntercityDriverTripsScreen(
                             Spacer(Modifier.height(18.dp))
                             Button(
                                 onClick = onFindTrips,
-                                colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange),
+                                colors = ButtonDefaults.buttonColors(containerColor = RaahiPrimaryTeal),
                                 shape = RoundedCornerShape(12.dp),
                             ) {
-                                Icon(Icons.Outlined.Search, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Outlined.Search, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.White)
                                 Spacer(Modifier.width(6.dp))
-                                Text("Find Trips")
+                                Text("Find Trips", color = Color.White)
                             }
                         }
                     } else {
@@ -228,15 +271,16 @@ private fun DriverTripItemCard(
                     .fillMaxWidth()
                     .height(42.dp),
                 shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange),
+                colors = ButtonDefaults.buttonColors(containerColor = RaahiPrimaryTeal),
             ) {
                 Icon(
                     imageVector = Icons.Outlined.DirectionsCar,
                     contentDescription = null,
                     modifier = Modifier.size(16.dp),
+                    tint = Color.White,
                 )
                 Spacer(Modifier.width(6.dp))
-                Text("Open Live Route & OTP", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text("Open Live Route & OTP", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.White)
             }
         }
     }

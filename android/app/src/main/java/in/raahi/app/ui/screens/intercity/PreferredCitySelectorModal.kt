@@ -395,7 +395,7 @@ fun PreferredCitySelectorModal(
 
                                 TextButton(
                                     onClick = { searchQuery = "" },
-                                    colors = ButtonDefaults.textButtonColors(contentColor = RaahiOrange),
+                                    colors = ButtonDefaults.textButtonColors(contentColor = RaahiPrimaryTeal),
                                 ) {
                                     Text("Clear search query", fontWeight = FontWeight.SemiBold)
                                 }
@@ -566,8 +566,8 @@ fun PreferredCitySelectorModal(
                                 .height(48.dp),
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = RaahiOrange,
-                                disabledContainerColor = RaahiOrange.copy(alpha = 0.5f),
+                                containerColor = RaahiPrimaryTeal,
+                                disabledContainerColor = RaahiPrimaryTeal.copy(alpha = 0.5f),
                             ),
                         ) {
                             if (isSaving) {

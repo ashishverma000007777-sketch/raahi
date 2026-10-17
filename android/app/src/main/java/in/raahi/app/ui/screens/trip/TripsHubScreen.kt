@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import `in`.raahi.app.ui.components.RaahiBottomNavBar
+import `in`.raahi.app.ui.components.RaahiFloatingSosButton
 import `in`.raahi.app.ui.components.RaahiTab
 import `in`.raahi.app.ui.theme.*
 
@@ -48,23 +49,25 @@ fun TripsHubScreen(
     onPlanTrip: () -> Unit = {},
     onTripHistory: () -> Unit = {},
     onNavigateTab: (RaahiTab) -> Unit,
+    onSos: (() -> Unit)? = null,
 ) {
     val scrollState = rememberScrollState()
 
-    Scaffold(
-        bottomBar = {
-            RaahiBottomNavBar(current = RaahiTab.TRIPS, onSelect = onNavigateTab)
-        },
-        containerColor = RaahiBg,
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .verticalScroll(scrollState)
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            bottomBar = {
+                RaahiBottomNavBar(current = RaahiTab.TRIPS, onSelect = onNavigateTab)
+            },
+            containerColor = RaahiLightBg,
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .verticalScroll(scrollState)
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
             // Header
             Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp)) {
                 Text(
@@ -160,7 +163,7 @@ fun TripsHubScreen(
                                 .height(46.dp),
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = RaahiOrange,
+                                containerColor = RaahiPrimaryTeal,
                                 contentColor = Color.White,
                             ),
                             contentPadding = PaddingValues(horizontal = 12.dp),
@@ -192,7 +195,7 @@ fun TripsHubScreen(
                             Icon(
                                 imageVector = Icons.Outlined.Add,
                                 contentDescription = null,
-                                tint = RaahiOrange,
+                                tint = RaahiPrimaryTeal,
                                 modifier = Modifier.size(16.dp),
                             )
                             Spacer(Modifier.width(6.dp))
@@ -368,6 +371,16 @@ fun TripsHubScreen(
             Spacer(Modifier.height(8.dp))
         }
     }
+
+    if (onSos != null) {
+        RaahiFloatingSosButton(
+            onSos = onSos,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 18.dp, bottom = 86.dp),
+        )
+    }
+}
 }
 
 @Composable
@@ -416,7 +429,7 @@ private fun RouteCorridorTrack(modifier: Modifier = Modifier) {
                 Icon(
                     imageVector = Icons.Outlined.DirectionsCar,
                     contentDescription = null,
-                    tint = RaahiOrange,
+                    tint = RaahiPrimaryTeal,
                     modifier = Modifier.size(14.dp),
                 )
                 Box(

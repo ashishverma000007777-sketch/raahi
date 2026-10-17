@@ -23,11 +23,8 @@ suspend fun <T> apiCall(block: suspend () -> ApiEnvelope<T>): T {
         val envelope = block()
         return envelope.data ?: throw IllegalStateException(envelope.error?.message ?: "Request failed")
     } catch (e: HttpException) {
-        val message = runCatching {
-            val body = e.response()?.errorBody()?.string()
-            if (body.isNullOrBlank()) null
-            else errorGson.fromJson(body, ApiEnvelope::class.java)?.error?.message
-        }.getOrNull()
+        val rawBody = runCatching { e.response()?.errorBody()?.string() }.getOrNull()
+        val message = parseErrorMessage(rawBody)
         val error = e.toNetworkError(message ?: "Request failed (${e.code()})")
         throw error
     } catch (e: kotlinx.coroutines.CancellationException) {
@@ -53,4 +50,38 @@ suspend fun <T> apiCallOrNullOn404(block: suspend () -> ApiEnvelope<T>): T? {
     } catch (e: IllegalStateException) {
         if ((e.cause as? HttpException)?.code() == 404) null else throw e
     }
+}
+
+internal fun parseErrorMessage(raw: String?): String? {
+    if (raw.isNullOrBlank()) return null
+    return runCatching {
+        val jsonElement = com.google.gson.JsonParser.parseString(raw)
+        if (!jsonElement.isJsonObject) return@runCatching null
+        val obj = jsonElement.asJsonObject
+
+        // 1. ApiEnvelope shape: error: { code, message }
+        if (obj.has("error") && obj.get("error").isJsonObject) {
+            val errObj = obj.getAsJsonObject("error")
+            if (errObj.has("message") && !errObj.get("message").isJsonNull) {
+                val msg = errObj.get("message").asString
+                if (msg.isNotBlank()) return@runCatching msg
+            }
+        }
+
+        // 2. Spring or standard shape: top-level message
+        if (obj.has("message") && !obj.get("message").isJsonNull) {
+            val topMsg = obj.get("message").asString
+            if (topMsg.isNotBlank()) return@runCatching topMsg
+        }
+
+        // 3. String error field if not generic "Bad Request"
+        if (obj.has("error") && !obj.get("error").isJsonNull && obj.get("error").isJsonPrimitive) {
+            val errStr = obj.get("error").asString
+            if (errStr.isNotBlank() && !errStr.equals("Bad Request", ignoreCase = true)) {
+                return@runCatching errStr
+            }
+        }
+
+        null
+    }.getOrNull()
 }

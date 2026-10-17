@@ -1,5 +1,6 @@
 package `in`.raahi.app.ui.screens.profile
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -188,19 +189,24 @@ private fun ProfileHeader(onBack: () -> Unit, user: UserDto?, onEdit: () -> Unit
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .shadow(elevation = 2.dp, shape = RoundedCornerShape(18.dp), spotColor = Color(0x0C000000))
+                .shadow(elevation = RaahiCardElevation, shape = RaahiCardShape, spotColor = Color(0x0C000000))
                 .clickable(onClick = onEdit),
-            shape = RoundedCornerShape(18.dp),
-            color = RaahiGlass,
-            border = androidx.compose.foundation.BorderStroke(1.dp, RaahiBorderSoft)
+            shape = RaahiCardShape,
+            color = RaahiCardBg,
+            border = BorderStroke(1.dp, RaahiBorderSoft)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(16.dp)
             ) {
-                Box(modifier = Modifier.size(54.dp).background(RaahiOrange, CircleShape), contentAlignment = Alignment.Center) {
+                Box(
+                    modifier = Modifier
+                        .size(52.dp)
+                        .background(RaahiOrange, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
                     val initial = user?.name?.trim()?.takeIf { it.isNotBlank() }?.firstOrNull()?.uppercaseChar()?.toString() ?: "R"
-                    Text(initial, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 22.sp, fontFamily = RaahiDisplayFont)
+                    Text(initial, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp, fontFamily = RaahiDisplayFont)
                 }
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
@@ -209,7 +215,7 @@ private fun ProfileHeader(onBack: () -> Unit, user: UserDto?, onEdit: () -> Unit
                             text = user?.name?.trim()?.takeIf { it.isNotBlank() } ?: "Raahi User",
                             color = RaahiText,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 17.sp,
+                            fontSize = 16.sp,
                             fontFamily = RaahiDisplayFont
                         )
                         if (user?.isVerified == true) {
@@ -218,23 +224,30 @@ private fun ProfileHeader(onBack: () -> Unit, user: UserDto?, onEdit: () -> Unit
                                 imageVector = Icons.Filled.Verified,
                                 contentDescription = "Verified",
                                 tint = Color(0xFF388AF6),
-                                modifier = Modifier.size(17.dp)
+                                modifier = Modifier.size(16.dp)
                             )
                         }
                     }
-                    Spacer(Modifier.height(3.dp))
+                    Spacer(Modifier.height(2.dp))
                     Text(
                         text = user?.phone?.takeIf { it.isNotBlank() } ?: "--",
                         color = RaahiTextDim,
                         fontSize = 12.sp
                     )
-                    Spacer(Modifier.height(3.dp))
-                    Text(
-                        text = user?.role?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "--",
-                        color = RaahiOrange,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 12.sp
-                    )
+                    Spacer(Modifier.height(4.dp))
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = RaahiLightOrange,
+                    ) {
+                        Text(
+                            text = (user?.role?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Driver").uppercase(),
+                            color = RaahiOrange,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 9.5.sp,
+                            letterSpacing = 0.5.sp,
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                        )
+                    }
                 }
                 Icon(Icons.AutoMirrored.Outlined.ArrowForward, contentDescription = null, tint = RaahiTextDim, modifier = Modifier.size(18.dp))
             }
@@ -250,31 +263,56 @@ private fun StatsRow(user: UserDto?) {
     val statusText = if (user?.isVerified == true) "Verified" else "Pending"
     val statusColor = if (user?.isVerified == true) RaahiGreen else RaahiOrange
 
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .shadow(elevation = RaahiCardElevation, shape = RaahiCardShape, spotColor = Color(0x0C000000)),
+        shape = RaahiCardShape,
+        color = RaahiCardBg,
+        border = BorderStroke(1.dp, RaahiBorderSoft)
     ) {
-        StatItem(totalHelpsText, "Helps", RaahiGreen, Modifier.weight(1f))
-        StatItem(ratingText, "Rating", RaahiAmber, Modifier.weight(1f))
-        StatItem(roleText, "Role", Color(0xFF3B82F6), Modifier.weight(1f))
-        StatItem(statusText, "Status", statusColor, Modifier.weight(1f))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 14.dp, horizontal = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            StatTelemetryItem(totalHelpsText, "HELPS", RaahiGreen, Modifier.weight(1f))
+            Box(Modifier.width(1.dp).height(26.dp).background(RaahiBorderSoft))
+            StatTelemetryItem(ratingText, "RATING", RaahiAmber, Modifier.weight(1f))
+            Box(Modifier.width(1.dp).height(26.dp).background(RaahiBorderSoft))
+            StatTelemetryItem(roleText, "ROLE", Color(0xFF3B82F6), Modifier.weight(1f))
+            Box(Modifier.width(1.dp).height(26.dp).background(RaahiBorderSoft))
+            StatTelemetryItem(statusText, "STATUS", statusColor, Modifier.weight(1f))
+        }
     }
 }
 
 @Composable
-private fun StatItem(value: String, label: String, color: Color, modifier: Modifier = Modifier) {
+private fun StatTelemetryItem(value: String, label: String, color: Color, modifier: Modifier = Modifier) {
     Column(
-        modifier = modifier
-            .background(RaahiGlass, RoundedCornerShape(15.dp))
-            .border(1.dp, RaahiBorderSoft, RoundedCornerShape(15.dp))
-            .padding(horizontal = 3.dp, vertical = 13.dp),
+        modifier = modifier.padding(horizontal = 2.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+        verticalArrangement = Arrangement.Center
     ) {
-        Text(value, color = color, fontWeight = FontWeight.Bold, fontSize = 15.sp, fontFamily = RaahiDisplayFont, maxLines = 1)
-        Spacer(Modifier.height(4.dp))
-        Text(label, color = RaahiTextDim, fontSize = 10.sp, maxLines = 1)
+        Text(
+            text = value,
+            color = color,
+            fontWeight = FontWeight.Bold,
+            fontSize = 15.sp,
+            fontFamily = RaahiDisplayFont,
+            maxLines = 1
+        )
+        Spacer(Modifier.height(3.dp))
+        Text(
+            text = label,
+            color = RaahiTextDim,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 0.5.sp,
+            maxLines = 1
+        )
     }
 }
 
@@ -367,51 +405,150 @@ private fun CarHealthTab(
 
 @Composable
 private fun NoVehicleCard(onSetupVehicle: () -> Unit) {
-    GlassCard(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), onClick = onSetupVehicle) {
-        Column(Modifier.padding(20.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-            IconBadge(Icons.Outlined.DirectionsCar, RaahiOrange, 44.dp, RaahiShapeMedium)
-            Spacer(Modifier.height(10.dp))
-            Text("Set up your car", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .shadow(elevation = RaahiCardElevation, shape = RaahiCardShape, spotColor = Color(0x0C000000))
+            .clickable(onClick = onSetupVehicle),
+        shape = RaahiCardShape,
+        color = RaahiCardBg,
+        border = BorderStroke(1.dp, RaahiBorderSoft)
+    ) {
+        Column(
+            modifier = Modifier.padding(22.dp).fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            IconBadge(Icons.Outlined.DirectionsCar, RaahiOrange, 48.dp, RaahiShapeMedium)
+            Spacer(Modifier.height(12.dp))
+            Text("Set up your car", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 16.sp, fontFamily = RaahiDisplayFont)
             Spacer(Modifier.height(4.dp))
-            Text("Add your real vehicle details to unlock Car Health, maintenance reminders and service history", color = RaahiTextDim, fontSize = 12.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-            Spacer(Modifier.height(14.dp))
-            Button(onClick = onSetupVehicle, colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange), shape = RaahiShapeMedium) { Text("Set up now", fontWeight = FontWeight.Bold) }
+            Text(
+                "Add your real vehicle details to unlock Car Health, maintenance reminders and service history",
+                color = RaahiTextDim,
+                fontSize = 12.sp,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+            Spacer(Modifier.height(16.dp))
+            Button(
+                onClick = onSetupVehicle,
+                colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange),
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 10.dp)
+            ) {
+                Text("Set up now", fontWeight = FontWeight.Bold, color = Color.White)
+            }
         }
     }
 }
 
 @Composable
 private fun MyCarCard(vehicle: VehicleDto, onEdit: () -> Unit, onUpdateOdometer: () -> Unit) {
-    GlassCard(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+    val isDark = RaahiIsDark
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .shadow(elevation = RaahiCardElevation, shape = RaahiCardShape, spotColor = Color(0x0C000000)),
+        shape = RaahiCardShape,
+        color = RaahiCardBg,
+        border = BorderStroke(1.dp, RaahiBorderSoft)
+    ) {
         Column(Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Column(Modifier.weight(1f)) {
-                    Text(listOfNotNull(vehicle.brand, vehicle.model, vehicle.variant).joinToString(" "), color = RaahiText, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, fontFamily = RaahiDisplayFont)
-                    Spacer(Modifier.height(5.dp))
+                    Text(
+                        text = listOfNotNull(vehicle.brand, vehicle.model, vehicle.variant).joinToString(" "),
+                        color = RaahiText,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp,
+                        fontFamily = RaahiDisplayFont
+                    )
+                    Spacer(Modifier.height(4.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("${vehicle.modelYear}", color = RaahiTextDim, fontSize = 11.5.sp)
-                        Spacer(Modifier.width(6.dp))
-                        Box(Modifier.background(RaahiCyan.copy(alpha = 0.16f), RaahiShapeSmall).padding(horizontal = 6.dp, vertical = 2.dp)) {
-                            Text(vehicle.fuelType.lowercase().replaceFirstChar { it.uppercase() }, color = RaahiCyan, fontSize = 9.5.sp, fontWeight = FontWeight.Bold)
+                        Text("${vehicle.modelYear}", color = RaahiTextDim, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                        Spacer(Modifier.width(8.dp))
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = RaahiCyan.copy(alpha = 0.12f)
+                        ) {
+                            Text(
+                                text = vehicle.fuelType.uppercase(),
+                                color = RaahiCyan,
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
                         }
                     }
-                    Spacer(Modifier.height(5.dp))
-                    Text(vehicle.registrationNumber, color = RaahiTextDim, fontSize = 11.5.sp)
                 }
-                IconBadge(Icons.Outlined.DirectionsCar, RaahiOrange, 52.dp, RaahiShapeMedium)
+
+                // HSRP License Plate Badge
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = if (isDark) Color(0xFF222629) else Color(0xFFF1F5F9),
+                    border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFCBD5E1))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text("IND", color = Color(0xFF003399), fontSize = 8.5.sp, fontWeight = FontWeight.ExtraBold)
+                        Text(
+                            text = vehicle.registrationNumber.uppercase(),
+                            color = RaahiText,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = RaahiDisplayFont,
+                            letterSpacing = 0.5.sp
+                        )
+                    }
+                }
             }
+
+            Spacer(Modifier.height(14.dp))
+            HorizontalDivider(color = RaahiBorderSoft, thickness = 1.dp)
             Spacer(Modifier.height(12.dp))
-            HorizontalDivider(color = RaahiBorderSoft)
-            Spacer(Modifier.height(12.dp))
+
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.Speed, contentDescription = null, tint = RaahiTextDim, modifier = Modifier.size(14.dp))
+                Icon(Icons.Outlined.Speed, contentDescription = null, tint = RaahiTextDim, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("${vehicle.odometerKm} km", color = RaahiText, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, fontFamily = RaahiDisplayFont)
+                Text(
+                    text = "${vehicle.odometerKm} km",
+                    color = RaahiText,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.5.sp,
+                    fontFamily = RaahiDisplayFont
+                )
                 Spacer(Modifier.weight(1f))
-                Text("Update odometer", color = RaahiOrange, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable(onClick = onUpdateOdometer))
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = RaahiLightOrange,
+                    modifier = Modifier.clickable(onClick = onUpdateOdometer)
+                ) {
+                    Text(
+                        text = "Update odometer",
+                        color = RaahiOrange,
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                    )
+                }
             }
-            Spacer(Modifier.height(10.dp))
-            Text("Edit vehicle details", color = RaahiCyan, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable(onClick = onEdit))
+
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "Edit vehicle details",
+                color = RaahiCyan,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.clickable(onClick = onEdit)
+            )
         }
     }
 }
@@ -419,36 +556,65 @@ private fun MyCarCard(vehicle: VehicleDto, onEdit: () -> Unit, onUpdateOdometer:
 @Composable
 private fun CarHealthScoreCard(health: CarHealthDto?) {
     val score = health?.score
-    if (score == null) { InfoCard(health?.message ?: "Complete your vehicle information to calculate your Car Health", title = "Gaadi ka Report Card"); return }
+    if (score == null) {
+        InfoCard(health?.message ?: "Complete your vehicle information to calculate your Car Health", title = "Gaadi ka Report Card")
+        return
+    }
     val color = when { score >= 70 -> RaahiGreen; score >= 40 -> RaahiAmber; else -> RaahiRed }
     val grade = health.grade ?: "-"
-    GlassCard(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), background = RaahiGlass, borderColor = RaahiBorderSoft) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .shadow(elevation = RaahiCardElevation, shape = RaahiCardShape, spotColor = Color(0x0C000000)),
+        shape = RaahiCardShape,
+        color = RaahiCardBg,
+        border = BorderStroke(1.dp, RaahiBorderSoft)
+    ) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                ScoreRing(score, ringSize = 60.dp, big = true)
-                Spacer(Modifier.width(14.dp))
+                ScoreRing(score, ringSize = 64.dp, big = true)
+                Spacer(Modifier.width(16.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("Gaadi ka Report Card", color = RaahiText, fontWeight = FontWeight.SemiBold, fontSize = 14.5.sp, fontFamily = RaahiDisplayFont)
-                    Spacer(Modifier.height(4.dp))
+                    Text("Gaadi ka Report Card", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 15.sp, fontFamily = RaahiDisplayFont)
+                    Spacer(Modifier.height(5.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.background(color.copy(alpha = 0.16f), RaahiShapePill).padding(horizontal = 8.dp, vertical = 3.dp)) {
-                            Text(if (score >= 70) "Good Condition" else if (score >= 40) "Needs Attention" else "Poor Condition", color = color, fontSize = 9.5.sp, fontWeight = FontWeight.Bold)
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = color.copy(alpha = 0.14f)
+                        ) {
+                            Text(
+                                text = if (score >= 70) "Good Condition" else if (score >= 40) "Needs Attention" else "Poor Condition",
+                                color = color,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            )
                         }
                         Spacer(Modifier.width(6.dp))
-                        Box(Modifier.background(color, RaahiShapeSmall).padding(horizontal = 6.dp, vertical = 2.dp)) {
-                            Text("Grade $grade", color = Color.White, fontSize = 9.5.sp, fontWeight = FontWeight.Bold)
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = color
+                        ) {
+                            Text(
+                                text = "Grade $grade",
+                                color = Color.White,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
                         }
                     }
                     if (health.weeklyTrendText != null) {
                         Spacer(Modifier.height(4.dp))
-                        Text(health.weeklyTrendText, color = RaahiCyan, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                        Text(health.weeklyTrendText, color = RaahiCyan, fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
 
             Spacer(Modifier.height(14.dp))
-            HorizontalDivider(color = RaahiBorderSoft)
-            Spacer(Modifier.height(10.dp))
+            HorizontalDivider(color = RaahiBorderSoft, thickness = 1.dp)
+            Spacer(Modifier.height(12.dp))
 
             // Sub-scores row
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -463,9 +629,9 @@ private fun CarHealthScoreCard(health: CarHealthDto?) {
 @Composable
 private fun ReportCardMiniSubScore(label: String, score: String, grade: String, color: Color) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(label, color = RaahiTextDim, fontSize = 10.5.sp)
+        Text(label, color = RaahiTextDim, fontSize = 10.5.sp, fontWeight = FontWeight.Medium)
         Spacer(Modifier.height(2.dp))
-        Text(score, color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        Text(score, color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 12.sp, fontFamily = RaahiDisplayFont)
         Text("Grade $grade", color = color, fontSize = 9.5.sp, fontWeight = FontWeight.SemiBold)
     }
 }
@@ -485,7 +651,13 @@ private fun MaintenanceGrid(items: List<MaintenanceItemDto>) {
 @Composable
 private fun DiagnosticTile(item: MaintenanceItemDto) {
     val color = when (item.status) { "OVERDUE" -> RaahiRed; "DUE_SOON" -> RaahiAmber; else -> RaahiGreen }
-    Column(Modifier.fillMaxWidth().background(color.copy(alpha = 0.10f), RaahiShapeMedium).padding(12.dp)) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(color.copy(alpha = 0.10f), RoundedCornerShape(14.dp))
+            .border(1.dp, color.copy(alpha = 0.20f), RoundedCornerShape(14.dp))
+            .padding(12.dp)
+    ) {
         Text(item.type, color = RaahiText, fontWeight = FontWeight.SemiBold, fontSize = 11.5.sp, maxLines = 1)
         Spacer(Modifier.height(4.dp))
         Text(when (item.status) { "OVERDUE" -> "Overdue"; "DUE_SOON" -> "Due soon"; else -> "OK" }, color = color, fontWeight = FontWeight.Bold, fontSize = 11.5.sp)
@@ -518,25 +690,38 @@ private fun MaintenanceList(items: List<MaintenanceItemDto>) {
 private fun OdometerUpdateDialog(error: String?, onDismiss: () -> Unit, onSave: (Int) -> Unit) {
     var value by remember { mutableStateOf("") }
     androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
-        Column(modifier = Modifier.background(RaahiBg2, RaahiShapeLarge).border(1.dp, RaahiBorder, RaahiShapeLarge).padding(20.dp)) {
-            Text("Update odometer", color = RaahiText, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, fontFamily = RaahiDisplayFont)
+        Column(
+            modifier = Modifier
+                .shadow(elevation = 4.dp, shape = RaahiCardShape)
+                .background(RaahiBg2, RaahiCardShape)
+                .border(1.dp, RaahiBorderSoft, RaahiCardShape)
+                .padding(20.dp)
+        ) {
+            Text("Update odometer", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 16.sp, fontFamily = RaahiDisplayFont)
             Spacer(Modifier.height(14.dp))
             OutlinedTextField(
                 value = value, onValueChange = { value = it.filter { c -> c.isDigit() } },
                 placeholder = { Text("Current odometer (km)", color = RaahiTextDim) }, singleLine = true,
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth(), shape = RaahiShapeSmall,
+                modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedTextColor = RaahiText, unfocusedTextColor = RaahiText,
                     focusedContainerColor = RaahiGlassStrong, unfocusedContainerColor = RaahiGlassStrong,
-                    focusedBorderColor = RaahiOrange, unfocusedBorderColor = RaahiBorder, cursorColor = RaahiOrange,
+                    focusedBorderColor = RaahiOrange, unfocusedBorderColor = RaahiBorderSoft, cursorColor = RaahiOrange,
                 ),
             )
             if (error != null) { Spacer(Modifier.height(8.dp)); Text(error, color = RaahiRed, fontSize = 12.sp) }
             Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 TextButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("Cancel", color = RaahiTextDim) }
-                Button(onClick = { value.toIntOrNull()?.let(onSave) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange)) { Text("Save") }
+                Button(
+                    onClick = { value.toIntOrNull()?.let(onSave) },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Save", color = Color.White, fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
@@ -544,15 +729,25 @@ private fun OdometerUpdateDialog(error: String?, onDismiss: () -> Unit, onSave: 
 
 @Composable
 private fun InfoCard(message: String, title: String? = null) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = if (title != null) 16.dp else 0.dp).background(RaahiGlassStrong, RaahiShapeLarge).padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = if (title != null) 16.dp else 0.dp)
+            .shadow(elevation = RaahiCardElevation, shape = RaahiCardShape, spotColor = Color(0x0C000000)),
+        shape = RaahiCardShape,
+        color = RaahiCardBg,
+        border = BorderStroke(1.dp, RaahiBorderSoft)
     ) {
-        Icon(Icons.Outlined.Info, contentDescription = null, tint = RaahiTextDim, modifier = Modifier.size(20.dp))
-        Spacer(Modifier.width(12.dp))
-        Column {
-            if (title != null) Text(title, color = RaahiText, fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp, fontFamily = RaahiDisplayFont)
-            Text(message, color = RaahiTextDim, fontSize = 11.sp)
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Outlined.Info, contentDescription = null, tint = RaahiTextDim, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(12.dp))
+            Column {
+                if (title != null) Text(title, color = RaahiText, fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp, fontFamily = RaahiDisplayFont)
+                Text(message, color = RaahiTextDim, fontSize = 11.sp)
+            }
         }
     }
 }
@@ -581,17 +776,17 @@ private fun ProfileTab(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)
-                    .shadow(2.dp, RoundedCornerShape(16.dp), spotColor = Color(0x0C000000))
+                    .shadow(elevation = RaahiCardElevation, shape = RaahiCardShape, spotColor = Color(0x0C000000))
                     .clickable(onClick = onMyGarage),
-                shape = RoundedCornerShape(16.dp),
-                color = RaahiGlass,
-                border = androidx.compose.foundation.BorderStroke(1.dp, RaahiBorderSoft)
+                shape = RaahiCardShape,
+                color = RaahiCardBg,
+                border = BorderStroke(1.dp, RaahiBorderSoft)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
-                                .size(44.dp)
+                                .size(46.dp)
                                 .background(RaahiOrange.copy(alpha = 0.12f), CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
@@ -611,7 +806,7 @@ private fun ProfileTab(
                                 text = vehicleName,
                                 color = RaahiText,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 14.5.sp,
+                                fontSize = 15.sp,
                                 fontFamily = RaahiDisplayFont
                             )
                             Spacer(Modifier.height(3.dp))
@@ -624,7 +819,7 @@ private fun ProfileTab(
                         }
                     }
                     Spacer(Modifier.height(14.dp))
-                    Box(Modifier.fillMaxWidth().height(1.dp).background(RaahiBorderSoft))
+                    HorizontalDivider(color = RaahiBorderSoft, thickness = 1.dp)
                     Spacer(Modifier.height(10.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -654,28 +849,60 @@ private fun ProfileTab(
 
         // 2. ACCOUNT & GARAGE
         Box(Modifier.padding(horizontal = 16.dp)) { SectionLabel("ACCOUNT & GARAGE") }
-        ProfileMenuItem(Icons.Outlined.DirectionsCar, "My Garage", onClick = onMyGarage)
-        Spacer(Modifier.height(8.dp))
-        ProfileMenuItem(Icons.Outlined.Person, "Edit Profile", onClick = onEditProfile)
-        Spacer(Modifier.height(8.dp))
-        ProfileMenuItem(Icons.Outlined.Build, "Maintenance & Service History", onClick = onServiceHistory)
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .shadow(elevation = RaahiCardElevation, shape = RaahiCardShape, spotColor = Color(0x0C000000)),
+            shape = RaahiCardShape,
+            color = RaahiCardBg,
+            border = BorderStroke(1.dp, RaahiBorderSoft)
+        ) {
+            Column {
+                GroupedMenuItem(Icons.Outlined.DirectionsCar, "My Garage", onClick = onMyGarage)
+                HorizontalDivider(color = RaahiBorderSoft, thickness = 1.dp)
+                GroupedMenuItem(Icons.Outlined.Person, "Edit Profile", onClick = onEditProfile)
+                HorizontalDivider(color = RaahiBorderSoft, thickness = 1.dp)
+                GroupedMenuItem(Icons.Outlined.Build, "Maintenance & Service History", onClick = onServiceHistory)
+            }
+        }
 
         Spacer(Modifier.height(18.dp))
 
         // 3. EARNINGS & PARTNER
         Box(Modifier.padding(horizontal = 16.dp)) { SectionLabel("EARNINGS & PARTNER") }
         val isHelperOrMechanic = user?.role == "HELPER" || user?.role == "MECHANIC"
-        ProfileMenuItem(
-            Icons.Outlined.Handshake,
-            if (isHelperOrMechanic) "Helper Dashboard" else "Earn with Raahi",
-            onClick = if (isHelperOrMechanic) onHelper else onEarnWithRaahi,
-        )
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .shadow(elevation = RaahiCardElevation, shape = RaahiCardShape, spotColor = Color(0x0C000000)),
+            shape = RaahiCardShape,
+            color = RaahiCardBg,
+            border = BorderStroke(1.dp, RaahiBorderSoft)
+        ) {
+            GroupedMenuItem(
+                Icons.Outlined.Handshake,
+                if (isHelperOrMechanic) "Helper Dashboard" else "Earn with Raahi",
+                onClick = if (isHelperOrMechanic) onHelper else onEarnWithRaahi,
+            )
+        }
 
         Spacer(Modifier.height(18.dp))
 
         // 4. FINANCES & PLANS
         Box(Modifier.padding(horizontal = 16.dp)) { SectionLabel("FINANCES & PLANS") }
-        ProfileMenuItem(Icons.Outlined.AccountBalanceWallet, "Payments & Wallet", onClick = onPayments)
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .shadow(elevation = RaahiCardElevation, shape = RaahiCardShape, spotColor = Color(0x0C000000)),
+            shape = RaahiCardShape,
+            color = RaahiCardBg,
+            border = BorderStroke(1.dp, RaahiBorderSoft)
+        ) {
+            GroupedMenuItem(Icons.Outlined.AccountBalanceWallet, "Payments & Wallet", onClick = onPayments)
+        }
 
         Spacer(Modifier.height(18.dp))
 
@@ -685,15 +912,15 @@ private fun ProfileTab(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
-                .shadow(2.dp, RaahiShapeMedium, spotColor = Color(0x0C000000)),
-            shape = RaahiShapeMedium,
-            color = RaahiGlass,
-            border = androidx.compose.foundation.BorderStroke(1.dp, RaahiBorderSoft)
+                .shadow(elevation = RaahiCardElevation, shape = RaahiCardShape, spotColor = Color(0x0C000000)),
+            shape = RaahiCardShape,
+            color = RaahiCardBg,
+            border = BorderStroke(1.dp, RaahiBorderSoft)
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconBadge(Icons.Outlined.Palette, RaahiOrange, 34.dp)
@@ -709,7 +936,7 @@ private fun ProfileTab(
                 Surface(
                     color = if (isDark) Color(0xFF131A26) else Color(0xFFEFF2F7),
                     shape = RoundedCornerShape(22.dp),
-                    border = androidx.compose.foundation.BorderStroke(
+                    border = BorderStroke(
                         1.dp,
                         if (isDark) Color(0xFF222D3E) else Color(0xFFE2E8F0)
                     )
@@ -777,13 +1004,12 @@ private fun ProfileTab(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
-                .shadow(1.dp, RoundedCornerShape(14.dp), spotColor = Color(0x10000000))
+                .shadow(elevation = RaahiCardElevation, shape = RaahiCardShape, spotColor = Color(0x10000000))
                 .clickable(onClick = onSignOut),
-            shape = RoundedCornerShape(14.dp),
+            shape = RaahiCardShape,
             color = if (RaahiIsDark) Color(0xFF2E1717) else Color(0xFFFEF2F2),
-            border = androidx.compose.foundation.BorderStroke(1.dp, RaahiRed.copy(alpha = if (RaahiIsDark) 0.5f else 0.35f))
+            border = BorderStroke(1.dp, RaahiRed.copy(alpha = if (RaahiIsDark) 0.5f else 0.35f))
         ) {
-
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -809,6 +1035,22 @@ private fun ProfileTab(
 }
 
 @Composable
+private fun GroupedMenuItem(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, onClick: (() -> Unit)? = null) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = onClick != null, onClick = { onClick?.invoke() })
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconBadge(icon, RaahiOrange, 34.dp)
+        Spacer(Modifier.width(12.dp))
+        Text(title, color = RaahiText, fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp, modifier = Modifier.weight(1f))
+        Icon(Icons.AutoMirrored.Outlined.ArrowForward, contentDescription = null, tint = RaahiTextFaint, modifier = Modifier.size(16.dp))
+    }
+}
+
+@Composable
 private fun ProfileMenuItem(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, onClick: (() -> Unit)? = null) {
     RowCard(modifier = Modifier.padding(horizontal = 16.dp), onClick = onClick) {
         IconBadge(icon, RaahiOrange, 34.dp)
@@ -829,3 +1071,4 @@ private fun InfoRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label
         }
     }
 }
+

@@ -3,6 +3,7 @@ package `in`.raahi.app.ui.screens.intercity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -85,44 +86,65 @@ fun IntercityMarketplaceScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = RaahiCharcoalHeader,
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier
+                            .size(38.dp)
+                            .background(RaahiDarkSurface, CircleShape)
+                            .border(1.dp, Color(0xFF2E3438), CircleShape),
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
                         Text(
                             text = "Intercity Marketplace",
-                            color = RaahiText,
+                            color = Color.White,
                             fontWeight = FontWeight.Bold,
                             fontSize = 18.sp,
                             fontFamily = RaahiDisplayFont,
                         )
                         Text(
                             text = "Travel Agents ↔ Verified Drivers",
-                            color = RaahiTextDim,
-                            fontSize = 12.sp,
+                            color = Color(0xFFAAB2B8),
+                            fontSize = 11.5.sp,
                         )
                     }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = RaahiText,
-                        )
-                    }
-                },
-                actions = {
-                    TextButton(onClick = onNavigateToCreate) {
-                        Icon(Icons.Default.Add, contentDescription = null, tint = RaahiOrange, modifier = Modifier.size(18.dp))
+                    Button(
+                        onClick = onNavigateToCreate,
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = RaahiPrimaryTeal,
+                            contentColor = Color.White,
+                        ),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        modifier = Modifier.height(36.dp),
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text("Post Trip", color = RaahiOrange, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text("Post", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = RaahiBg),
-            )
+                }
+            }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        containerColor = RaahiBg,
+        containerColor = RaahiLightBg,
     ) { padding ->
         Box(
             modifier = Modifier
@@ -132,7 +154,7 @@ fun IntercityMarketplaceScreen(
             when (val s = landingState) {
                 is MarketplaceLandingUiState.Loading -> {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = RaahiOrange)
+                        CircularProgressIndicator(color = RaahiPrimaryTeal)
                     }
                 }
                 is MarketplaceLandingUiState.Error -> {
@@ -145,11 +167,11 @@ fun IntercityMarketplaceScreen(
                     ) {
                         Surface(
                             shape = CircleShape,
-                            color = RaahiSelectionBg,
+                            color = RaahiLightTeal,
                             modifier = Modifier.size(56.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.Outlined.Warning, contentDescription = null, tint = RaahiOrange)
+                                Icon(Icons.Outlined.Warning, contentDescription = null, tint = RaahiPrimaryTeal)
                             }
                         }
                         Spacer(Modifier.height(16.dp))
@@ -170,7 +192,7 @@ fun IntercityMarketplaceScreen(
                         Spacer(Modifier.height(20.dp))
                         Button(
                             onClick = { viewModel.loadLandingData() },
-                            colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange),
+                            colors = ButtonDefaults.buttonColors(containerColor = RaahiPrimaryTeal),
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Text("Retry")
@@ -211,17 +233,17 @@ fun IntercityMarketplaceScreen(
                         // 2. Single Pickup-City Search Bar ("Where do you want to start?")
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(18.dp),
-                            color = RaahiBg2,
-                            border = BorderStroke(1.dp, RaahiBorderSoft),
-                            shadowElevation = 2.dp,
+                            shape = RaahiCardShape,
+                            color = RaahiWhiteSurface,
+                            border = BorderStroke(1.dp, RaahiBorderColor),
+                            shadowElevation = RaahiCardElevation,
                         ) {
                             Column(modifier = Modifier.padding(14.dp)) {
                                 Text(
                                     text = "Where do you want to start?",
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 15.sp,
-                                    color = RaahiText,
+                                    color = RaahiPrimaryText,
                                     fontFamily = RaahiDisplayFont,
                                 )
                                 Spacer(Modifier.height(10.dp))
@@ -233,16 +255,17 @@ fun IntercityMarketplaceScreen(
                                         selectedCityChip = ""
                                         viewModel.searchMarketplaceTrips(query)
                                     },
-                                    placeholder = { Text("Search pickup city (e.g. Delhi)", fontSize = 13.5.sp, color = RaahiTextDim) },
+                                    placeholder = { Text("Search pickup city (e.g. Delhi)", fontSize = 13.5.sp, color = RaahiSecondaryText) },
                                     singleLine = true,
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(12.dp),
                                     colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = RaahiOrange,
-                                        unfocusedBorderColor = RaahiBorderSoft,
+                                        focusedBorderColor = RaahiPrimaryTeal,
+                                        unfocusedBorderColor = RaahiBorderColor,
+                                        cursorColor = RaahiPrimaryTeal,
                                     ),
                                     leadingIcon = {
-                                        Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = RaahiOrange, modifier = Modifier.size(20.dp))
+                                        Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = RaahiPrimaryTeal, modifier = Modifier.size(20.dp))
                                     },
                                     trailingIcon = {
                                         if (searchQuery.isNotBlank()) {
@@ -251,7 +274,7 @@ fun IntercityMarketplaceScreen(
                                                 selectedCityChip = "All"
                                                 viewModel.searchMarketplaceTrips(null)
                                             }) {
-                                                Icon(Icons.Default.Clear, contentDescription = "Clear", tint = RaahiTextDim, modifier = Modifier.size(18.dp))
+                                                Icon(Icons.Default.Clear, contentDescription = "Clear", tint = RaahiSecondaryText, modifier = Modifier.size(18.dp))
                                             }
                                         }
                                     }
@@ -282,13 +305,13 @@ fun IntercityMarketplaceScreen(
                                                 )
                                             },
                                             colors = FilterChipDefaults.filterChipColors(
-                                                selectedContainerColor = RaahiSelectionBg,
-                                                selectedLabelColor = RaahiOrange,
+                                                selectedContainerColor = RaahiLightTeal,
+                                                selectedLabelColor = RaahiPrimaryTeal,
                                             ),
                                             border = FilterChipDefaults.filterChipBorder(
                                                 enabled = true,
                                                 selected = isSelected,
-                                                borderColor = if (isSelected) RaahiOrange else RaahiBorderSoft,
+                                                borderColor = if (isSelected) RaahiPrimaryTeal else RaahiBorderColor,
                                             ),
                                         )
                                     }
@@ -319,15 +342,15 @@ fun IntercityMarketplaceScreen(
                                         text = "Available Trips",
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 16.sp,
-                                        color = RaahiText,
+                                        color = RaahiPrimaryText,
                                     )
                                     Surface(
                                         shape = CircleShape,
-                                        color = RaahiOrange.copy(alpha = 0.12f),
+                                        color = RaahiLightTeal,
                                     ) {
                                         Text(
                                             text = "${publishedTrips.size}",
-                                            color = RaahiOrange,
+                                            color = RaahiPrimaryTeal,
                                             fontWeight = FontWeight.ExtraBold,
                                             fontSize = 11.sp,
                                             modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
@@ -336,8 +359,8 @@ fun IntercityMarketplaceScreen(
                                 }
 
                                 TextButton(onClick = onNavigateToSearch) {
-                                    Text("Advanced Filters", color = RaahiOrange, fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
-                                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = RaahiOrange, modifier = Modifier.size(14.dp))
+                                    Text("Advanced Filters", color = RaahiPrimaryTeal, fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
+                                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = RaahiPrimaryTeal, modifier = Modifier.size(14.dp))
                                 }
                             }
 
@@ -390,7 +413,7 @@ fun IntercityMarketplaceScreen(
                                             }
                                             Button(
                                                 onClick = onNavigateToCreate,
-                                                colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange),
+                                                colors = ButtonDefaults.buttonColors(containerColor = RaahiPrimaryTeal),
                                                 shape = RoundedCornerShape(10.dp),
                                             ) {
                                                 Text("Post a Trip", fontSize = 12.5.sp)
@@ -499,10 +522,10 @@ private fun MarketplaceOnlineStatusBanner(
     val activeColor = Color(0xFF22B573)
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
+        shape = RaahiCardShape,
         color = if (isOnline) Color(0xFFF0FDF4) else RaahiBg2,
         border = BorderStroke(1.5.dp, if (isOnline) activeColor.copy(alpha = 0.5f) else RaahiBorderSoft),
-        shadowElevation = 2.dp,
+        shadowElevation = RaahiCardElevation,
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -555,7 +578,7 @@ private fun MarketplaceOnlineStatusBanner(
                     CircularProgressIndicator(
                         modifier = Modifier.size(24.dp),
                         strokeWidth = 2.5.dp,
-                        color = RaahiOrange,
+                        color = RaahiPrimaryTeal,
                     )
                 } else {
                     Switch(
@@ -564,8 +587,8 @@ private fun MarketplaceOnlineStatusBanner(
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Color.White,
                             checkedTrackColor = activeColor,
-                            uncheckedThumbColor = RaahiTextDim,
-                            uncheckedTrackColor = RaahiBorderSoft,
+                            uncheckedThumbColor = RaahiSecondaryText,
+                            uncheckedTrackColor = RaahiBorderColor,
                         ),
                     )
                 }
@@ -588,19 +611,19 @@ private fun MarketplaceOnlineStatusBanner(
                     Icon(
                         imageVector = Icons.Outlined.LocationOn,
                         contentDescription = null,
-                        tint = if (isOnline) activeColor else RaahiOrange,
+                        tint = if (isOnline) activeColor else RaahiPrimaryTeal,
                         modifier = Modifier.size(16.dp),
                     )
                     Text(
                         text = "Preferred Hub: ",
                         fontSize = 12.5.sp,
-                        color = RaahiTextDim,
+                        color = RaahiSecondaryText,
                     )
                     Text(
                         text = if (!preferredCity.isNullOrBlank()) preferredCity else "All Cities (Tap to set)",
                         fontSize = 12.5.sp,
                         fontWeight = FontWeight.Bold,
-                        color = RaahiText,
+                        color = RaahiPrimaryText,
                     )
                 }
 
@@ -608,7 +631,7 @@ private fun MarketplaceOnlineStatusBanner(
                     text = "Change",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
-                    color = RaahiOrange,
+                    color = RaahiPrimaryTeal,
                 )
             }
         }
@@ -636,10 +659,10 @@ private fun ActiveTripCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(18.dp),
-        color = Color(0xFFFFF7ED),
-        border = BorderStroke(1.5.dp, RaahiOrange),
-        shadowElevation = 3.dp,
+        shape = RaahiCardShape,
+        color = RaahiLightTeal,
+        border = BorderStroke(1.dp, RaahiPrimaryTeal),
+        shadowElevation = RaahiCardElevation,
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -651,18 +674,18 @@ private fun ActiveTripCard(
                     Box(
                         modifier = Modifier
                             .size(8.dp)
-                            .background(RaahiOrange, CircleShape)
+                            .background(RaahiPrimaryTeal, CircleShape)
                     )
                     Text(
                         text = "ACTIVE TRIP IN PROGRESS",
                         fontWeight = FontWeight.ExtraBold,
                         fontSize = 11.sp,
-                        color = RaahiOrange,
+                        color = RaahiPrimaryTeal,
                     )
                 }
 
                 Surface(
-                    color = RaahiOrange,
+                    color = RaahiPrimaryTeal,
                     shape = RoundedCornerShape(6.dp),
                 ) {
                     Text(
@@ -688,7 +711,7 @@ private fun ActiveTripCard(
                             text = "${trip.pickupCity} → ${trip.destCity}",
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp,
-                            color = RaahiText,
+                            color = RaahiPrimaryText,
                         )
                         `in`.raahi.app.ui.components.RaahiRideTypeBadge(trip.rideType)
                     }
@@ -696,15 +719,15 @@ private fun ActiveTripCard(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        Text("Open Tracking", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = RaahiOrange)
-                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = RaahiOrange, modifier = Modifier.size(14.dp))
+                        Text("Open Tracking", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = RaahiPrimaryTeal)
+                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = RaahiPrimaryTeal, modifier = Modifier.size(14.dp))
                     }
                 }
 
                 Text(
                     text = "Fare: ₹${trip.fare.toInt()} • ${trip.vehicleCategory}",
                     fontSize = 12.sp,
-                    color = RaahiTextDim,
+                    color = RaahiSecondaryText,
                 )
 
                 val nextActionText = when (trip.status) {
@@ -716,13 +739,13 @@ private fun ActiveTripCard(
                 }
                 Surface(
                     shape = RoundedCornerShape(6.dp),
-                    color = RaahiOrange.copy(alpha = 0.08f),
+                    color = RaahiPrimaryTeal.copy(alpha = 0.10f),
                     modifier = Modifier.padding(top = 4.dp),
                 ) {
                     Text(
                         text = nextActionText,
                         fontSize = 11.5.sp,
-                        color = RaahiOrange,
+                        color = RaahiPrimaryTeal,
                         fontWeight = FontWeight.Medium,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                     )
@@ -745,10 +768,10 @@ private fun MarketplaceActionCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
+        shape = RaahiCardShape,
         color = RaahiBg2,
         border = BorderStroke(1.dp, RaahiBorderSoft),
-        shadowElevation = 2.dp,
+        shadowElevation = RaahiCardElevation,
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
@@ -818,9 +841,10 @@ private fun MarketplaceActionCard(
 private fun MarketplaceFeaturesBanner() {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RaahiCardShape,
         color = RaahiBg2,
         border = BorderStroke(1.dp, RaahiBorderSoft),
+        shadowElevation = RaahiCardElevation,
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
@@ -861,9 +885,10 @@ private fun MarketplaceUserBanner(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        color = RaahiBg2,
-        border = BorderStroke(1.dp, RaahiBorderSoft),
+        shape = RaahiCardShape,
+        color = RaahiWhiteSurface,
+        border = BorderStroke(1.dp, RaahiBorderColor),
+        shadowElevation = RaahiCardElevation,
     ) {
         Row(
             modifier = Modifier.padding(14.dp),
@@ -875,22 +900,22 @@ private fun MarketplaceUserBanner(
                     text = "Welcome, $userName",
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp,
-                    color = RaahiText,
+                    color = RaahiPrimaryText,
                 )
                 Text(
                     text = if (!agencyName.isNullOrBlank()) agencyName else if (role == "TRAVEL_AGENT") "Registered Travel Agency" else "Verified Highway Driver",
                     fontSize = 12.sp,
-                    color = RaahiTextDim,
+                    color = RaahiSecondaryText,
                 )
             }
 
             Surface(
                 shape = RoundedCornerShape(8.dp),
-                color = RaahiSelectionBg,
+                color = RaahiLightTeal,
             ) {
                 Text(
                     text = if (role == "TRAVEL_AGENT") "TRAVEL AGENT" else "VERIFIED DRIVER",
-                    color = RaahiOrange,
+                    color = RaahiPrimaryTeal,
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 10.sp,
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),

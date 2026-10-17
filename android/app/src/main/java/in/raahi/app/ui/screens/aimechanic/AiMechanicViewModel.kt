@@ -5,7 +5,9 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import `in`.raahi.app.data.AiMechanicRepository
 import `in`.raahi.app.data.AuthRepository
+import `in`.raahi.app.data.VehicleRepository
 import `in`.raahi.app.network.AiMessageDto
+import `in`.raahi.app.network.VehicleDto
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,12 +23,16 @@ data class AiChatUiState(
     val messages: List<AiMessageDto> = emptyList(),
     val sending: Boolean = false,
     val error: String? = null,
+    val activeVehicle: VehicleDto? = null,
+    val lastFailedMessage: String? = null,
+    val inChatMode: Boolean = false,
 )
 
 @HiltViewModel
 class AiMechanicViewModel @Inject constructor(
     private val repository: AiMechanicRepository,
     private val authRepository: AuthRepository,
+    private val vehicleRepository: VehicleRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(AiChatUiState())
@@ -37,6 +43,15 @@ class AiMechanicViewModel @Inject constructor(
     fun start() {
         _state.update { it.copy(loading = it.sessionId == null && it.messages.isEmpty(), error = null) }
         viewModelScope.launch {
+            // Load vehicle context if available
+            runCatching {
+                val vehicles = vehicleRepository.allVehicles()
+                val activeId = vehicleRepository.getActiveVehicleId()
+                vehicles.firstOrNull { it.id == activeId } ?: vehicles.firstOrNull() ?: vehicleRepository.myVehicle()
+            }.onSuccess { vehicle ->
+                _state.update { it.copy(activeVehicle = vehicle) }
+            }
+
             if (!authRepository.hasAuthToken()) {
                 _state.update {
                     it.copy(
@@ -57,7 +72,15 @@ class AiMechanicViewModel @Inject constructor(
                 val history = if (existing != null) repository.messages(session.id) else emptyList()
                 session.id to history
             }.onSuccess { (sessionId, history) ->
-                _state.update { it.copy(loading = false, sessionId = sessionId, messages = history, error = null) }
+                _state.update {
+                    it.copy(
+                        loading = false,
+                        sessionId = sessionId,
+                        messages = history,
+                        error = null,
+                        inChatMode = history.isNotEmpty()
+                    )
+                }
             }.onFailure { e ->
                 val friendly = e.toUserFriendlyMessage("AI Mechanic is currently offline. Responses will resume when connected.")
                 _state.update { it.copy(loading = false, error = friendly) }
@@ -66,41 +89,118 @@ class AiMechanicViewModel @Inject constructor(
     }
 
     fun send(text: String) {
-        if (text.isBlank() || !authRepository.hasAuthToken()) return
+        val trimmed = text.trim()
+        if (trimmed.isBlank() || _state.value.sending || !authRepository.hasAuthToken()) return
         val currentSessionId = _state.value.sessionId
 
+        val currentMessages = _state.value.messages
+        val historyMessages = currentMessages.filterNot { it.id.startsWith("pending-") }
+
+        // Contextual vehicle augmentation for Gemini completion if vehicle is registered and starting conversation
+        val vehicle = _state.value.activeVehicle
+        val vehicleContext = if (vehicle != null && historyMessages.isEmpty()) {
+            val variantInfo = if (!vehicle.variant.isNullOrBlank()) " ${vehicle.variant}" else ""
+            "\n[Context: Vehicle is ${vehicle.brand} ${vehicle.model}$variantInfo, Fuel: ${vehicle.fuelType}, Reg: ${vehicle.registrationNumber}]"
+        } else ""
+
+        val payload = trimmed + vehicleContext
+
         val optimisticUserMessage = AiMessageDto(
-            id = "pending-${System.currentTimeMillis()}", role = "USER", content = text,
+            id = "pending-${System.currentTimeMillis()}", role = "USER", content = trimmed,
             createdAt = "", unavailable = false,
         )
-        _state.update { it.copy(messages = it.messages + optimisticUserMessage, sending = true, error = null) }
+
+        val updatedMessages = if (currentMessages.none { it.id.startsWith("pending-") && it.content == trimmed }) {
+            currentMessages + optimisticUserMessage
+        } else {
+            currentMessages
+        }
+
+        _state.update {
+            it.copy(
+                messages = updatedMessages,
+                sending = true,
+                error = null,
+                lastFailedMessage = null,
+                inChatMode = true
+            )
+        }
 
         if (currentSessionId == null) {
             viewModelScope.launch {
                 runCatching { repository.createSession() }
                     .onSuccess { session ->
                         _state.update { it.copy(sessionId = session.id) }
-                        sendMessageInternal(session.id, text)
+                        sendMessageInternal(session.id, payload, trimmed, optimisticUserMessage.id)
                     }
                     .onFailure { e ->
                         val friendly = e.toUserFriendlyMessage("AI Mechanic is currently offline. Check your internet connection.")
-                        _state.update { it.copy(sending = false, error = friendly) }
+                        _state.update {
+                            it.copy(
+                                sending = false,
+                                error = friendly,
+                                lastFailedMessage = trimmed,
+                                messages = it.messages.filterNot { m -> m.id == optimisticUserMessage.id }
+                            )
+                        }
                     }
             }
             return
         }
 
-        sendMessageInternal(currentSessionId, text)
+        sendMessageInternal(currentSessionId, payload, trimmed, optimisticUserMessage.id)
     }
 
-    private fun sendMessageInternal(sessionId: String, text: String) {
+    private fun sendMessageInternal(sessionId: String, payload: String, userText: String, optimisticId: String) {
         viewModelScope.launch {
-            runCatching { repository.sendMessage(sessionId, text) }
-                .onSuccess { reply -> _state.update { it.copy(sending = false, messages = it.messages + reply, error = null) } }
+            runCatching { repository.sendMessage(sessionId, payload) }
+                .onSuccess { reply ->
+                    if (reply.unavailable) {
+                        _state.update {
+                            it.copy(
+                                sending = false,
+                                messages = it.messages + reply,
+                                error = reply.content,
+                                lastFailedMessage = userText
+                            )
+                        }
+                    } else {
+                        _state.update {
+                            it.copy(
+                                sending = false,
+                                messages = it.messages + reply,
+                                error = null,
+                                lastFailedMessage = null
+                            )
+                        }
+                    }
+                }
                 .onFailure { e ->
                     val friendly = e.toUserFriendlyMessage("Message could not be sent. Check your internet connection.")
-                    _state.update { it.copy(sending = false, error = friendly) }
+                    _state.update {
+                        it.copy(
+                            sending = false,
+                            error = friendly,
+                            lastFailedMessage = userText,
+                            messages = it.messages.filterNot { m -> m.id == optimisticId }
+                        )
+                    }
                 }
         }
+    }
+
+    fun retry() {
+        val failed = _state.value.lastFailedMessage
+        if (!failed.isNullOrBlank() && !_state.value.sending) {
+            send(failed)
+        }
+    }
+
+    fun clearFailedMessage() {
+        _state.update { it.copy(lastFailedMessage = null) }
+    }
+
+    fun resetToDescribe() {
+        _state.update { it.copy(inChatMode = false) }
     }
 }

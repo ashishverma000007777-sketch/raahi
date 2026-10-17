@@ -1,10 +1,12 @@
 package `in`.raahi.app.ui.screens.intercity
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -40,28 +42,67 @@ fun IntercityAgentDashboardScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Text("My Agency Trips", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = RaahiText)
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = RaahiCharcoalHeader,
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier
+                            .size(38.dp)
+                            .background(RaahiDarkSurface, CircleShape)
+                            .border(1.dp, Color(0xFF2E3438), CircleShape),
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp),
+                        )
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = RaahiBg)
-            )
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        text = "My Agency Trips",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        fontFamily = RaahiDisplayFont,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Button(
+                        onClick = onCreateTrip,
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = RaahiPrimaryTeal,
+                            contentColor = Color.White,
+                        ),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        modifier = Modifier.height(36.dp),
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Post", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                }
+            }
         },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onCreateTrip,
-                containerColor = RaahiOrange,
+                containerColor = RaahiPrimaryTeal,
                 contentColor = Color.White,
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Post Trip")
             }
         },
-        containerColor = RaahiBg,
+        containerColor = RaahiLightBg,
     ) { padding ->
         Column(
             modifier = Modifier
@@ -71,25 +112,29 @@ fun IntercityAgentDashboardScreen(
             // Tabs: Open & Active Trips vs History
             TabRow(
                 selectedTabIndex = selectedTab,
-                containerColor = RaahiBg2,
-                contentColor = RaahiOrange,
+                containerColor = RaahiWhiteSurface,
+                contentColor = RaahiPrimaryTeal,
             ) {
                 Tab(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
-                    text = { Text("Open & Active", fontWeight = FontWeight.Bold) }
+                    text = { Text("Open & Active", fontWeight = FontWeight.Bold) },
+                    selectedContentColor = RaahiPrimaryTeal,
+                    unselectedContentColor = RaahiSecondaryText,
                 )
                 Tab(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    text = { Text("Past & Completed", fontWeight = FontWeight.Bold) }
+                    text = { Text("Past & Completed", fontWeight = FontWeight.Bold) },
+                    selectedContentColor = RaahiPrimaryTeal,
+                    unselectedContentColor = RaahiSecondaryText,
                 )
             }
 
             when (val s = state) {
                 is AgentDashboardUiState.Loading -> {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = RaahiOrange)
+                        CircularProgressIndicator(color = RaahiPrimaryTeal)
                     }
                 }
                 is AgentDashboardUiState.Error -> {
@@ -98,11 +143,11 @@ fun IntercityAgentDashboardScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        Text("Could not load agency trips", fontWeight = FontWeight.Bold, color = RaahiText)
+                        Text("Could not load agency trips", fontWeight = FontWeight.Bold, color = RaahiPrimaryText)
                         Spacer(Modifier.height(8.dp))
-                        Text(s.message, fontSize = 13.sp, color = RaahiTextDim)
+                        Text(s.message, fontSize = 13.sp, color = RaahiSecondaryText)
                         Spacer(Modifier.height(16.dp))
-                        Button(onClick = { viewModel.loadAgentTrips() }, colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange)) {
+                        Button(onClick = { viewModel.loadAgentTrips() }, colors = ButtonDefaults.buttonColors(containerColor = RaahiPrimaryTeal)) {
                             Text("Retry")
                         }
                     }
@@ -141,7 +186,7 @@ fun IntercityAgentDashboardScreen(
                                 Spacer(Modifier.height(18.dp))
                                 Button(
                                     onClick = onCreateTrip,
-                                    colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange),
+                                    colors = ButtonDefaults.buttonColors(containerColor = RaahiPrimaryTeal),
                                     shape = RoundedCornerShape(12.dp),
                                 ) {
                                     Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -179,10 +224,10 @@ private fun AgentTripCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(18.dp),
-        color = RaahiBg2,
-        border = androidx.compose.foundation.BorderStroke(1.dp, RaahiBorderSoft),
-        shadowElevation = 2.dp,
+        shape = RaahiCardShape,
+        color = RaahiWhiteSurface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, RaahiBorderColor),
+        shadowElevation = RaahiCardElevation,
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -194,12 +239,12 @@ private fun AgentTripCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text(trip.pickupCity, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = RaahiText)
-                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = RaahiOrange, modifier = Modifier.size(16.dp))
-                    Text(trip.destCity, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = RaahiText)
+                    Text(trip.pickupCity, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = RaahiPrimaryText)
+                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = RaahiPrimaryTeal, modifier = Modifier.size(16.dp))
+                    Text(trip.destCity, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = RaahiPrimaryText)
                 }
 
-                Text("₹${trip.fare.toInt()}", fontWeight = FontWeight.ExtraBold, fontSize = 17.sp, color = RaahiOrange)
+                Text("₹${trip.fare.toInt()}", fontWeight = FontWeight.ExtraBold, fontSize = 17.sp, color = RaahiPriceText)
             }
 
             Spacer(Modifier.height(8.dp))
@@ -210,16 +255,16 @@ private fun AgentTripCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Surface(color = RaahiSelectionBg, shape = RoundedCornerShape(6.dp)) {
-                        Text(trip.vehicleCategory, color = RaahiOrange, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                    Surface(color = RaahiLightTeal, shape = RoundedCornerShape(6.dp)) {
+                        Text(trip.vehicleCategory, color = RaahiPrimaryTeal, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
                     }
                     Surface(
-                        color = if (trip.status == "COMPLETED") Color(0xFFE8F8F0) else Color(0xFFFFF0E8),
+                        color = if (trip.status == "COMPLETED") Color(0xFFE8F8F0) else RaahiLightTeal,
                         shape = RoundedCornerShape(6.dp)
                     ) {
                         Text(
                             trip.status,
-                            color = if (trip.status == "COMPLETED") Color(0xFF22B573) else RaahiOrange,
+                            color = if (trip.status == "COMPLETED") Color(0xFF22B573) else RaahiPrimaryTeal,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)

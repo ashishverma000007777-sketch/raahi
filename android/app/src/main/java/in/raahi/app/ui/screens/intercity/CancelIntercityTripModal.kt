@@ -306,10 +306,10 @@ fun CancelIntercityTripModal(
                             val isSelected = reasonInput.trim().equals(r, ignoreCase = true)
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
-                                color = if (isSelected) RaahiSelectionBg else containerBg,
+                                color = if (isSelected) RaahiLightTeal else containerBg,
                                 border = BorderStroke(
                                     1.dp,
-                                    if (isSelected) RaahiOrange.copy(alpha = 0.6f) else RaahiBorderSoft
+                                    if (isSelected) RaahiPrimaryTeal else RaahiBorderColor
                                 ),
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))
@@ -322,7 +322,7 @@ fun CancelIntercityTripModal(
                                     text = r,
                                     fontSize = 11.5.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (isSelected) RaahiOrange else RaahiTextDim,
+                                    color = if (isSelected) RaahiPrimaryTeal else RaahiSecondaryText,
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                                 )
                             }

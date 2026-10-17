@@ -44,7 +44,7 @@ sealed class NetworkError(
         val statusCode: Int? = null,
         msg: String = "Server is temporarily unavailable. Please try again later.",
         cause: Throwable? = null,
-    ) : NetworkError(msg, isOfflineOrUnreachable = true, cause)
+    ) : NetworkError(msg, isOfflineOrUnreachable = (statusCode == null), cause)
 
     class ClientError(
         val statusCode: Int,
@@ -111,13 +111,13 @@ fun Throwable.toNetworkError(defaultMessage: String = "Service temporarily unava
                     msg.contains("No address associated", ignoreCase = true)
                 ) {
                     return NetworkError.DnsFailure(
-                        "Unable to reach Raahi servers. Please check your internet connection.",
+                        "Internet connection check karo aur dobara try karo.",
                         this
                     )
                 }
                 if (msg.contains("timeout", ignoreCase = true)) {
                     return NetworkError.Timeout(
-                        "Connection timed out. Please check your connection and try again.",
+                        "Connection timed out. Internet connection check karo aur dobara try karo.",
                         this
                     )
                 }
@@ -125,7 +125,7 @@ fun Throwable.toNetworkError(defaultMessage: String = "Service temporarily unava
                     msg.contains("connection refused", ignoreCase = true)
                 ) {
                     return NetworkError.ServerUnavailable(
-                        msg = "Could not connect to Raahi servers. Please check your network.",
+                        msg = "Internet connection check karo aur dobara try karo.",
                         cause = this
                     )
                 }
@@ -135,24 +135,40 @@ fun Throwable.toNetworkError(defaultMessage: String = "Service temporarily unava
                 val code = httpEx.code()
                 val bodyMessage = runCatching {
                     val raw = httpEx.response()?.errorBody()?.string()
-                    if (!raw.isNullOrBlank()) {
-                        val obj = org.json.JSONObject(raw)
-                        obj.optJSONObject("error")?.optString("message")?.takeIf { it.isNotBlank() }
-                            ?: obj.optString("message").takeIf { it.isNotBlank() }
-                    } else null
+                    parseErrorMessage(raw)
                 }.getOrNull()
 
+                val resolvedMsg = bodyMessage
+                    ?: defaultMessage.takeIf { it.isNotBlank() && !it.startsWith("Request failed (") && !it.startsWith("Service temporarily unavailable") }
+
                 return when (code) {
-                    in 500..599 -> NetworkError.ServerUnavailable(
-                        statusCode = code,
-                        msg = bodyMessage ?: "Server is temporarily unavailable. Please try again later.",
-                        cause = this
-                    )
-                    401 -> NetworkError.ClientError(code, bodyMessage ?: "Session expired or authentication required.", this)
-                    403 -> NetworkError.ClientError(code, bodyMessage ?: "Access not permitted.", this)
-                    404 -> NetworkError.ClientError(code, bodyMessage ?: "Requested item was not found.", this)
-                    429 -> NetworkError.ClientError(code, bodyMessage ?: "Too many requests. Please wait a moment and try again.", this)
-                    else -> NetworkError.ClientError(code, bodyMessage ?: "Request could not be completed (${code}).", this)
+                    in 500..599 -> {
+                        val finalMsg = when {
+                            defaultMessage.isNotBlank() && !defaultMessage.startsWith("Request failed (") && !defaultMessage.startsWith("Service temporarily unavailable") ->
+                                defaultMessage
+                            bodyMessage != null && !bodyMessage.contains("DATABASE_ERROR", ignoreCase = true) && !bodyMessage.contains("Database service error", ignoreCase = true) ->
+                                bodyMessage
+                            else ->
+                                "Service temporarily unavailable. Please try again."
+                        }
+                        NetworkError.ServerUnavailable(
+                            statusCode = code,
+                            msg = finalMsg,
+                            cause = this
+                        )
+                    }
+                    401 -> NetworkError.ClientError(code, "Session expire ho gaya. Please login again.", this)
+                    403 -> NetworkError.ClientError(code, resolvedMsg ?: "Access not permitted (403).", this)
+                    404 -> {
+                        val finalMsg = if (resolvedMsg != null && resolvedMsg.contains("Endpoint not found", ignoreCase = true)) {
+                            "Service endpoint is not available on the server (Deployment pending). Please verify backend deployment."
+                        } else {
+                            resolvedMsg ?: "Requested item was not found (404)."
+                        }
+                        NetworkError.ClientError(code, finalMsg, this)
+                    }
+                    429 -> NetworkError.ClientError(code, resolvedMsg ?: "Too many requests (429). Please wait a moment and try again.", this)
+                    else -> NetworkError.ClientError(code, resolvedMsg ?: "Request could not be completed ($code).", this)
                 }
             }
         }
@@ -165,7 +181,7 @@ fun Throwable.toNetworkError(defaultMessage: String = "Service temporarily unava
         rawMsg.contains("No address associated", ignoreCase = true)
     ) {
         return NetworkError.DnsFailure(
-            "Unable to reach Raahi servers. Please check your internet connection.",
+            "Internet connection check karo aur dobara try karo.",
             this
         )
     }
@@ -173,7 +189,7 @@ fun Throwable.toNetworkError(defaultMessage: String = "Service temporarily unava
         rawMsg.contains("Connection refused", ignoreCase = true)
     ) {
         return NetworkError.ServerUnavailable(
-            msg = "Could not connect to Raahi servers. Please check your internet.",
+            msg = "Internet connection check karo aur dobara try karo.",
             cause = this
         )
     }

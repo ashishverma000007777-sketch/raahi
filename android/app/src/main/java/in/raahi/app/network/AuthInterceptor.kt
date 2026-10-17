@@ -19,8 +19,9 @@ class AuthInterceptor @Inject constructor(private val tokenManager: TokenManager
         }.build()
 
         val response = chain.proceed(request)
-        if (response.code == 401) {
-            // Token expired or invalidated on server — clear cached credentials
+        val path = chain.request().url.encodedPath
+        if (response.code == 401 || (response.code == 403 && path.contains("auth/me"))) {
+            // Token expired, invalidated or revoked on server — clear cached credentials
             CoroutineScope(Dispatchers.IO).launch {
                 tokenManager.clear()
             }

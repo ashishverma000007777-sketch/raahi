@@ -24,12 +24,17 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.time.Duration;
 import java.time.Instant;
 
 @RestController
 @RequestMapping("/api/v1/auth")
 public class AuthController {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
     private final FirebaseVerifier firebaseVerifier;
     private final UserRepository userRepository;
@@ -54,6 +59,7 @@ public class AuthController {
 
     // Replaces the old /auth/verifyOtp + /auth/verify-firebase duplicate endpoints.
     @PostMapping("/verify")
+    @Transactional
     public ApiResponse<VerifyResponse> verify(@Valid @RequestBody VerifyRequest req, jakarta.servlet.http.HttpServletRequest httpReq) {
         String clientIp = httpReq != null ? httpReq.getHeader("X-Forwarded-For") : null;
         if (clientIp == null || clientIp.isBlank()) {
@@ -73,7 +79,10 @@ public class AuthController {
 
         FirebaseToken decoded = firebaseVerifier.verify(req.idToken);
 
-        Optional<User> existingUser = userRepository.findByFirebaseUid(decoded.getUid());
+        String phone = decoded.getClaims() != null && decoded.getClaims().get("phone_number") != null
+                ? decoded.getClaims().get("phone_number").toString().trim() : null;
+
+        Optional<User> existingUser = findExistingUser(decoded.getUid(), phone);
 
         boolean isNewUser = existingUser.isEmpty()
                 || existingUser.get().getName() == null
@@ -83,28 +92,60 @@ public class AuthController {
                 || existingUser.get().getVehicleReg() == null
                 || existingUser.get().getVehicleReg().isBlank();
 
-        User user = existingUser.orElseGet(() -> {
+        boolean emailVerified = Boolean.TRUE.equals(decoded.isEmailVerified())
+                || (decoded.getClaims() != null && Boolean.TRUE.equals(decoded.getClaims().get("email_verified")));
+
+        User user;
+        if (existingUser.isPresent()) {
+            user = existingUser.get();
+            boolean changed = false;
+
+            if (user.getFirebaseUid() == null || !user.getFirebaseUid().equals(decoded.getUid())) {
+                user.setFirebaseUid(decoded.getUid());
+                changed = true;
+            }
+
+            if (phone != null && !phone.isBlank() && (user.getPhone() == null || !user.getPhone().equals(phone))) {
+                user.setPhone(phone);
+                changed = true;
+            }
+
+            if (decoded.getEmail() != null && !decoded.getEmail().isBlank() && !decoded.getEmail().equals(user.getEmail())) {
+                user.setEmail(decoded.getEmail());
+                changed = true;
+            }
+
+            if (emailVerified != user.isEmailVerified()) {
+                user.setEmailVerified(emailVerified);
+                changed = true;
+            }
+
+            if (changed) {
+                user = userRepository.save(user);
+            }
+
+            if (user.getRole() == User.Role.DRIVER && subscriptionRepository.findByUserId(user.getId()).isEmpty()) {
+                Subscription sub = new Subscription();
+                sub.setUser(user);
+                sub.setTier(Subscription.Tier.NONE);
+                sub.setStatus(Subscription.Status.INACTIVE);
+                subscriptionRepository.save(sub);
+            }
+        } else {
             User u = new User();
             u.setFirebaseUid(decoded.getUid());
-            u.setPhone(decoded.getClaims().get("phone_number") != null
-                    ? decoded.getClaims().get("phone_number").toString() : null);
+            u.setPhone(phone);
             u.setEmail(decoded.getEmail());
-            // SECURITY: client can only ever request DRIVER at signup. MECHANIC/HELPER require
-            // a separate application+approval flow; ADMIN is never client-selectable, period.
+            u.setEmailVerified(emailVerified);
             u.setRole(User.Role.DRIVER);
-            User saved = userRepository.save(u);
+            user = userRepository.save(u);
 
-            // Mirrors the old Node signup logic: every new DRIVER gets a NONE/INACTIVE
-            // subscription row so the 402 gate has something to check against. Mechanics/
-            // Helpers don't need one — they're never gated by requireSubscription.
             Subscription sub = new Subscription();
-            sub.setUser(saved);
+            sub.setUser(user);
             sub.setTier(Subscription.Tier.NONE);
             sub.setStatus(Subscription.Status.INACTIVE);
             subscriptionRepository.save(sub);
-
-            return saved;
-        });
+        }
 
         if (user.getStatus() == User.Status.SUSPENDED) {
             throw ApiException.forbidden("ACCOUNT_SUSPENDED", "Account suspended");
@@ -288,6 +329,47 @@ public class AuthController {
         return ApiResponse.ok(java.util.Map.of("updated", true));
     }
 
+    @PostMapping("/sync-email")
+    @Transactional
+    public ApiResponse<UserDto> syncEmail(@AuthenticationPrincipal AuthenticatedUser principal,
+                                          @Valid @RequestBody VerifyRequest req) {
+        if (!rateLimiter.allow("auth:sync-email:" + principal.userId(), 10, Duration.ofMinutes(1))) {
+            throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMIT_EXCEEDED", "Too many sync attempts. Please wait.");
+        }
+        FirebaseToken decoded = firebaseVerifier.verify(req.idToken);
+        User user = userRepository.findById(principal.userId())
+                .orElseThrow(() -> ApiException.notFound("USER_NOT_FOUND", "User not found"));
+
+        if (user.getFirebaseUid() == null || !decoded.getUid().equals(user.getFirebaseUid())) {
+            throw ApiException.forbidden("UID_MISMATCH", "Token does not belong to authenticated user");
+        }
+
+        boolean tokenEmailVerified = Boolean.TRUE.equals(decoded.isEmailVerified())
+                || Boolean.TRUE.equals(decoded.getClaims().get("email_verified"));
+        String tokenEmail = decoded.getEmail();
+
+        boolean isVerified = false;
+        if (req.email != null && !req.email.isBlank()) {
+            String requested = req.email.trim();
+            if (tokenEmail != null && tokenEmail.trim().equalsIgnoreCase(requested) && tokenEmailVerified) {
+                user.setEmail(tokenEmail.trim());
+                isVerified = true;
+            } else {
+                user.setEmail(requested);
+                isVerified = false;
+            }
+        } else {
+            if (tokenEmail != null && !tokenEmail.isBlank()) {
+                user.setEmail(tokenEmail.trim());
+            }
+            isVerified = tokenEmailVerified;
+        }
+
+        user.setEmailVerified(isVerified);
+        userRepository.save(user);
+        return ApiResponse.ok(toDto(user));
+    }
+
     @PostMapping("/logout")
     public ApiResponse<Object> logout(@AuthenticationPrincipal AuthenticatedUser principal) {
         if (principal != null) {
@@ -300,11 +382,66 @@ public class AuthController {
         return ApiResponse.ok(java.util.Map.of("loggedOut", true));
     }
 
+    private Optional<User> findExistingUser(String firebaseUid, String phone) {
+        // 1. Primary lookup by verified Firebase UID
+        Optional<User> byUid = userRepository.findByFirebaseUid(firebaseUid);
+        if (byUid.isPresent()) {
+            return byUid;
+        }
+
+        // Without a verified phone claim, cannot reconcile by phone
+        if (phone == null || phone.isBlank()) {
+            return Optional.empty();
+        }
+
+        String rawPhone = phone.trim();
+        String normalized = rawPhone.replaceAll("\\D", "");
+
+        // Determine if phone is an Indian mobile number
+        boolean isIndian = rawPhone.startsWith("+91")
+                || (normalized.startsWith("91") && normalized.length() == 12)
+                || (normalized.length() == 10 && normalized.charAt(0) >= '6' && normalized.charAt(0) <= '9');
+
+        java.util.Set<String> phoneVariants = new java.util.LinkedHashSet<>();
+        phoneVariants.add(rawPhone);
+        if (!normalized.isBlank()) {
+            phoneVariants.add(normalized);
+            phoneVariants.add("+" + normalized);
+        }
+
+        if (isIndian) {
+            String last10 = normalized.length() >= 10
+                    ? normalized.substring(normalized.length() - 10)
+                    : normalized;
+            if (last10.length() == 10 && last10.charAt(0) >= '6' && last10.charAt(0) <= '9') {
+                phoneVariants.add(last10);
+                phoneVariants.add("0" + last10);
+                phoneVariants.add("91" + last10);
+                phoneVariants.add("+91" + last10);
+            }
+        }
+
+        List<User> matches = userRepository.findByPhoneIn(phoneVariants);
+        if (matches.isEmpty()) {
+            return Optional.empty();
+        }
+
+        if (matches.size() > 1) {
+            log.error("Ambiguous account reconciliation: found {} accounts matching phone variants for caller", matches.size());
+            throw new ApiException(HttpStatus.CONFLICT, "AMBIGUOUS_ACCOUNT",
+                    "Multiple accounts found matching this phone number. Please contact support.");
+        }
+
+        return Optional.of(matches.get(0));
+    }
+
     private UserDto toDto(User u) {
         UserDto dto = new UserDto();
         dto.id = u.getId().toString();
         dto.name = u.getName();
         dto.phone = u.getPhone();
+        dto.email = u.getEmail();
+        dto.emailVerified = u.isEmailVerified();
         dto.role = u.getRole().name();
         dto.vehicleType = u.getVehicleType();
         dto.vehicleReg = u.getVehicleReg();

@@ -42,6 +42,12 @@ class IncomingJobAlertManager @Inject constructor(
     private val _incomingJob = MutableStateFlow<JobDto?>(null)
     val incomingJob: StateFlow<JobDto?> = _incomingJob.asStateFlow()
 
+    private val suppressionCache = AlertSuppressionCache()
+
+    fun isDismissed(jobId: String): Boolean = suppressionCache.isDismissed(jobId)
+    fun markDismissed(jobId: String) = suppressionCache.markDismissed(jobId)
+    fun clearDismissedCache() = suppressionCache.clear()
+
     private var ringtone: Ringtone? = null
     private var mediaPlayer: MediaPlayer? = null
     private var vibrator: Vibrator? = null
@@ -89,7 +95,7 @@ class IncomingJobAlertManager @Inject constructor(
                         Log.d(TAG, "WebSocket JobStatusChange received: jobId=${event.jobId}, status=${event.status}")
                         if (_incomingJob.value?.id == event.jobId && event.status != "PENDING") {
                             Log.d(TAG, "Dismissing alert because active job ${event.jobId} is no longer PENDING (status=${event.status})")
-                            dismissAlert()
+                            dismissAlert(event.jobId)
                         }
                     }
                     else -> {}
@@ -99,11 +105,15 @@ class IncomingJobAlertManager @Inject constructor(
     }
 
     fun fetchAndTrigger(jobId: String, fallbackJob: JobDto? = null) {
-        if (_incomingJob.value?.id == jobId) {
+        if (isDismissed(jobId)) {
+            Log.d(TAG, "fetchAndTrigger: jobId=$jobId was recently dismissed or handled, skipping duplicate")
+            return
+        }
+        if (_incomingJob.value?.id == jobId && fallbackJob == null) {
             Log.d(TAG, "fetchAndTrigger: already alerting for jobId=$jobId, skipping duplicate fetch")
             return
         }
-        if (fallbackJob != null) {
+        if (fallbackJob != null && _incomingJob.value?.id != jobId) {
             Log.d(TAG, "fetchAndTrigger: displaying immediate alert from FCM payload for jobId=$jobId")
             triggerAlert(fallbackJob)
         }
@@ -117,10 +127,10 @@ class IncomingJobAlertManager @Inject constructor(
                     } else {
                         Log.d(TAG, "Job $jobId is no longer PENDING (status=${job.status}), dismissing stale alert")
                         if (_incomingJob.value?.id == jobId) {
-                            dismissAlert()
+                            dismissAlert(jobId)
                         }
                     }
-                } else if (fallbackJob == null) {
+                } else if (fallbackJob == null && _incomingJob.value?.id == jobId) {
                     Log.w(TAG, "fetchAndTrigger: unable to fetch job $jobId and no fallback job available")
                 }
             }
@@ -133,8 +143,14 @@ class IncomingJobAlertManager @Inject constructor(
             Log.d(TAG, "Ignoring alert for job ${job.id}: status is ${job.status}, expected PENDING")
             return
         }
+        if (isDismissed(job.id)) {
+            Log.d(TAG, "Duplicate alert suppressed: job ${job.id} was recently dismissed/declined")
+            return
+        }
         if (_incomingJob.value?.id == job.id) {
-            Log.d(TAG, "Ignoring duplicate alert for job ${job.id}: already active")
+            Log.d(TAG, "Job ${job.id} is already active: updating details without restarting ringtone/vibration")
+            _incomingJob.value = job
+            postNotification(job)
             return
         }
         _incomingJob.value = job
@@ -142,9 +158,12 @@ class IncomingJobAlertManager @Inject constructor(
         postNotification(job)
     }
 
-    fun dismissAlert() {
-        val currentId = _incomingJob.value?.id
-        Log.d(TAG, "dismissAlert called (current job: $currentId)")
+    fun dismissAlert(jobId: String? = null) {
+        val currentId = jobId ?: _incomingJob.value?.id
+        Log.d(TAG, "dismissAlert called (target job: $currentId)")
+        if (currentId != null) {
+            markDismissed(currentId)
+        }
         _incomingJob.value = null
         stopRingtoneAndVibration()
         notificationManager.cancel(NOTIFICATION_ID)
@@ -153,7 +172,8 @@ class IncomingJobAlertManager @Inject constructor(
     suspend fun declineJob(): Boolean {
         val job = _incomingJob.value ?: return false
         Log.d(TAG, "declineJob invoked by helper for jobId=${job.id}")
-        dismissAlert()
+        markDismissed(job.id)
+        dismissAlert(job.id)
         return runCatching {
             jobsRepository.declineJob(job.id)
             true
@@ -163,7 +183,8 @@ class IncomingJobAlertManager @Inject constructor(
     suspend fun acceptJob(): JobDto? {
         val job = _incomingJob.value ?: return null
         Log.d(TAG, "acceptJob invoked by helper for jobId=${job.id}")
-        dismissAlert()
+        markDismissed(job.id)
+        dismissAlert(job.id)
         return runCatching {
             jobsRepository.acceptJob(job.id)
         }.getOrNull()
@@ -326,3 +347,38 @@ class IncomingJobAlertManager @Inject constructor(
     }
 }
 
+/**
+ * Thread-safe LRU cache and TTL-based suppressor for duplicate incoming job alerts.
+ */
+class AlertSuppressionCache(
+    private val maxSize: Int = 100,
+    private val ttlMs: Long = 10 * 60 * 1000L // 10 minutes
+) {
+    private val dismissed = java.util.Collections.synchronizedMap(
+        object : LinkedHashMap<String, Long>(maxSize / 2, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Long>?): Boolean {
+                return size > maxSize
+            }
+        }
+    )
+
+    fun markDismissed(jobId: String, timestamp: Long = System.currentTimeMillis()) {
+        dismissed[jobId] = timestamp
+    }
+
+    fun isDismissed(jobId: String, now: Long = System.currentTimeMillis()): Boolean {
+        val ts = dismissed[jobId] ?: return false
+        return if (now - ts < ttlMs) {
+            true
+        } else {
+            dismissed.remove(jobId)
+            false
+        }
+    }
+
+    fun clear() {
+        dismissed.clear()
+    }
+
+    fun size(): Int = dismissed.size
+}

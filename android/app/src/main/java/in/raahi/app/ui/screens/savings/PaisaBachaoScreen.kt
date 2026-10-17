@@ -514,7 +514,7 @@ private fun StreaksSection(streaks: List<StreakBadgeDto>) {
 @Composable
 private fun StreakBadgeTile(streak: StreakBadgeDto) {
     val isAchieved = streak.isAchieved
-    val accent = if (isAchieved) RaahiGreen else RaahiOrange
+    val accent = if (isAchieved) RaahiGreen else RaahiPrimaryTeal
 
     GlassCard(Modifier.fillMaxWidth()) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -572,7 +572,7 @@ private fun FuelPriceRadarCard(radar: FuelPriceRadarDto, onFuelRates: () -> Unit
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.Radar, contentDescription = null, tint = RaahiOrange, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Outlined.Radar, contentDescription = null, tint = RaahiPrimaryTeal, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("Fuel Price Radar", color = RaahiText, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, fontFamily = RaahiDisplayFont)
                 }
@@ -603,7 +603,7 @@ private fun FuelPriceRadarCard(radar: FuelPriceRadarDto, onFuelRates: () -> Unit
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text("Border Difference", color = RaahiTextDim, fontSize = 11.sp)
-                    Text(radar.priceDifferencePerLitre?.let { "-₹$it/L" } ?: "0.00", color = RaahiOrange, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text(radar.priceDifferencePerLitre?.let { "-₹$it/L" } ?: "0.00", color = RaahiPriceText, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 }
             }
         }
@@ -635,7 +635,7 @@ private fun MaintenanceSpendCard(savings: SavingsSummaryDto, onServiceHistory: (
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text("Lifetime Recorded", color = RaahiTextDim, fontSize = 11.5.sp)
-                    Text("₹${totalSpend.toInt()}", color = RaahiOrange, fontWeight = FontWeight.Bold, fontSize = 16.sp, fontFamily = RaahiDisplayFont)
+                    Text("₹${totalSpend.toInt()}", color = RaahiPriceText, fontWeight = FontWeight.Bold, fontSize = 16.sp, fontFamily = RaahiDisplayFont)
                 }
             }
 
@@ -648,8 +648,8 @@ private fun MaintenanceSpendCard(savings: SavingsSummaryDto, onServiceHistory: (
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("View Detailed Service Invoices", color = RaahiOrange, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                Icon(Icons.AutoMirrored.Outlined.ArrowForward, contentDescription = null, tint = RaahiOrange, modifier = Modifier.size(14.dp))
+                Text("View Detailed Service Invoices", color = RaahiPrimaryTeal, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Icon(Icons.AutoMirrored.Outlined.ArrowForward, contentDescription = null, tint = RaahiPrimaryTeal, modifier = Modifier.size(14.dp))
             }
         }
     }
@@ -673,7 +673,7 @@ private fun CommunityBenchmarkCard(benchmark: CommunityBenchmarkDto) {
                 )
                 Box(
                     modifier = Modifier
-                        .background(if (benchmark.available) RaahiOrange.copy(alpha = 0.10f) else RaahiBorderSoft, RaahiShapePill)
+                        .background(if (benchmark.available) RaahiLightTeal else RaahiBorderSoft, RaahiShapePill)
                         .padding(horizontal = 8.dp, vertical = 3.dp)
                 ) {
                     Text(

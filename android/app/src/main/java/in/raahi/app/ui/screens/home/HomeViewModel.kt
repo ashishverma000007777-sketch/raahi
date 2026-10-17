@@ -324,7 +324,18 @@ class HomeViewModel @Inject constructor(
             val carHealth = if (vehicle != null) runCatching { vehicleRepository.carHealth() }.getOrNull() else null
 
             val offlineError = if (user == null) {
-                userResult.exceptionOrNull()?.toUserFriendlyMessage("Unable to reach Raahi servers. You appear to be offline.")
+                val ex = userResult.exceptionOrNull()
+                val isAuthError = when (ex) {
+                    is `in`.raahi.app.network.NetworkError.ClientError -> ex.statusCode == 401 || ex.statusCode == 403
+                    is retrofit2.HttpException -> ex.code() == 401 || ex.code() == 403
+                    else -> false
+                }
+                if (isAuthError) {
+                    viewModelScope.launch { authRepository.signOut() }
+                    "Session expired. Please tap retry to sign in again."
+                } else {
+                    ex?.toUserFriendlyMessage("Unable to reach Raahi servers. You appear to be offline.")
+                }
             } else null
 
             _state.value = HomeUiState.Loaded(
