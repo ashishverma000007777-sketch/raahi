@@ -23,8 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import `in`.raahi.app.ui.components.GlassCard
-import `in`.raahi.app.ui.components.SectionLabel
+import `in`.raahi.app.ui.components.*
 import `in`.raahi.app.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -75,33 +74,48 @@ fun TripPlanScreen(
                     background = RaahiOrange.copy(alpha = 0.04f)
                 ) {
                     Row(
-                        modifier = Modifier.padding(16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(38.dp)
-                                .clip(CircleShape)
-                                .background(RaahiOrange.copy(alpha = 0.13f)),
+                                .width(56.dp)
+                                .height(40.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFFF1F5F9)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Filled.DirectionsCar, contentDescription = null, tint = RaahiOrange, modifier = Modifier.size(20.dp))
+                            VehicleIllustration(
+                                size = VehicleIllustrationSize.Thumbnail,
+                                vehicleBrand = vehicle.brand,
+                                vehicleModel = vehicle.model,
+                                contentDescription = "${vehicle.brand} ${vehicle.model}"
+                            )
                         }
                         Spacer(Modifier.width(12.dp))
-                        Column {
+                        Column(Modifier.weight(1f)) {
                             Text(
-                                "${vehicle.brand} ${vehicle.model} (${vehicle.fuelType})",
+                                "${vehicle.brand} ${vehicle.model}${if (!vehicle.variant.isNullOrBlank()) " ${vehicle.variant}" else ""}".trim(),
                                 color = RaahiText,
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 14.sp
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.5.sp,
+                                fontFamily = RaahiDisplayFont
                             )
-                            val odoText = if (vehicle.odometerKm > 0) "${vehicle.odometerKm} km logged" else "Odometer not set"
+                            Spacer(Modifier.height(2.dp))
+                            val odoText = if (vehicle.odometerKm > 0) "%,d km logged".format(vehicle.odometerKm) else "Odometer not set"
                             Text(
-                                odoText,
+                                "${vehicle.fuelType.uppercase()} · $odoText",
                                 color = RaahiTextDim,
-                                fontSize = 12.sp
+                                fontSize = 11.5.sp
                             )
                         }
+                        Spacer(Modifier.width(8.dp))
+                        VehicleNumberPlate(
+                            registrationNumber = vehicle.registrationNumber,
+                            style = LicensePlateStyle.Compact
+                        )
                     }
                 }
                 Spacer(Modifier.height(16.dp))

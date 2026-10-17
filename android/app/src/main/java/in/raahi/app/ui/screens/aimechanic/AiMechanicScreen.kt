@@ -32,6 +32,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -333,15 +334,17 @@ private fun VehicleContextCard(vehicle: VehicleDto) {
         ) {
             Box(
                 modifier = Modifier
-                    .size(36.dp)
-                    .background(RaahiLightTeal, CircleShape),
+                    .width(56.dp)
+                    .height(40.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFFF1F5F9)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    Icons.Outlined.DirectionsCar,
-                    contentDescription = null,
-                    tint = RaahiPrimaryTeal,
-                    modifier = Modifier.size(19.dp)
+                VehicleIllustration(
+                    size = VehicleIllustrationSize.Thumbnail,
+                    vehicleBrand = vehicle.brand,
+                    vehicleModel = vehicle.model,
+                    contentDescription = "${vehicle.brand} ${vehicle.model}"
                 )
             }
             Spacer(Modifier.width(10.dp))
@@ -355,31 +358,31 @@ private fun VehicleContextCard(vehicle: VehicleDto) {
                         fontFamily = RaahiDisplayFont
                     )
                     Spacer(Modifier.width(6.dp))
-                    Box(
-                        modifier = Modifier
-                            .background(RaahiGreen.copy(alpha = 0.14f), RaahiShapePill)
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            "CONTEXT LINKED",
-                            color = RaahiGreen,
-                            fontSize = 8.5.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                    VehicleStatusBadge(
+                        label = "CONTEXT LINKED",
+                        isDefault = true
+                    )
                 }
-                Spacer(Modifier.height(2.dp))
-                val details = listOfNotNull(
-                    vehicle.fuelType.ifBlank { null },
-                    vehicle.modelYear.takeIf { it > 0 }?.toString(),
-                    vehicle.registrationNumber.ifBlank { null },
-                    if (vehicle.odometerKm > 0) "${vehicle.odometerKm} km" else null
-                )
-                Text(
-                    details.joinToString(" · "),
-                    color = RaahiTextDim,
-                    fontSize = 11.sp
-                )
+                Spacer(Modifier.height(3.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    VehicleNumberPlate(
+                        registrationNumber = vehicle.registrationNumber,
+                        style = LicensePlateStyle.Compact
+                    )
+                    val details = listOfNotNull(
+                        vehicle.fuelType.ifBlank { null }?.uppercase(),
+                        vehicle.modelYear.takeIf { it > 0 }?.toString(),
+                        if (vehicle.odometerKm > 0) "%,d km".format(vehicle.odometerKm) else null
+                    )
+                    Text(
+                        details.joinToString(" · "),
+                        color = RaahiTextDim,
+                        fontSize = 11.sp
+                    )
+                }
             }
         }
     }

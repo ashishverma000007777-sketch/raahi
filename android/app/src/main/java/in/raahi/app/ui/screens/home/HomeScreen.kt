@@ -42,6 +42,7 @@ import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
+import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.LocalGasStation
 import androidx.compose.material.icons.outlined.ShoppingBag
 import androidx.compose.material.icons.outlined.SupportAgent
@@ -2710,7 +2711,7 @@ private fun VehicleHeroCard(
         return
     }
 
-    // VEHICLE REGISTERED: Clean, compact automotive composition without giant pastel tiles
+    // VEHICLE REGISTERED: Clean, compact automotive composition using unified VehicleComponents
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -2724,7 +2725,7 @@ private fun VehicleHeroCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // Header Row: Vehicle name + Garage link
+            // Header Row: Vehicle name + License Plate Badge
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -2749,35 +2750,22 @@ private fun VehicleHeroCard(
                 }
 
                 // Indian License Plate Badge
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = if (isDark) Color(0xFF222629) else Color(0xFFF1F5F9),
-                    border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFCBD5E1)),
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            text = "IND",
-                            color = Color(0xFF003399),
-                            fontSize = 8.5.sp,
-                            fontWeight = FontWeight.ExtraBold
-                        )
-                        Text(
-                            text = vehicle.registrationNumber.uppercase(),
-                            color = RaahiText,
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = RaahiDisplayFont,
-                            letterSpacing = 0.5.sp
-                        )
-                    }
-                }
+                VehicleNumberPlate(
+                    registrationNumber = vehicle.registrationNumber,
+                    style = LicensePlateStyle.Compact
+                )
             }
 
-            // Compact Specification Bar (NO giant pastel boxes!)
+            // Automotive Front Vehicle Illustration
+            VehicleIllustration(
+                size = VehicleIllustrationSize.Standard,
+                vehicleBrand = vehicle.brand,
+                vehicleModel = vehicle.model,
+                contentDescription = "${vehicle.brand} ${vehicle.model} Front View",
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            // Compact Specification Bar
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(10.dp),
@@ -2797,14 +2785,14 @@ private fun VehicleHeroCard(
                         horizontalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Outlined.DirectionsCar,
+                            imageVector = Icons.Outlined.Speed,
                             contentDescription = null,
                             tint = RaahiText,
                             modifier = Modifier.size(15.dp)
                         )
                         Column {
                             Text("ODOMETER", fontSize = 8.5.sp, color = RaahiTextDim, fontWeight = FontWeight.Bold)
-                            Text("${vehicle.odometerKm} km", fontSize = 11.5.sp, color = RaahiText, fontWeight = FontWeight.Bold)
+                            Text(if (vehicle.odometerKm > 0) "%,d km".format(vehicle.odometerKm) else "0 km", fontSize = 11.5.sp, color = RaahiText, fontWeight = FontWeight.Bold)
                         }
                     }
 

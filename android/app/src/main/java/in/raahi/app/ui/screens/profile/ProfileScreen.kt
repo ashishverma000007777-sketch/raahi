@@ -444,7 +444,6 @@ private fun NoVehicleCard(onSetupVehicle: () -> Unit) {
 
 @Composable
 private fun MyCarCard(vehicle: VehicleDto, onEdit: () -> Unit, onUpdateOdometer: () -> Unit) {
-    val isDark = RaahiIsDark
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -454,7 +453,10 @@ private fun MyCarCard(vehicle: VehicleDto, onEdit: () -> Unit, onUpdateOdometer:
         color = RaahiCardBg,
         border = BorderStroke(1.dp, RaahiBorderSoft)
     ) {
-        Column(Modifier.padding(16.dp)) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -468,7 +470,7 @@ private fun MyCarCard(vehicle: VehicleDto, onEdit: () -> Unit, onUpdateOdometer:
                         fontSize = 17.sp,
                         fontFamily = RaahiDisplayFont
                     )
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(3.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("${vehicle.modelYear}", color = RaahiTextDim, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                         Spacer(Modifier.width(8.dp))
@@ -488,38 +490,28 @@ private fun MyCarCard(vehicle: VehicleDto, onEdit: () -> Unit, onUpdateOdometer:
                 }
 
                 // HSRP License Plate Badge
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = if (isDark) Color(0xFF222629) else Color(0xFFF1F5F9),
-                    border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFCBD5E1))
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text("IND", color = Color(0xFF003399), fontSize = 8.5.sp, fontWeight = FontWeight.ExtraBold)
-                        Text(
-                            text = vehicle.registrationNumber.uppercase(),
-                            color = RaahiText,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = RaahiDisplayFont,
-                            letterSpacing = 0.5.sp
-                        )
-                    }
-                }
+                VehicleNumberPlate(
+                    registrationNumber = vehicle.registrationNumber,
+                    style = LicensePlateStyle.Compact
+                )
             }
 
-            Spacer(Modifier.height(14.dp))
+            // Automotive Front Vehicle Illustration
+            VehicleIllustration(
+                size = VehicleIllustrationSize.Compact,
+                vehicleBrand = vehicle.brand,
+                vehicleModel = vehicle.model,
+                contentDescription = "${vehicle.brand} ${vehicle.model} Front View",
+                modifier = Modifier.fillMaxWidth()
+            )
+
             HorizontalDivider(color = RaahiBorderSoft, thickness = 1.dp)
-            Spacer(Modifier.height(12.dp))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Outlined.Speed, contentDescription = null, tint = RaahiTextDim, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    text = "${vehicle.odometerKm} km",
+                    text = if (vehicle.odometerKm > 0) "%,d km".format(vehicle.odometerKm) else "0 km",
                     color = RaahiText,
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.5.sp,
@@ -541,7 +533,6 @@ private fun MyCarCard(vehicle: VehicleDto, onEdit: () -> Unit, onUpdateOdometer:
                 }
             }
 
-            Spacer(Modifier.height(8.dp))
             Text(
                 text = "Edit vehicle details",
                 color = RaahiCyan,
@@ -786,22 +777,22 @@ private fun ProfileTab(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
-                                .size(46.dp)
-                                .background(RaahiOrange.copy(alpha = 0.12f), CircleShape),
+                                .width(64.dp)
+                                .height(46.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (RaahiIsDark) Color(0xFF1F2327) else Color(0xFFF1F5F9)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                imageVector = Icons.Outlined.DirectionsCar,
-                                contentDescription = null,
-                                tint = RaahiOrange,
-                                modifier = Modifier.size(24.dp)
+                            VehicleIllustration(
+                                size = VehicleIllustrationSize.Thumbnail,
+                                vehicleBrand = vehicle.brand,
+                                vehicleModel = vehicle.model,
+                                contentDescription = "${vehicle.brand} ${vehicle.model}"
                             )
                         }
-                        Spacer(Modifier.width(14.dp))
+                        Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             val vehicleName = "${vehicle.brand} ${vehicle.model}${if (!vehicle.variant.isNullOrBlank()) " ${vehicle.variant}" else ""}".trim()
-                            val vehicleSub = "${vehicle.registrationNumber} • ${vehicle.odometerKm} km"
-
                             Text(
                                 text = vehicleName,
                                 color = RaahiText,
@@ -810,12 +801,21 @@ private fun ProfileTab(
                                 fontFamily = RaahiDisplayFont
                             )
                             Spacer(Modifier.height(3.dp))
-                            Text(
-                                text = vehicleSub,
-                                color = RaahiTextDim,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                VehicleNumberPlate(
+                                    registrationNumber = vehicle.registrationNumber,
+                                    style = LicensePlateStyle.Compact
+                                )
+                                Text(
+                                    text = if (vehicle.odometerKm > 0) "%,d km".format(vehicle.odometerKm) else "0 km",
+                                    color = RaahiTextDim,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
                         }
                     }
                     Spacer(Modifier.height(14.dp))
