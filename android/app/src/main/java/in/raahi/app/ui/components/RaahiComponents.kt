@@ -31,8 +31,10 @@ import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.ShoppingBag
 import androidx.compose.material.icons.outlined.SupportAgent
+import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -55,6 +57,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import androidx.compose.foundation.MutatePriority
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import `in`.raahi.app.ui.theme.*
 
 /**
@@ -80,7 +86,7 @@ fun GlassCard(
         shape = shape,
         color = background,
         border = BorderStroke(1.dp, borderColor),
-        shadowElevation = RaahiCardElevation,
+        shadowElevation = 3.dp,
     ) {
         Column { content() }
     }
@@ -94,15 +100,15 @@ fun RowCard(
     content: @Composable RowScope.() -> Unit,
 ) {
     val isDark = LocalRaahiColors.current.isDark
-    val bg = if (urgent) (if (isDark) Color(0xFF381A1A) else Color(0xFFFEF2F2)) else RaahiGlass
-    val border = if (urgent) RaahiRed.copy(alpha = 0.35f) else RaahiBorderSoft
+    val bg = if (urgent) (if (isDark) Color(0xFF381A1A) else Color(0xFFFEF2F2)) else (if (isDark) Color(0xFF1E2226) else Color(0xFFFFFFFF))
+    val border = if (urgent) RaahiRed.copy(alpha = 0.35f) else (if (isDark) Color(0xFF2E353D) else Color(0xFFE2E8F0))
     val clickMod = if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
     Surface(
         modifier = modifier.fillMaxWidth().then(clickMod),
         shape = RaahiShapeMedium,
         color = bg,
         border = BorderStroke(1.dp, border),
-        shadowElevation = 1.5.dp,
+        shadowElevation = 3.dp,
     ) {
         Row(
             modifier = Modifier.padding(14.dp),
@@ -264,91 +270,115 @@ fun ScoreRing(score: Int, ringSize: Dp = 56.dp, big: Boolean = false) {
 fun Ticker(items: List<String>, modifier: Modifier = Modifier) {
     if (items.isEmpty()) return
 
-    val displayItems = remember(items) {
-        if (items.size > 1) items + items + items else items
-    }
-
     val scrollState = rememberScrollState()
     var isUserInteracting by remember { mutableStateOf(false) }
+    var singleCycleWidthPx by remember { mutableIntStateOf(0) }
+    val density = LocalDensity.current
+    val speedPxPerSec = with(density) { 36.dp.toPx() } // Constant buttery-smooth speed (~36 dp/s)
 
+    // User drag detection: pause continuous auto-scroll during touch, resume 1.2s after user lifts finger
     LaunchedEffect(scrollState.isScrollInProgress) {
         if (scrollState.isScrollInProgress) {
             isUserInteracting = true
         } else {
-            delay(2000)
+            delay(1200)
             isUserInteracting = false
         }
     }
 
-    LaunchedEffect(displayItems, isUserInteracting) {
-        if (isUserInteracting) return@LaunchedEffect
-        while (true) {
-            val max = scrollState.maxValue
-            if (max <= 0) {
-                delay(300)
-                continue
+    // Continuous buttery-smooth frame-by-frame loop with zero jumps and zero pauses
+    LaunchedEffect(singleCycleWidthPx, isUserInteracting) {
+        if (singleCycleWidthPx <= 0 || isUserInteracting) return@LaunchedEffect
+
+        var lastNanoTime = 0L
+        var subPixelAccumulator = 0f
+
+        while (isActive && !isUserInteracting) {
+            try {
+                scrollState.scroll(MutatePriority.Default) {
+                    lastNanoTime = 0L
+                    while (isActive && !isUserInteracting) {
+                        withFrameNanos { frameTimeNanos ->
+                            if (lastNanoTime != 0L) {
+                                val dt = (frameTimeNanos - lastNanoTime) / 1_000_000_000f
+                                val safeDt = dt.coerceIn(0f, 0.05f)
+                                val deltaPx = speedPxPerSec * safeDt + subPixelAccumulator
+                                val intDelta = deltaPx.toInt()
+                                subPixelAccumulator = deltaPx - intDelta
+
+                                if (intDelta > 0) {
+                                    scrollBy(intDelta.toFloat())
+                                }
+
+                                // Seamless loop: when scrolled past 1 complete cycle, subtract cycle width.
+                                // Because cycle 1 and cycle 2 are identical, this visual shift is completely imperceptible.
+                                if (singleCycleWidthPx > 0 && scrollState.value >= singleCycleWidthPx) {
+                                    scrollBy(-singleCycleWidthPx.toFloat())
+                                }
+                            }
+                            lastNanoTime = frameTimeNanos
+                        }
+                    }
+                }
+            } catch (_: Exception) {
+                // Suspended by higher priority UserInput or recomposition
             }
-            if (scrollState.value >= max - 20) {
-                scrollState.scrollTo(max / 3)
-            }
-            val remaining = (max - scrollState.value).coerceAtLeast(1)
-            val duration = (remaining * 9).coerceIn(2500, 18000)
-            scrollState.animateScrollTo(
-                value = max,
-                animationSpec = tween(
-                    durationMillis = duration,
-                    easing = LinearEasing
-                )
-            )
-            delay(300)
         }
     }
 
     val isDark = LocalRaahiColors.current.isDark
-    val tickerBg = if (isDark) Color(0xFF222629) else Color(0xFFFFFFFF)
-    val tickerBorder = if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)
-    val textColor = if (isDark) Color(0xFFF4F6F7) else Color(0xFF25282D)
-    val dividerColor = if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)
+    val tickerBg = if (isDark) Color(0xFF1C1F23) else Color(0xFFFFFDF9)
+    val tickerBorder = if (isDark) Color(0xFF382A1C) else Color(0xFFFFE0B2)
+    val textColor = if (isDark) Color(0xFFF4F6F7) else Color(0xFF1E293B)
+    val dividerColor = if (isDark) Color(0xFF3A2D20) else Color(0xFFFFD180).copy(alpha = 0.6f)
+    val dotColor = Color(0xFFEA580C)
 
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .height(42.dp)
+            .height(44.dp)
             .shadow(
-                elevation = 2.dp,
-                shape = RoundedCornerShape(14.dp),
-                spotColor = Color(0x10000000),
-                ambientColor = Color(0x06000000)
+                elevation = 3.dp,
+                shape = RoundedCornerShape(16.dp),
+                spotColor = Color(0x18F57C00),
+                ambientColor = Color(0x08000000)
             ),
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(16.dp),
         color = tickerBg,
         border = BorderStroke(1.dp, tickerBorder),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 14.dp),
+                .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Compact LIVE indicator badge
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(5.dp),
+            // Compact LIVE indicator badge with refined pill and green dot
+            Surface(
+                shape = RoundedCornerShape(6.dp),
+                color = if (isDark) Color(0xFF122C1E) else Color(0xFFDCFCE7),
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF1B4E32) else Color(0xFF86EFAC)),
                 modifier = Modifier.padding(end = 10.dp)
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(7.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF238765))
-                )
-                Text(
-                    text = "LIVE",
-                    color = Color(0xFF238765),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.5.sp
-                )
+                Row(
+                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF15803D))
+                    )
+                    Text(
+                        text = "LIVE",
+                        color = Color(0xFF15803D),
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp
+                    )
+                }
             }
 
             Box(
@@ -357,6 +387,8 @@ fun Ticker(items: List<String>, modifier: Modifier = Modifier) {
                     .height(18.dp)
                     .background(dividerColor)
             )
+
+            val spacingPx = with(density) { 14.dp.roundToPx() }
 
             Row(
                 modifier = Modifier
@@ -367,21 +399,76 @@ fun Ticker(items: List<String>, modifier: Modifier = Modifier) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                displayItems.forEachIndexed { index, item ->
-                    Text(
-                        text = item,
-                        color = textColor,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        softWrap = false
-                    )
-                    if (index < displayItems.lastIndex) {
+                // Cycle 1 (Measured for seamless wrap-around)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    modifier = Modifier.onGloballyPositioned { coordinates ->
+                        if (coordinates.size.width > 0) {
+                            singleCycleWidthPx = coordinates.size.width + spacingPx
+                        }
+                    }
+                ) {
+                    items.forEach { item ->
+                        Text(
+                            text = item,
+                            color = textColor,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            softWrap = false
+                        )
                         Text(
                             text = "•",
-                            color = Color(0xFF737D84),
+                            color = dotColor,
                             fontSize = 11.sp
                         )
+                    }
+                }
+
+                // Cycle 2 (Continuous continuation)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    items.forEach { item ->
+                        Text(
+                            text = item,
+                            color = textColor,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                        Text(
+                            text = "•",
+                            color = dotColor,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+
+                // Cycle 3 (Buffer for wide screens)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    items.forEachIndexed { index, item ->
+                        Text(
+                            text = item,
+                            color = textColor,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                        if (index < items.lastIndex) {
+                            Text(
+                                text = "•",
+                                color = dotColor,
+                                fontSize = 11.sp
+                            )
+                        }
                     }
                 }
             }
@@ -775,6 +862,17 @@ fun RaahiSectionHeader(
     }
 }
 
+private fun formatTripTime(isoTime: String?): String {
+    if (isoTime.isNullOrBlank()) return "--"
+    return try {
+        val instant = java.time.Instant.parse(isoTime)
+        val zdt = instant.atZone(java.time.ZoneId.systemDefault())
+        zdt.format(java.time.format.DateTimeFormatter.ofPattern("dd MMM • HH:mm"))
+    } catch (_: Exception) {
+        isoTime.take(16).replace("T", " ")
+    }
+}
+
 /** Reusable premium intercity trip card */
 @Composable
 fun RaahiTripCard(
@@ -784,16 +882,18 @@ fun RaahiTripCard(
 ) {
     val isDark = LocalRaahiColors.current.isDark
     val cardBg = if (isDark) Color(0xFF222629) else Color.White
-    val borderCol = if (isDark) Color(0xFF2E3338) else Color(0xFFE2E5E8)
+    val borderCol = if (isDark) Color(0xFF2E3338) else Color(0xFFE2E8F0)
+    val isOwner = trip.rideType == "OWNER"
+    val isRoundTrip = trip.tripType == "ROUND_TRIP"
 
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RaahiCardShape,
+        shape = RoundedCornerShape(16.dp),
         color = cardBg,
-        border = BorderStroke(1.dp, borderCol),
-        shadowElevation = RaahiCardElevation,
+        border = BorderStroke(1.dp, if (isOwner) borderCol else Color(0xFFDDD6FE)),
+        shadowElevation = 2.dp,
     ) {
         Column(
             modifier = Modifier
@@ -822,7 +922,7 @@ fun RaahiTripCard(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                         contentDescription = null,
-                        tint = RaahiTextDim,
+                        tint = RaahiCoralPrimary,
                         modifier = Modifier.size(15.dp),
                     )
                     Text(
@@ -839,6 +939,27 @@ fun RaahiTripCard(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     RaahiRideTypeBadge(trip.rideType)
+                    if (isRoundTrip) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = RaahiCoralLight,
+                            border = BorderStroke(1.dp, RaahiCoralPrimary.copy(alpha = 0.3f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                Icon(Icons.Outlined.Sync, contentDescription = null, tint = RaahiCoralDark, modifier = Modifier.size(11.dp))
+                                Text(
+                                    text = "Round Trip",
+                                    color = RaahiCoralDark,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 10.sp,
+                                )
+                            }
+                        }
+                    }
                     if (trip.status != "PUBLISHED") {
                         Surface(
                             shape = RoundedCornerShape(6.dp),
@@ -883,7 +1004,7 @@ fun RaahiTripCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Box(modifier = Modifier.size(7.dp).background(RaahiText, CircleShape))
+                    Box(modifier = Modifier.size(7.dp).background(RaahiCoralPrimary, CircleShape))
                     Text(
                         text = trip.destAddress.ifBlank { trip.destCity },
                         fontSize = 12.sp,
@@ -894,6 +1015,81 @@ fun RaahiTripCard(
                 }
             }
 
+            // Schedule & Tour Details Snippet
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = if (isDark) Color(0xFF1B1E21) else Color(0xFFF8FAFC),
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFF1F5F9))
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(Icons.Outlined.Schedule, contentDescription = null, tint = RaahiTextDim, modifier = Modifier.size(13.dp))
+                            Text(
+                                text = "Departure: ${formatTripTime(trip.departureTime)}",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = RaahiText
+                            )
+                        }
+                        if (isRoundTrip && trip.returnTime != null) {
+                            Text(
+                                text = "Return: ${formatTripTime(trip.returnTime)}",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = RaahiCoralDark
+                            )
+                        }
+                    }
+
+                    if (isRoundTrip && !trip.specialInstructions.isNullOrBlank()) {
+                        Text(
+                            text = trip.specialInstructions.lineSequence().firstOrNull() ?: trip.specialInstructions,
+                            fontSize = 11.sp,
+                            color = RaahiTextDim,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+
+            // Driver benefit badge for OWNER rides
+            if (isOwner) {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color(0xFFF0FDF4),
+                    border = BorderStroke(1.dp, Color(0xFFBBF7D0)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Box(modifier = Modifier.size(6.dp).background(Color(0xFF15803D), CircleShape))
+                        Text(
+                            "0% Commission • Driver keeps 100% fare in direct cash",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF15803D)
+                        )
+                    }
+                }
+            }
+
             // Bottom stats & Action row
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -901,15 +1097,16 @@ fun RaahiTripCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
+                    val payoutAmount = if (isOwner) trip.fare else (trip.driverPayout ?: trip.fare)
                     Text(
-                        text = "₹${trip.fare.toInt()}",
+                        text = "₹${payoutAmount.toInt()}",
                         fontWeight = FontWeight.ExtraBold,
                         fontSize = 20.sp,
-                        color = if (isDark) Color(0xFFF4F6F7) else Color(0xFF25282D),
+                        color = if (isOwner) Color(0xFF15803D) else (if (isDark) Color(0xFFF4F6F7) else Color(0xFF25282D)),
                     )
                     Text(
-                        text = if (trip.rideType == "OWNER") "Direct Owner (0% fee)" else (trip.paymentMode?.replace("_", " ") ?: "Agreed Fare"),
-                        fontSize = 11.sp,
+                        text = if (isOwner) "Net Cash Payout" else "Customer ₹${(trip.customerFare ?: trip.fare).toInt()} • Comm ₹${(trip.agentCommission ?: 0.0).toInt()}",
+                        fontSize = 10.5.sp,
                         color = RaahiTextDim,
                     )
                 }
@@ -944,24 +1141,24 @@ fun RaahiTripCard(
 
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = if (isDark) Color(0xFF2A2E32) else Color(0xFFEDF0F2),
+                        color = RaahiCoralPrimary,
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Text(
-                                text = "Details",
+                                text = "View Trip",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = RaahiText
+                                color = Color.White
                             )
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                                 contentDescription = null,
                                 modifier = Modifier.size(12.dp),
-                                tint = RaahiText
+                                tint = Color.White
                             )
                         }
                     }

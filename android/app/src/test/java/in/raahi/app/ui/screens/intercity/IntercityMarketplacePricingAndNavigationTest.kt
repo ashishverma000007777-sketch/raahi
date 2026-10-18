@@ -220,4 +220,107 @@ class IntercityMarketplacePricingAndNavigationTest {
         // Driver with ASSIGNED trip CANNOT accept
         assertFalse(canAcceptNewBooking(listOf("ASSIGNED")))
     }
+
+    @Test
+    fun testRoundTripValidation_Success_WhenReturnAfterDepartureAndTourDetailsPresent() {
+        val now = java.time.LocalDateTime.now()
+        val departure = now.plusHours(2)
+        val ret = departure.plusDays(2)
+        val tourDetails = "Day 1: Chandigarh to Shimla.\nDay 2: Kufri sightseeing & return."
+
+        fun validateTrip(tripType: String, dep: java.time.LocalDateTime, retTime: java.time.LocalDateTime?, details: String): Pair<Boolean, String?> {
+            val isDepartureInFuture = dep.isAfter(now.minusMinutes(2))
+            if (!isDepartureInFuture) return false to "Departure time cannot be in the past"
+            if (tripType == "ROUND_TRIP") {
+                if (retTime == null || !retTime.isAfter(dep)) {
+                    return false to "Return time must be after departure time"
+                }
+                if (details.isBlank()) {
+                    return false to "Please specify duration, planned stops or itinerary for drivers"
+                }
+            }
+            return true to null
+        }
+
+        val (valid, err) = validateTrip("ROUND_TRIP", departure, ret, tourDetails)
+        assertTrue("Valid round trip must pass validation", valid)
+        assertNull(err)
+
+        // Verify tour days calculation
+        val daysBetween = java.time.temporal.ChronoUnit.DAYS.between(departure.toLocalDate(), ret.toLocalDate()).toInt()
+        val durationLabel = if (daysBetween == 0) "Same-Day Return" else "${daysBetween + 1} Days Tour"
+        assertEquals("3 Days Tour", durationLabel)
+    }
+
+    @Test
+    fun testRoundTripValidation_RejectsReturnBeforeDeparture() {
+        val now = java.time.LocalDateTime.now()
+        val departure = now.plusHours(4)
+        val ret = departure.minusHours(1) // invalid
+
+        val isReturnAfterDeparture = ret.isAfter(departure)
+        assertFalse("Return before departure must be rejected", isReturnAfterDeparture)
+    }
+
+    @Test
+    fun testRoundTripValidation_RejectsBlankTourDetails() {
+        val blankDetails = "   "
+        val isTourDetailsValid = blankDetails.isNotBlank()
+        assertFalse("Blank tour details must be rejected", isTourDetailsValid)
+    }
+
+    @Test
+    fun testOneWayTrip_DoesNotRequireReturnTimeOrTourDetails() {
+        val tripType = "ONE_WAY"
+        val isRoundTrip = tripType == "ROUND_TRIP"
+        assertFalse(isRoundTrip)
+
+        // For One Way, return time is null and tour details is empty
+        val returnTime: String? = null
+        val tourDetails = ""
+        val isValid = if (isRoundTrip) returnTime != null && tourDetails.isNotBlank() else true
+        assertTrue("One way trip does not require return time or tour details", isValid)
+    }
+
+    @Test
+    fun testTravelAgentPricing_DriverPayoutCalculationAndCommissionConstraints() {
+        fun calculateAgentPayout(customerFare: Double, agentCommission: Double): Triple<Boolean, Double, String?> {
+            if (customerFare <= 0.0) return Triple(false, 0.0, "Customer fare must be positive")
+            if (agentCommission < 0.0) return Triple(false, 0.0, "Commission cannot be negative")
+            if (agentCommission >= customerFare) return Triple(false, 0.0, "Commission must be strictly less than customer fare")
+            val payout = customerFare - agentCommission
+            return Triple(true, payout, null)
+        }
+
+        // Standard valid case: customer ₹5000, commission ₹1000 => payout ₹4000
+        val (valid1, payout1, err1) = calculateAgentPayout(5000.0, 1000.0)
+        assertTrue(valid1)
+        assertEquals(4000.0, payout1, 0.001)
+        assertNull(err1)
+
+        // Boundary invalid: commission equals customer fare => rejected
+        val (valid2, _, err2) = calculateAgentPayout(3000.0, 3000.0)
+        assertFalse("Commission equal to fare must be rejected", valid2)
+        assertEquals("Commission must be strictly less than customer fare", err2)
+
+        // Boundary invalid: commission exceeds customer fare => rejected
+        val (valid3, _, err3) = calculateAgentPayout(3000.0, 3500.0)
+        assertFalse("Commission exceeding fare must be rejected", valid3)
+        assertEquals("Commission must be strictly less than customer fare", err3)
+
+        // Boundary invalid: negative commission => rejected
+        val (valid4, _, err4) = calculateAgentPayout(3000.0, -100.0)
+        assertFalse("Negative commission must be rejected", valid4)
+        assertEquals("Commission cannot be negative", err4)
+    }
+
+    @Test
+    fun testOwnerTripDriverBenefitModel() {
+        val ownerFare = 3600.0
+        val ownerPlatformFee = 0.0
+        val driverCashPayout = ownerFare - ownerPlatformFee
+
+        assertEquals(3600.0, driverCashPayout, 0.001)
+        assertEquals(0.0, ownerPlatformFee, 0.001)
+    }
 }

@@ -41,6 +41,15 @@ public interface IntercityTripRepository extends JpaRepository<IntercityTrip, UU
     @Query("SELECT COUNT(t) FROM IntercityTrip t WHERE t.driver.id = :driverId AND t.status IN ('ASSIGNED', 'EN_ROUTE', 'ARRIVED', 'IN_PROGRESS', 'AWAITING_AGENT_SETTLEMENT', 'SETTLEMENT_SUBMITTED', 'SETTLEMENT_CONFIRMED', 'DISPUTED')")
     long countActiveTripsForDriver(@Param("driverId") UUID driverId);
 
+    @Query("SELECT COUNT(t) FROM IntercityTrip t WHERE t.driver.id = :driverId AND t.status IN ('EN_ROUTE', 'ARRIVED', 'IN_PROGRESS', 'AWAITING_AGENT_SETTLEMENT', 'SETTLEMENT_SUBMITTED', 'SETTLEMENT_CONFIRMED', 'DISPUTED')")
+    long countOngoingTripsForDriver(@Param("driverId") UUID driverId);
+
+    @Query("SELECT t FROM IntercityTrip t WHERE t.driver.id = :driverId AND t.status IN ('EN_ROUTE', 'ARRIVED', 'IN_PROGRESS', 'AWAITING_AGENT_SETTLEMENT', 'SETTLEMENT_SUBMITTED', 'SETTLEMENT_CONFIRMED', 'DISPUTED') ORDER BY t.departureTime ASC")
+    List<IntercityTrip> findOngoingTripsForDriver(@Param("driverId") UUID driverId);
+
+    @Query("SELECT t FROM IntercityTrip t WHERE t.driver.id = :driverId AND t.status IN ('ASSIGNED', 'EN_ROUTE', 'ARRIVED', 'IN_PROGRESS', 'AWAITING_AGENT_SETTLEMENT', 'SETTLEMENT_SUBMITTED', 'SETTLEMENT_CONFIRMED', 'DISPUTED') ORDER BY t.departureTime ASC")
+    List<IntercityTrip> findScheduledTripsForDriver(@Param("driverId") UUID driverId);
+
     @Query("SELECT t FROM IntercityTrip t WHERE t.agent.id = :agentId AND t.status IN ('ASSIGNED', 'EN_ROUTE', 'ARRIVED', 'IN_PROGRESS', 'AWAITING_AGENT_SETTLEMENT', 'SETTLEMENT_SUBMITTED', 'SETTLEMENT_CONFIRMED', 'DISPUTED') ORDER BY t.departureTime ASC")
     List<IntercityTrip> findActiveTripsForAgent(@Param("agentId") UUID agentId);
 }

@@ -139,4 +139,74 @@ class CityCatalogueTest {
         val duplicates = names.groupingBy { it }.eachCount().filter { it.value > 1 }
         assertTrue("Found duplicate canonical city names: $duplicates", duplicates.isEmpty())
     }
+
+    @Test
+    fun testAboharCoordinatesAndNonDelhiDefault() {
+        // Abohar must resolve to exact coordinates (30.1453, 74.1993)
+        val aboharCoords = CityCatalogue.getCoordinates("Abohar")
+        assertNotNull("Abohar coordinates must not be null", aboharCoords)
+        assertEquals(30.1453, aboharCoords!!.first, 0.001)
+        assertEquals(74.1993, aboharCoords.second, 0.001)
+
+        // Abohar MUST NOT default to Delhi coordinates (28.6139, 77.2090)
+        assertFalse(
+            "Abohar must not resolve to Delhi coordinates",
+            aboharCoords.first == 28.6139 && aboharCoords.second == 77.2090
+        )
+
+        // Test alias and prefix resolution for Abohar
+        val aliasCoords = CityCatalogue.getCoordinates("Abohar Punjab")
+        assertNotNull(aliasCoords)
+        assertEquals(30.1453, aliasCoords!!.first, 0.001)
+
+        val abhaNagari = CityCatalogue.findCity("Abha Nagari")
+        assertNotNull(abhaNagari)
+        assertEquals("Abohar", abhaNagari!!.name)
+    }
+
+    @Test
+    fun testAboharToJaipurAndChandigarhRoutingCoordinates() {
+        val abohar = CityCatalogue.getCoordinates("Abohar")!!
+        val jaipur = CityCatalogue.getCoordinates("Jaipur")!!
+        val chandigarh = CityCatalogue.getCoordinates("Chandigarh")!!
+        val delhi = CityCatalogue.getCoordinates("Delhi")!!
+
+        // Verify independent, correct coordinates
+        assertEquals(26.9124, jaipur.first, 0.001)
+        assertEquals(75.7873, jaipur.second, 0.001)
+
+        assertEquals(30.7333, chandigarh.first, 0.001)
+        assertEquals(76.7794, chandigarh.second, 0.001)
+
+        // Confirm distinct coordinates for all destinations
+        assertFalse("Abohar and Jaipur coordinates must differ", abohar == jaipur)
+        assertFalse("Abohar and Chandigarh coordinates must differ", abohar == chandigarh)
+        assertFalse("Abohar and Delhi coordinates must differ", abohar == delhi)
+
+        // Abohar -> Jaipur latitude delta is southward (~3.23 degrees)
+        val latDeltaJaipur = abohar.first - jaipur.first
+        assertTrue("Jaipur should be south of Abohar", latDeltaJaipur > 3.0)
+
+        // Abohar -> Chandigarh latitude is almost same level (~30 deg N), but eastward (~2.58 deg)
+        val lngDeltaChd = chandigarh.second - abohar.second
+        assertTrue("Chandigarh should be east of Abohar", lngDeltaChd > 2.0)
+    }
+
+    @Test
+    fun testPunjabCitiesCoverage() {
+        val punjabCities = listOf(
+            "Abohar", "Fazilka", "Firozpur", "Sri Muktsar Sahib", "Malout",
+            "Bathinda", "Moga", "Faridkot", "Kotkapura", "Ludhiana",
+            "Amritsar", "Jalandhar", "Patiala", "Hoshiarpur", "Pathankot"
+        )
+        for (cityName in punjabCities) {
+            val city = CityCatalogue.findCity(cityName)
+            assertNotNull("Punjab city '$cityName' must exist in catalogue", city)
+            assertEquals("Punjab", city!!.state)
+            val coords = CityCatalogue.getCoordinates(cityName)
+            assertNotNull("Coordinates for '$cityName' must not be null", coords)
+            assertTrue("Latitude for '$cityName' must be valid", coords!!.first in 29.0..33.0)
+            assertTrue("Longitude for '$cityName' must be valid", coords.second in 73.0..77.0)
+        }
+    }
 }

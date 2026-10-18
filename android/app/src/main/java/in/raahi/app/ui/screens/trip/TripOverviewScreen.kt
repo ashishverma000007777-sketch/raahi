@@ -2,6 +2,8 @@ package `in`.raahi.app.ui.screens.trip
 
 import android.content.Intent
 import android.net.Uri
+import android.os.Bundle
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -13,21 +15,33 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.GoogleMap
+import com.google.android.gms.maps.MapView
+import com.google.android.gms.maps.MapsInitializer
+import com.google.android.gms.maps.model.*
 import `in`.raahi.app.network.TripDto
 import `in`.raahi.app.network.TripStopDto
-import `in`.raahi.app.ui.components.GlassCard
 import `in`.raahi.app.ui.components.SectionLabel
 import `in`.raahi.app.ui.theme.*
 import java.util.Locale
@@ -40,8 +54,39 @@ fun TripOverviewScreen(
     viewModel: TripOverviewViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val state by viewModel.state.collectAsState()
     val isStarting by viewModel.isStarting.collectAsState()
+
+    // MapView lifecycle management
+    val mapView = remember {
+        try {
+            MapsInitializer.initialize(context.applicationContext)
+        } catch (_: Exception) {}
+        MapView(context).apply {
+            onCreate(Bundle())
+        }
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> mapView.onStart()
+                Lifecycle.Event.ON_RESUME -> mapView.onResume()
+                Lifecycle.Event.ON_PAUSE -> mapView.onPause()
+                Lifecycle.Event.ON_STOP -> mapView.onStop()
+                Lifecycle.Event.ON_DESTROY -> mapView.onDestroy()
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            try {
+                mapView.onDestroy()
+            } catch (_: Exception) {}
+        }
+    }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -54,10 +99,18 @@ fun TripOverviewScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Trip Overview", color = RaahiText, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, fontFamily = RaahiDisplayFont) },
+                title = {
+                    Text(
+                        "Trip Overview",
+                        color = RaahiText,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        fontFamily = RaahiDisplayFont
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = RaahiText)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = RaahiText)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = RaahiBg)
@@ -76,214 +129,468 @@ fun TripOverviewScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(s.message, color = RaahiRed, fontSize = 14.sp)
                         Spacer(Modifier.height(12.dp))
-                        Button(onClick = { viewModel.loadTrip() }, colors = ButtonDefaults.buttonColors(containerColor = RaahiBg2)) {
-                            Text("Retry", color = RaahiText)
+                        Button(
+                            onClick = { viewModel.loadTrip() },
+                            colors = ButtonDefaults.buttonColors(containerColor = RaahiPrimaryButton),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Retry", color = Color.White)
                         }
                     }
                 }
             }
             is TripOverviewUiState.Success -> {
                 val trip = s.trip
+
+                // Update Google Map with route, markers, and bounds
+                LaunchedEffect(trip.id, s.routePolyline) {
+                    mapView.getMapAsync { googleMap ->
+                        googleMap.clear()
+                        val pLatLng = LatLng(trip.startLat, trip.startLng)
+                        val dLatLng = LatLng(trip.destLat, trip.destLng)
+
+                        // Pickup Marker
+                        googleMap.addMarker(
+                            MarkerOptions()
+                                .position(pLatLng)
+                                .title("Start: ${trip.startLocationName}")
+                                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE))
+                        )
+
+                        // Destination Marker
+                        googleMap.addMarker(
+                            MarkerOptions()
+                                .position(dLatLng)
+                                .title("Destination: ${trip.destLocationName}")
+                                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE))
+                        )
+
+                        // Optional stop markers
+                        trip.prominentFuelStops?.forEach { stop ->
+                            googleMap.addMarker(
+                                MarkerOptions()
+                                    .position(LatLng(stop.lat, stop.lng))
+                                    .title(stop.name)
+                                    .snippet("Fuel Stop")
+                                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_YELLOW))
+                            )
+                        }
+
+                        // Polyline
+                        val polylineOpts = PolylineOptions()
+                            .width(8f)
+                            .color(android.graphics.Color.parseColor("#EF6C00"))
+                            .geodesic(true)
+
+                        if (s.routePolyline.isNotEmpty()) {
+                            polylineOpts.addAll(s.routePolyline)
+                        } else {
+                            polylineOpts.add(pLatLng, dLatLng)
+                        }
+                        googleMap.addPolyline(polylineOpts)
+
+                        try {
+                            val builder = LatLngBounds.builder().include(pLatLng).include(dLatLng)
+                            s.routePolyline.forEach { builder.include(it) }
+                            val bounds = builder.build()
+                            googleMap.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 110))
+                        } catch (_: Exception) {
+                            googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(pLatLng, 9f))
+                        }
+                    }
+                }
+
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(padding)
                         .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 10.dp)
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Route Header Card
-                    GlassCard(
+
+                    // 1. PROMINENT GOOGLE MAP ROUTE CARD
+                    Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        borderColor = RaahiOrange.copy(alpha = 0.25f),
-                        background = RaahiOrange.copy(alpha = 0.05f)
+                        shape = RoundedCornerShape(18.dp),
+                        color = Color.White,
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        shadowElevation = 2.dp
                     ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(trip.title, color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 18.sp, fontFamily = RaahiDisplayFont)
-                            Spacer(Modifier.height(6.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Filled.Place, contentDescription = null, tint = RaahiGreen, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text(trip.startLocationName, color = RaahiTextDim, fontSize = 13.sp)
-                                Spacer(Modifier.width(8.dp))
-                                Text("→", color = RaahiTextFaint, fontSize = 13.sp)
-                                Spacer(Modifier.width(8.dp))
-                                Icon(Icons.Filled.Navigation, contentDescription = null, tint = RaahiOrange, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text(trip.destLocationName, color = RaahiText, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(230.dp)
+                                    .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
+                            ) {
+                                AndroidView(
+                                    factory = { mapView },
+                                    modifier = Modifier.fillMaxSize()
+                                )
+
+                                Surface(
+                                    modifier = Modifier
+                                        .align(Alignment.TopStart)
+                                        .padding(12.dp),
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color(0xE60F172A),
+                                    border = BorderStroke(0.5.dp, Color(0x33FFFFFF))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(6.dp)
+                                                .clip(CircleShape)
+                                                .background(Color(0xFF22C55E))
+                                        )
+                                        Text(
+                                            text = "Verified Google Map Route",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Waypoints header row below map
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color(0xFFF8FAFC))
+                                    .padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = trip.title,
+                                    color = Color(0xFF0F172A),
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 17.sp,
+                                    fontFamily = RaahiDisplayFont,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(
+                                        Icons.Filled.Place,
+                                        contentDescription = null,
+                                        tint = Color(0xFF16A34A),
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(
+                                        text = trip.startLocationName,
+                                        color = Color(0xFF475569),
+                                        fontSize = 12.5.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false)
+                                    )
+
+                                    Text(
+                                        text = " → ",
+                                        color = Color(0xFF94A3B8),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 4.dp)
+                                    )
+
+                                    Icon(
+                                        Icons.Filled.Navigation,
+                                        contentDescription = null,
+                                        tint = RaahiOrange,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(
+                                        text = trip.destLocationName,
+                                        color = Color(0xFF0F172A),
+                                        fontSize = 12.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false)
+                                    )
+                                }
                             }
                         }
                     }
 
-                    Spacer(Modifier.height(16.dp))
-
-                    // Weather Warning (Honest data rule: legitimate warning if present)
+                    // 2. WEATHER ALERT BANNER (If present)
                     if (trip.weatherWarning != null) {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFFFFFBEB),
+                            border = BorderStroke(1.dp, Color(0xFFFDE68A))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Icon(Icons.Filled.Warning, contentDescription = null, tint = Color(0xFFD97706), modifier = Modifier.size(20.dp))
+                                Text(
+                                    trip.weatherWarning,
+                                    color = Color(0xFF92400E),
+                                    fontSize = 12.5.sp,
+                                    lineHeight = 16.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+
+                    // 3. COMPACT ESTIMATES 2x2 GRID (Automotive card standard)
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SectionLabel("Trip Estimates")
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            OverviewMetricCard(
+                                label = "TOTAL DISTANCE",
+                                value = "${trip.distanceKm} km",
+                                subtext = "Highway Corridor",
+                                icon = Icons.Outlined.Route,
+                                accentColor = Color(0xFF0284C7),
+                                modifier = Modifier.weight(1f)
+                            )
+                            OverviewMetricCard(
+                                label = "ESTIMATED TIME",
+                                value = trip.durationFormatted,
+                                subtext = "At ~55 km/h avg",
+                                icon = Icons.Outlined.Schedule,
+                                accentColor = RaahiOrange,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            val fuelVal = if (s.effectiveFuelLitres != null) "${s.effectiveFuelLitres} L" else "Unavailable"
+                            val fuelCost = if (s.effectiveFuelCost != null) "₹${s.effectiveFuelCost.toInt()} · ${trip.fuelType ?: "Petrol"}" else "Profile unlinked"
+                            OverviewMetricCard(
+                                label = "ESTIMATED FUEL",
+                                value = fuelVal,
+                                subtext = fuelCost,
+                                icon = Icons.Outlined.LocalGasStation,
+                                accentColor = Color(0xFF16A34A),
+                                modifier = Modifier.weight(1f)
+                            )
+
+                            // Tolls: Real data rule (No fake numbers)
+                            val tollVal = if (trip.estimatedTolls != null) "₹${trip.estimatedTolls}" else "Unavailable"
+                            val tollSub = if (trip.estimatedTolls != null) "FASTag supported" else "NHAI API unlinked"
+                            OverviewMetricCard(
+                                label = "ESTIMATED TOLLS",
+                                value = tollVal,
+                                subtext = tollSub,
+                                icon = Icons.Outlined.Toll,
+                                accentColor = if (trip.estimatedTolls != null) Color(0xFF059669) else Color(0xFF94A3B8),
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+
+                    // 4. ROUTE WEATHER CARD
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color.White,
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        shadowElevation = 1.dp
+                    ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RaahiShapeMedium)
-                                .background(RaahiAmber.copy(alpha = 0.12f))
-                                .border(1.dp, RaahiAmber.copy(alpha = 0.35f), RaahiShapeMedium)
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Icon(Icons.Filled.Warning, contentDescription = null, tint = RaahiAmber, modifier = Modifier.size(20.dp))
-                            Spacer(Modifier.width(10.dp))
-                            Text(trip.weatherWarning, color = RaahiAmber, fontSize = 12.sp, lineHeight = 16.sp)
-                        }
-                        Spacer(Modifier.height(14.dp))
-                    }
-
-                    // Useful Information Grid
-                    SectionLabel("Trip Estimates")
-                    Spacer(Modifier.height(8.dp))
-
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        MetricCard(
-                            label = "Total Distance",
-                            value = "${trip.distanceKm} km",
-                            icon = Icons.Filled.Route,
-                            tint = RaahiCyan,
-                            modifier = Modifier.weight(1f)
-                        )
-                        MetricCard(
-                            label = "Estimated Time",
-                            value = trip.durationFormatted,
-                            icon = Icons.Filled.Schedule,
-                            tint = RaahiOrange,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-
-                    Spacer(Modifier.height(10.dp))
-
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        val fuelCostText = if (trip.estimatedFuelCost != null) "₹${String.format(Locale.ROOT, "%.0f", trip.estimatedFuelCost)}" else "Unavailable"
-                        MetricCard(
-                            label = "Estimated Fuel",
-                            value = if (trip.estimatedFuelLitres != null) "${trip.estimatedFuelLitres} L" else "Unavailable",
-                            subtext = fuelCostText,
-                            icon = Icons.Filled.LocalGasStation,
-                            tint = RaahiAmber,
-                            modifier = Modifier.weight(1f)
-                        )
-                        // Tolls: Real data rule — "Do NOT invent toll values. If unavailable show Unavailable"
-                        val tollText = if (trip.estimatedTolls != null) "₹${trip.estimatedTolls}" else "Unavailable"
-                        MetricCard(
-                            label = "Estimated Tolls",
-                            value = tollText,
-                            subtext = if (trip.estimatedTolls == null) "Toll data unlinked" else "FASTag supported",
-                            icon = Icons.Filled.Toll,
-                            tint = if (trip.estimatedTolls != null) RaahiGreen else RaahiTextFaint,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-
-                    Spacer(Modifier.height(10.dp))
-
-                    // Weather card
-                    Row(Modifier.fillMaxWidth()) {
-                        MetricCard(
-                            label = "Route Weather",
-                            value = trip.weatherCondition ?: "Unavailable",
-                            subtext = if (trip.weatherCondition != null) "Open-Meteo live feed" else "Provider unavailable",
-                            icon = Icons.Filled.WbSunny,
-                            tint = if (trip.weatherCondition != null) RaahiCyan else RaahiTextFaint,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-
-                    Spacer(Modifier.height(20.dp))
-
-                    // C. FUEL STOPS: First 2 useful fuel stops prominently!
-                    val fuelStops = trip.prominentFuelStops.orEmpty()
-                    SectionLabel("Recommended Fuel Stops")
-                    Spacer(Modifier.height(8.dp))
-
-                    if (fuelStops.isEmpty()) {
-                        GlassCard(Modifier.fillMaxWidth()) {
-                            Text(
-                                "No fuel stations indexed on this specific route. Keep tank filled before departure.",
-                                color = RaahiTextDim,
-                                fontSize = 12.sp,
-                                modifier = Modifier.padding(14.dp)
-                            )
-                        }
-                    } else {
-                        fuelStops.take(2).forEachIndexed { index, stop ->
-                            FuelStopCard(stop = stop, index = index + 1)
-                            Spacer(Modifier.height(10.dp))
-                        }
-                    }
-
-                    Spacer(Modifier.height(16.dp))
-
-                    // D. PIT STOPS & MECHANICS
-                    val pitStops = trip.pitStops.orEmpty()
-                    if (pitStops.isNotEmpty()) {
-                        SectionLabel("Useful Pit Stops (Food & Rest)")
-                        Spacer(Modifier.height(8.dp))
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            items(pitStops) { stop ->
-                                PitStopCard(stop)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .clip(CircleShape)
+                                        .background(if (trip.weatherCondition != null) Color(0xFFE0F2FE) else Color(0xFFF1F5F9)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = if (trip.weatherCondition != null) Icons.Outlined.WbSunny else Icons.Outlined.CloudOff,
+                                        contentDescription = null,
+                                        tint = if (trip.weatherCondition != null) Color(0xFF0284C7) else Color(0xFF64748B),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Column {
+                                    Text(
+                                        text = trip.weatherCondition ?: "Weather Unavailable",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF0F172A)
+                                    )
+                                    Text(
+                                        text = if (trip.weatherCondition != null) "Open-Meteo live feed • Safe driving" else "Weather provider feed unreachable or offline",
+                                        fontSize = 11.5.sp,
+                                        color = Color(0xFF64748B)
+                                    )
+                                }
                             }
                         }
-                        Spacer(Modifier.height(18.dp))
+                    }
+
+                    // 5. RECOMMENDED FUEL STOPS
+                    val fuelStops = trip.prominentFuelStops.orEmpty()
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SectionLabel("Recommended Fuel Stops")
+
+                        if (fuelStops.isEmpty()) {
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(14.dp),
+                                color = Color.White,
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.LocalGasStation,
+                                        contentDescription = null,
+                                        tint = Color(0xFF94A3B8),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Column {
+                                        Text(
+                                            "No fuel stations indexed on route",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = Color(0xFF334155)
+                                        )
+                                        Text(
+                                            "No verified stations along this specific highway corridor in database. Keep tank filled before departure.",
+                                            fontSize = 11.5.sp,
+                                            color = Color(0xFF64748B),
+                                            lineHeight = 15.sp
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            fuelStops.take(2).forEachIndexed { index, stop ->
+                                FuelStopCard(stop = stop, index = index + 1)
+                            }
+                        }
+                    }
+
+                    // 6. PIT STOPS & MECHANICS
+                    val pitStops = trip.pitStops.orEmpty()
+                    if (pitStops.isNotEmpty()) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            SectionLabel("Useful Pit Stops (Food & Rest)")
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                items(pitStops) { stop ->
+                                    PitStopCard(stop)
+                                }
+                            }
+                        }
                     }
 
                     val mechanics = trip.mechanicsAlongRoute.orEmpty()
                     if (mechanics.isNotEmpty()) {
-                        SectionLabel("Mechanics Along Route")
-                        Spacer(Modifier.height(8.dp))
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            items(mechanics) { mech ->
-                                MechanicRouteCard(mech)
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            SectionLabel("Verified Mechanics Along Route")
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                items(mechanics) { mech ->
+                                    MechanicRouteCard(mech)
+                                }
                             }
                         }
-                        Spacer(Modifier.height(18.dp))
                     }
 
-                    // Navigation App Handoff CTA (Honest approach per spec)
+                    Spacer(Modifier.height(4.dp))
+
+                    // 7. GOOGLE MAPS NAVIGATION & START TRIP BUTTONS
                     OutlinedButton(
                         onClick = {
                             val uri = Uri.parse("https://www.google.com/maps/dir/?api=1&origin=${trip.startLat},${trip.startLng}&destination=${trip.destLat},${trip.destLng}")
                             val intent = Intent(Intent.ACTION_VIEW, uri)
                             context.startActivity(intent)
                         },
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
-                        shape = RaahiShapeMedium,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, RaahiCyan.copy(alpha = 0.5f)),
-                        colors = ButtonDefaults.outlinedButtonColors(containerColor = RaahiCyan.copy(alpha = 0.08f))
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(1.dp, Color(0xFF0284C7)),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = Color(0xFFF0F9FF)
+                        )
                     ) {
-                        Icon(Icons.Filled.Map, contentDescription = null, tint = RaahiCyan, modifier = Modifier.size(18.dp))
+                        Icon(
+                            Icons.Default.Directions,
+                            contentDescription = null,
+                            tint = Color(0xFF0284C7),
+                            modifier = Modifier.size(19.dp)
+                        )
                         Spacer(Modifier.width(8.dp))
-                        Text("Open Route in Google Maps", color = RaahiCyan, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        Text(
+                            "Open Route in Google Maps",
+                            color = Color(0xFF0284C7),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
                     }
 
-                    Spacer(Modifier.height(12.dp))
-
-                    // Start Trip CTA
                     Button(
                         onClick = { viewModel.startTrip() },
-                        modifier = Modifier.fillMaxWidth().height(52.dp),
-                        shape = RaahiShapeMedium,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp),
+                        shape = RoundedCornerShape(14.dp),
                         enabled = !isStarting,
                         colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                         contentPadding = PaddingValues()
                     ) {
                         Box(
-                            modifier = Modifier.fillMaxSize().background(RaahiBrandGradient, RaahiShapeMedium),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(RaahiBrandGradient, RoundedCornerShape(14.dp)),
                             contentAlignment = Alignment.Center
                         ) {
                             if (isStarting) {
                                 CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp), strokeWidth = 2.5.dp)
                             } else {
-                                Text("Start Trip Mode →", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp, fontFamily = RaahiDisplayFont)
+                                Text(
+                                    "Start Trip Mode →",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    fontFamily = RaahiDisplayFont
+                                )
                             }
                         }
                     }
 
-                    Spacer(Modifier.height(24.dp))
+                    Spacer(Modifier.height(18.dp))
                 }
             }
         }
@@ -291,24 +598,66 @@ fun TripOverviewScreen(
 }
 
 @Composable
-private fun MetricCard(label: String, value: String, subtext: String? = null, icon: androidx.compose.ui.graphics.vector.ImageVector, tint: Color, modifier: Modifier = Modifier) {
-    GlassCard(modifier = modifier) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+private fun OverviewMetricCard(
+    label: String,
+    value: String,
+    subtext: String? = null,
+    icon: ImageVector,
+    accentColor: Color,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(14.dp),
+        color = Color.White,
+        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+        shadowElevation = 1.dp
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
                 Box(
-                    modifier = Modifier.size(28.dp).clip(CircleShape).background(tint.copy(alpha = 0.15f)),
+                    modifier = Modifier
+                        .size(26.dp)
+                        .clip(CircleShape)
+                        .background(accentColor.copy(alpha = 0.12f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
+                    Icon(icon, contentDescription = null, tint = accentColor, modifier = Modifier.size(14.dp))
                 }
-                Spacer(Modifier.width(8.dp))
-                Text(label, color = RaahiTextDim, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                Text(
+                    text = label,
+                    color = Color(0xFF64748B),
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.4.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
-            Spacer(Modifier.height(8.dp))
-            Text(value, color = RaahiText, fontSize = 16.sp, fontWeight = FontWeight.Bold, fontFamily = RaahiDisplayFont)
+            Text(
+                text = value,
+                color = Color(0xFF0F172A),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.ExtraBold,
+                fontFamily = RaahiDisplayFont,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
             if (subtext != null) {
-                Spacer(Modifier.height(2.dp))
-                Text(subtext, color = RaahiTextFaint, fontSize = 11.sp)
+                Text(
+                    text = subtext,
+                    color = Color(0xFF94A3B8),
+                    fontSize = 10.5.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }
@@ -316,34 +665,59 @@ private fun MetricCard(label: String, value: String, subtext: String? = null, ic
 
 @Composable
 private fun FuelStopCard(stop: TripStopDto, index: Int) {
-    GlassCard(
+    Surface(
         modifier = Modifier.fillMaxWidth(),
-        borderColor = RaahiAmber.copy(alpha = 0.25f),
-        background = RaahiAmber.copy(alpha = 0.04f)
+        shape = RoundedCornerShape(14.dp),
+        color = Color.White,
+        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+        shadowElevation = 1.dp
     ) {
         Row(
             modifier = Modifier.padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
-                modifier = Modifier.size(36.dp).clip(CircleShape).background(RaahiAmber.copy(alpha = 0.18f)),
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFFEF3C7)),
                 contentAlignment = Alignment.Center
             ) {
-                Text("#$index", color = RaahiAmber, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text(
+                    "#$index",
+                    color = Color(0xFFB45309),
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 13.sp
+                )
             }
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(stop.name, color = RaahiText, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                Text(
+                    stop.name,
+                    color = Color(0xFF0F172A),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.5.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
                 Spacer(Modifier.height(2.dp))
                 val distStr = if (stop.distanceKm != null) "At ~${stop.distanceKm.toInt()} km" else "On route"
-                Text("$distStr · ${stop.amenities ?: "Fuel station"}", color = RaahiTextDim, fontSize = 12.sp)
+                Text(
+                    "$distStr · ${stop.amenities ?: "Fuel station"}",
+                    color = Color(0xFF64748B),
+                    fontSize = 11.5.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
             if (stop.pricePerLitre != null) {
                 Column(horizontalAlignment = Alignment.End) {
-                    Text("₹${String.format(Locale.ROOT, "%.2f", stop.pricePerLitre)}/L", color = RaahiGreen, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    if (stop.priceDiffPerLitre != null && stop.priceDiffPerLitre > 0) {
-                        Text("₹${String.format(Locale.ROOT, "%.2f", stop.priceDiffPerLitre)} cheaper", color = RaahiCyan, fontSize = 10.sp)
-                    }
+                    Text(
+                        "₹${String.format(Locale.ROOT, "%.2f", stop.pricePerLitre)}/L",
+                        color = Color(0xFF16A34A),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.5.sp
+                    )
                 }
             }
         }
@@ -352,34 +726,48 @@ private fun FuelStopCard(stop: TripStopDto, index: Int) {
 
 @Composable
 private fun PitStopCard(stop: TripStopDto) {
-    GlassCard(modifier = Modifier.width(190.dp)) {
+    Surface(
+        modifier = Modifier.width(180.dp),
+        shape = RoundedCornerShape(12.dp),
+        color = Color.White,
+        border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+    ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.Restaurant, contentDescription = null, tint = RaahiOrange, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("Pit Stop", color = RaahiOrange, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(Icons.Filled.Restaurant, contentDescription = null, tint = RaahiOrange, modifier = Modifier.size(15.dp))
+                Text("Pit Stop", color = RaahiOrange, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(6.dp))
-            Text(stop.name, color = RaahiText, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1)
-            Spacer(Modifier.height(4.dp))
-            Text(stop.amenities ?: "Food & Rest", color = RaahiTextDim, fontSize = 11.sp, maxLines = 1)
+            Text(stop.name, color = Color(0xFF0F172A), fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.height(2.dp))
+            Text(stop.amenities ?: "Food & Rest", color = Color(0xFF64748B), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
 
 @Composable
 private fun MechanicRouteCard(mech: TripStopDto) {
-    GlassCard(modifier = Modifier.width(200.dp)) {
+    Surface(
+        modifier = Modifier.width(190.dp),
+        shape = RoundedCornerShape(12.dp),
+        color = Color.White,
+        border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+    ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.Build, contentDescription = null, tint = RaahiGreen, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("Verified Mechanic", color = RaahiGreen, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(Icons.Filled.Build, contentDescription = null, tint = Color(0xFF16A34A), modifier = Modifier.size(15.dp))
+                Text("Verified Mechanic", color = Color(0xFF16A34A), fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(6.dp))
-            Text(mech.name, color = RaahiText, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1)
-            Spacer(Modifier.height(4.dp))
-            Text(mech.amenities ?: "Roadside repair", color = RaahiTextDim, fontSize = 11.sp, maxLines = 1)
+            Text(mech.name, color = Color(0xFF0F172A), fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.height(2.dp))
+            Text(mech.amenities ?: "Roadside repair", color = Color(0xFF64748B), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }

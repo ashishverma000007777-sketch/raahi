@@ -56,6 +56,7 @@ import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.graphicsLayer
@@ -83,6 +84,8 @@ import `in`.raahi.app.network.HelperStatusDto
 import `in`.raahi.app.network.UserDto
 import `in`.raahi.app.network.VehicleDto
 import `in`.raahi.app.network.IntercityTripDto
+import `in`.raahi.app.data.CityCatalogue
+import `in`.raahi.app.data.LocationResolver
 import `in`.raahi.app.ui.components.*
 import `in`.raahi.app.ui.theme.*
 
@@ -489,9 +492,9 @@ private fun RoadsideServicesSection(
                     .weight(1f)
                     .clickable(onClick = onRequestHelp),
                 shape = RoundedCornerShape(18.dp),
-                color = if (isDark) Color(0xFF222629) else Color.White,
-                border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
-                shadowElevation = 1.5.dp,
+                color = if (isDark) Color(0xFF26191B) else Color(0xFFFFF9F8),
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF4A2528) else Color(0xFFFFD5CC)),
+                shadowElevation = 3.5.dp,
             ) {
                 Column(
                     modifier = Modifier.padding(14.dp),
@@ -499,15 +502,15 @@ private fun RoadsideServicesSection(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(46.dp)
+                            .size(48.dp)
                             .clip(RoundedCornerShape(14.dp))
-                            .background(if (isDark) Color(0xFF2E1719) else Color(0xFFFEF2F2)),
+                            .background(if (isDark) Color(0xFF3D1E22) else Color(0xFFFFECE8)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.SupportAgent,
                             contentDescription = null,
-                            tint = Color(0xFFDC2626),
+                            tint = Color(0xFFE11D48),
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -522,8 +525,9 @@ private fun RoadsideServicesSection(
                     Spacer(Modifier.height(2.dp))
                     Text(
                         text = "Roadside dispatch",
-                        color = RaahiTextDim,
+                        color = if (isDark) Color(0xFFFDA4AF) else Color(0xFFBE123C),
                         fontSize = 10.5.sp,
+                        fontWeight = FontWeight.SemiBold,
                         maxLines = 1
                     )
                 }
@@ -535,9 +539,9 @@ private fun RoadsideServicesSection(
                     .weight(1f)
                     .clickable(onClick = onFindMechanic),
                 shape = RoundedCornerShape(18.dp),
-                color = if (isDark) Color(0xFF222629) else Color.White,
-                border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
-                shadowElevation = 1.5.dp,
+                color = if (isDark) Color(0xFF162332) else Color(0xFFF0F9FF),
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF213B59) else Color(0xFFBAE6FD)),
+                shadowElevation = 3.5.dp,
             ) {
                 Column(
                     modifier = Modifier.padding(14.dp),
@@ -545,16 +549,16 @@ private fun RoadsideServicesSection(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(46.dp)
+                            .size(48.dp)
                             .clip(RoundedCornerShape(14.dp))
-                            .background(if (isDark) Color(0xFF2A2E32) else Color(0xFFEDF0F2)),
+                            .background(if (isDark) Color(0xFF1D3752) else Color(0xFFE0F2FE)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = RaahiIcons.Wrench,
                             contentDescription = null,
-                            tint = RaahiText,
-                            modifier = Modifier.size(22.dp)
+                            tint = Color(0xFF0284C7),
+                            modifier = Modifier.size(23.dp)
                         )
                     }
                     Spacer(Modifier.height(10.dp))
@@ -568,20 +572,22 @@ private fun RoadsideServicesSection(
                     Spacer(Modifier.height(2.dp))
                     Text(
                         text = "Garages near you",
-                        color = RaahiTextDim,
+                        color = if (isDark) Color(0xFF7DD3FC) else Color(0xFF0369A1),
                         fontSize = 10.5.sp,
+                        fontWeight = FontWeight.SemiBold,
                         maxLines = 1
                     )
                 }
             }
         }
 
-        // Secondary 4-Action Utility Row
+        // Secondary 4-Action Utility Row with Elevated Cards & Tinted Micro-surfaces
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp),
-            color = if (isDark) Color(0xFF222629) else Color.White,
-            border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
+            shape = RoundedCornerShape(16.dp),
+            color = if (isDark) Color(0xFF1E2226) else Color(0xFFFFFFFF),
+            border = BorderStroke(1.dp, if (isDark) Color(0xFF2E353D) else Color(0xFFE2E8F0)),
+            shadowElevation = 3.dp,
         ) {
             Row(
                 modifier = Modifier
@@ -594,28 +600,28 @@ private fun RoadsideServicesSection(
                     title = "SOS",
                     icon = Icons.Outlined.Warning,
                     tint = Color(0xFFDC2626),
-                    bg = if (isDark) Color(0xFF2E1719) else Color(0xFFFEF2F2),
+                    bg = if (isDark) Color(0xFF381A1C) else Color(0xFFFEE2E2),
                     onClick = onSos
                 )
                 QuickUtilityItem(
                     title = "My Jobs",
                     icon = Icons.Outlined.History,
-                    tint = RaahiDarkNavy,
-                    bg = if (isDark) Color(0xFF1C2B3F) else Color(0xFFF1F5F9),
+                    tint = Color(0xFF2563EB),
+                    bg = if (isDark) Color(0xFF14273E) else Color(0xFFEFF6FF),
                     onClick = onMyJobs
                 )
                 QuickUtilityItem(
                     title = "Fuel Rates",
                     icon = Icons.Outlined.LocalGasStation,
-                    tint = RaahiWarning,
-                    bg = if (isDark) Color(0xFF332612) else Color(0xFFFFFBEB),
+                    tint = Color(0xFFD97706),
+                    bg = if (isDark) Color(0xFF352611) else Color(0xFFFFFBEB),
                     onClick = onFuelRates
                 )
                 QuickUtilityItem(
                     title = "Shop",
                     icon = Icons.Outlined.ShoppingBag,
-                    tint = RaahiText,
-                    bg = if (isDark) Color(0xFF2A2E32) else Color(0xFFEDF0F2),
+                    tint = Color(0xFF7C3AED),
+                    bg = if (isDark) Color(0xFF291C3F) else Color(0xFFF5F3FF),
                     onClick = onShop
                 )
             }
@@ -624,7 +630,7 @@ private fun RoadsideServicesSection(
 }
 
 @Composable
-private fun QuickUtilityItem(
+private fun RowScope.QuickUtilityItem(
     title: String,
     icon: ImageVector,
     tint: Color,
@@ -633,32 +639,40 @@ private fun QuickUtilityItem(
 ) {
     Column(
         modifier = Modifier
+            .weight(1f)
             .clip(RoundedCornerShape(10.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 4.dp),
+            .padding(horizontal = 4.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
         Box(
             modifier = Modifier
-                .size(34.dp)
-                .background(bg, CircleShape),
+                .size(36.dp)
+                .background(bg, RoundedCornerShape(10.dp)),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = title,
                 tint = tint,
-                modifier = Modifier.size(17.dp)
+                modifier = Modifier.size(18.dp)
             )
         }
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(5.dp))
         Text(
             text = title,
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
-            color = if (title == "SOS") Color(0xFFDC2626) else RaahiText,
-            maxLines = 1
+            color = when (title) {
+                "SOS" -> Color(0xFFDC2626)
+                "My Jobs" -> Color(0xFF1D4ED8)
+                "Fuel Rates" -> Color(0xFFB45309)
+                "Shop" -> Color(0xFF6D28D9)
+                else -> RaahiText
+            },
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
         )
     }
 }
@@ -858,9 +872,6 @@ private fun HeaderRow(
     onWallet: () -> Unit,
 ) {
     val isDark = LocalRaahiColors.current.isDark
-    val btnBg = if (isDark) Color(0xFF222629) else Color.White
-    val btnBorder = if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)
-    val btnTint = if (isDark) Color(0xFFD1D8DC) else RaahiText
 
     Row(
         modifier = Modifier
@@ -896,30 +907,31 @@ private fun HeaderRow(
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
+                        .clip(RoundedCornerShape(8.dp))
                         .clickable(onClick = onLocationClick)
-                        .background(if (isDark) Color(0xFF222629) else Color(0xFFF1F5F9))
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                        .background(if (isDark) Color(0xFF2B2117) else Color(0xFFFFF3E0))
+                        .border(1.dp, if (isDark) Color(0xFF4A3420) else Color(0xFFFFD180), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 7.dp, vertical = 3.dp)
                 ) {
                     Icon(
                         Icons.Filled.Place,
                         contentDescription = null,
-                        tint = RaahiTextDim,
-                        modifier = Modifier.size(11.dp)
+                        tint = Color(0xFFF57C00),
+                        modifier = Modifier.size(12.dp)
                     )
                     Spacer(Modifier.width(3.dp))
                     Text(
                         selectedCity,
                         color = RaahiText,
                         fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Bold,
                         maxLines = 1
                     )
                     Spacer(Modifier.width(2.dp))
                     Icon(
                         Icons.Filled.KeyboardArrowDown,
                         contentDescription = "Change location",
-                        tint = RaahiTextDim,
+                        tint = Color(0xFFEF6C00),
                         modifier = Modifier.size(13.dp)
                     )
                 }
@@ -934,18 +946,18 @@ private fun HeaderRow(
             // Payments & Wallet compact icon button
             Box(
                 modifier = Modifier
-                    .size(34.dp)
-                    .shadow(elevation = 1.dp, shape = CircleShape, spotColor = Color(0x0C000000))
+                    .size(36.dp)
+                    .shadow(elevation = 2.dp, shape = CircleShape, spotColor = Color(0x182563EB))
                     .clip(CircleShape)
-                    .background(btnBg)
-                    .border(1.dp, btnBorder, CircleShape)
+                    .background(if (isDark) Color(0xFF14243B) else Color(0xFFEFF6FF), CircleShape)
+                    .border(1.dp, if (isDark) Color(0xFF1E3A60) else Color(0xFFBFDBFE), CircleShape)
                     .clickable(onClick = onWallet),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     Icons.Outlined.AccountBalanceWallet,
                     contentDescription = "Payments & Wallet",
-                    tint = btnTint,
+                    tint = Color(0xFF2563EB),
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -953,18 +965,19 @@ private fun HeaderRow(
             // Notification Bell Button
             BellWithBadge(unread = unread, onClick = onBell)
 
-            // User Avatar Circle Button
+            // User Avatar Circle Button with Gradient & Soft Shadow
             Box(
                 modifier = Modifier
-                    .size(34.dp)
-                    .shadow(elevation = 1.dp, shape = CircleShape, spotColor = Color(0x10000000))
+                    .size(36.dp)
+                    .shadow(elevation = 2.5.dp, shape = CircleShape, spotColor = Color(0x28F57C00))
                     .clip(CircleShape)
-                    .background(if (isDark) Color(0xFF2A2E32) else Color(0xFF202428), CircleShape)
+                    .background(Brush.linearGradient(listOf(Color(0xFFF57C00), Color(0xFFEF6C00))), CircleShape)
+                    .border(1.5.dp, Color(0xFFFFE0B2), CircleShape)
                     .clickable(onClick = onProfile),
                 contentAlignment = Alignment.Center,
             ) {
                 val initial = user?.name?.trim()?.firstOrNull()?.uppercaseChar()?.toString() ?: "A"
-                Text(initial, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, fontFamily = RaahiDisplayFont)
+                Text(initial, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp, fontFamily = RaahiDisplayFont)
             }
         }
     }
@@ -973,9 +986,9 @@ private fun HeaderRow(
 @Composable
 private fun BellWithBadge(unread: Int, onClick: () -> Unit) {
     val isDark = LocalRaahiColors.current.isDark
-    val btnBg = if (isDark) Color(0xFF222629) else Color.White
-    val btnBorder = if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)
-    val btnTint = if (isDark) Color(0xFFD1D8DC) else RaahiText
+    val btnBg = if (isDark) Color(0xFF2F2014) else Color(0xFFFFF7ED)
+    val btnBorder = if (isDark) Color(0xFF4E3420) else Color(0xFFFFEDD5)
+    val btnTint = Color(0xFFEA580C)
 
     val transition = rememberInfiniteTransition(label = "ring")
     val angle by transition.animateFloat(
@@ -997,22 +1010,22 @@ private fun BellWithBadge(unread: Int, onClick: () -> Unit) {
     )
     Box(
         modifier = Modifier
-            .size(34.dp)
-            .shadow(elevation = 1.dp, shape = CircleShape, spotColor = Color(0x0C000000))
+            .size(36.dp)
+            .shadow(elevation = 2.dp, shape = CircleShape, spotColor = Color(0x18EA580C))
             .clip(CircleShape)
             .background(btnBg, CircleShape)
             .border(1.dp, btnBorder, CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(Icons.Outlined.Notifications, contentDescription = "Notifications", tint = btnTint, modifier = Modifier.size(17.dp).rotate(angle))
+        Icon(Icons.Outlined.Notifications, contentDescription = "Notifications", tint = btnTint, modifier = Modifier.size(18.dp).rotate(angle))
         if (unread > 0) {
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .offset(x = (-2).dp, y = 2.dp)
-                    .size(6.dp)
-                    .background(RaahiPrimaryButton, CircleShape)
+                    .size(7.dp)
+                    .background(Color(0xFFDC2626), CircleShape)
             )
         }
     }
@@ -1032,14 +1045,29 @@ private fun DriveTrackingCard(
     onRequestLocationPermission: () -> Unit,
 ) {
     val isDark = RaahiIsDark
-    val cardBg = if (isDark) Color(0xFF222629) else Color.White
-    val cardBorder = if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)
+    val (cardBg, cardBorder, spotTint) = when {
+        !hasLocationPermission -> Triple(
+            if (isDark) Color(0xFF2C2114) else Color(0xFFFFFBEB),
+            if (isDark) Color(0xFF4A371F) else Color(0xFFFDE68A),
+            Color(0x18D97706)
+        )
+        isDrivingConfirmed -> Triple(
+            if (isDark) Color(0xFF142B1E) else Color(0xFFF0FDF4),
+            if (isDark) Color(0xFF1F5238) else Color(0xFF86EFAC),
+            Color(0x2015803D)
+        )
+        else -> Triple(
+            if (isDark) Color(0xFF16251E) else Color(0xFFF8FCFA),
+            if (isDark) Color(0xFF1F4232) else Color(0xFFBBF7D0),
+            Color(0x1415803D)
+        )
+    }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
-            .shadow(elevation = RaahiCardElevation, shape = RaahiCardShape, spotColor = Color(0x0C000000))
+            .shadow(elevation = 3.dp, shape = RaahiCardShape, spotColor = spotTint)
             .background(cardBg, RaahiCardShape)
             .border(1.dp, cardBorder, RaahiCardShape)
             .padding(horizontal = 14.dp, vertical = 12.dp),
@@ -1048,22 +1076,22 @@ private fun DriveTrackingCard(
         val (iconVector, iconTint, iconBg, title, subtitle) = when {
             !hasLocationPermission -> Quint(
                 Icons.Outlined.LocationOff,
-                RaahiWarning,
-                if (isDark) Color(0xFF332612) else Color(0xFFFFFBEB),
+                Color(0xFFD97706),
+                if (isDark) Color(0xFF3B2A16) else Color(0xFFFEF3C7),
                 "Drive Tracking Paused",
                 "Location access needed to detect drives automatically."
             )
             isDrivingConfirmed -> Quint(
                 Icons.Filled.Navigation,
-                RaahiSuccess,
-                if (isDark) Color(0xFF142E20) else Color(0xFFDCFCE7),
+                Color(0xFF15803D),
+                if (isDark) Color(0xFF1A3B28) else Color(0xFFDCFCE7),
                 "Drive in Progress",
                 "Recording trip distance · Odometer sync active"
             )
             else -> Quint(
                 Icons.Outlined.DirectionsCar,
-                RaahiText,
-                if (isDark) Color(0xFF2A2E32) else Color(0xFFEDF0F2),
+                Color(0xFF15803D),
+                if (isDark) Color(0xFF1A3828) else Color(0xFFDCFCE7),
                 "Auto Drive Detection",
                 "Monitoring for your next drive"
             )
@@ -1071,7 +1099,7 @@ private fun DriveTrackingCard(
 
         Box(
             modifier = Modifier
-                .size(36.dp)
+                .size(38.dp)
                 .background(iconBg, CircleShape),
             contentAlignment = Alignment.Center
         ) {
@@ -1127,8 +1155,8 @@ private fun DriveTrackingCard(
             else -> {
                 Surface(
                     shape = RoundedCornerShape(50),
-                    color = if (isDark) Color(0xFF1E2825) else Color(0xFFE2F5EE),
-                    border = BorderStroke(1.dp, if (isDark) Color(0xFF2D3B37) else Color(0xFFC7EBDD)),
+                    color = if (isDark) Color(0xFF142E20) else Color(0xFFDCFCE7),
+                    border = BorderStroke(1.dp, if (isDark) Color(0xFF1F5238) else Color(0xFF86EFAC)),
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
@@ -1139,11 +1167,11 @@ private fun DriveTrackingCard(
                             modifier = Modifier
                                 .size(6.dp)
                                 .clip(CircleShape)
-                                .background(RaahiSuccess)
+                                .background(Color(0xFF15803D))
                         )
                         Text(
                             text = "Monitoring",
-                            color = RaahiSuccess,
+                            color = Color(0xFF15803D),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -1498,39 +1526,75 @@ private fun HelperApplicationStatusCard(
 @Composable
 private fun BecomeHelperCard(onClick: () -> Unit) {
     RowCard(modifier = Modifier.padding(horizontal = 16.dp), onClick = onClick) {
-        IconBadge(Icons.Outlined.History, RaahiGreen, 40.dp)
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .background(Color(0xFFF0FDF4), RoundedCornerShape(10.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Outlined.History, contentDescription = null, tint = Color(0xFF16A34A), modifier = Modifier.size(20.dp))
+        }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text("Earn with Raahi", color = RaahiGreen, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            Text("Earn with Raahi", color = Color(0xFF16A34A), fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
             Text("Become a helper and earn cash helping stranded drivers nearby", color = RaahiTextDim, fontSize = 11.sp)
         }
-        Text("Apply", color = RaahiGreen, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        Text("Apply →", color = Color(0xFF16A34A), fontWeight = FontWeight.Bold, fontSize = 12.sp)
     }
 }
 
 @Composable
 private fun HelperDashboardCard(onClick: () -> Unit) {
     RowCard(modifier = Modifier.padding(horizontal = 16.dp), onClick = onClick) {
-        IconBadge(Icons.Outlined.History, RaahiText, 40.dp)
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .background(Color(0xFFEFF6FF), RoundedCornerShape(10.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Outlined.SupportAgent, contentDescription = null, tint = Color(0xFF2563EB), modifier = Modifier.size(20.dp))
+        }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text("Helper Dashboard", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            Text("Helper Dashboard", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
             Text("Go online, see nearby requests and your earnings", color = RaahiTextDim, fontSize = 11.sp)
         }
-        Text("Open", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        Text("Open →", color = Color(0xFF2563EB), fontWeight = FontWeight.Bold, fontSize = 12.sp)
     }
 }
 
 @Composable
 private fun ActiveJobBanner(job: JobDto, onClick: () -> Unit) {
-    RowCard(modifier = Modifier.padding(horizontal = 16.dp), onClick = onClick) {
-        IconBadge(Icons.Outlined.History, RaahiText, 36.dp)
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            Text(if (job.viewerRole == "HELPER") "You have an active job" else "You have an active request", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-            Text(job.problemType, color = RaahiTextDim, fontSize = 11.sp)
+    val isDark = RaahiIsDark
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(14.dp),
+        color = if (isDark) Color(0xFF2C2114) else Color(0xFFFFFBEB),
+        border = BorderStroke(1.dp, if (isDark) Color(0xFF4A371F) else Color(0xFFFDE68A)),
+        shadowElevation = 3.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .background(if (isDark) Color(0xFF3B2A16) else Color(0xFFFEF3C7), RoundedCornerShape(10.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Outlined.SupportAgent, contentDescription = null, tint = Color(0xFFD97706), modifier = Modifier.size(19.dp))
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(if (job.viewerRole == "HELPER") "You have an active job" else "You have an active request", color = Color(0xFFB45309), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text(job.problemType, color = RaahiText, fontSize = 11.5.sp, fontWeight = FontWeight.Medium)
+            }
+            Text("View →", color = Color(0xFFD97706), fontWeight = FontWeight.Bold, fontSize = 12.sp)
         }
-        Text("View", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 12.sp)
     }
 }
 
@@ -1540,24 +1604,45 @@ private fun ActiveIntercityTripBanner(
     onClick: () -> Unit,
 ) {
     val isDark = RaahiIsDark
-    RowCard(modifier = Modifier.padding(horizontal = 16.dp), onClick = onClick) {
-        IconBadge(Icons.Outlined.DirectionsCar, RaahiText, 38.dp)
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("ACTIVE INTERCITY TRIP", color = RaahiTextDim, fontWeight = FontWeight.ExtraBold, fontSize = 11.sp)
-                Surface(
-                    color = if (isDark) Color(0xFF2E3338) else Color(0xFFEDF0F2),
-                    shape = RoundedCornerShape(4.dp)
-                ) {
-                    Text(trip.status.replace("_", " "), color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp))
-                }
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(14.dp),
+        color = if (isDark) Color(0xFF14243B) else Color(0xFFEFF6FF),
+        border = BorderStroke(1.dp, if (isDark) Color(0xFF1F3D66) else Color(0xFFBFDBFE)),
+        shadowElevation = 3.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .background(if (isDark) Color(0xFF1D3557) else Color(0xFFDBEAFE), RoundedCornerShape(10.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Outlined.DirectionsCar, contentDescription = null, tint = Color(0xFF2563EB), modifier = Modifier.size(20.dp))
             }
-            Spacer(Modifier.height(2.dp))
-            Text("${trip.pickupCity} → ${trip.destCity} (₹${trip.fare.toInt()})", color = RaahiPriceText, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-            Text("Tap for live route & OTP verification", color = RaahiTextDim, fontSize = 11.sp)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("ACTIVE INTERCITY TRIP", color = Color(0xFF2563EB), fontWeight = FontWeight.ExtraBold, fontSize = 10.5.sp, letterSpacing = 0.5.sp)
+                    Surface(
+                        color = if (isDark) Color(0xFF1D3557) else Color(0xFFDBEAFE),
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Text(trip.status.replace("_", " "), color = Color(0xFF1D4ED8), fontWeight = FontWeight.Bold, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp))
+                    }
+                }
+                Spacer(Modifier.height(2.dp))
+                Text("${trip.pickupCity} → ${trip.destCity} (₹${trip.fare.toInt()})", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
+                Text("Tap for live route & OTP verification", color = RaahiTextDim, fontSize = 11.sp)
+            }
+            Text("Track →", color = Color(0xFF2563EB), fontWeight = FontWeight.Bold, fontSize = 12.sp)
         }
-        Text("Track", color = RaahiText, fontWeight = FontWeight.Bold, fontSize = 12.sp)
     }
 }
 
@@ -1630,8 +1715,8 @@ private fun OwnerDashboardCard(
             modifier = Modifier.fillMaxWidth(),
             shape = RaahiCardShape,
             color = Color(0xFF17191B),
-            border = BorderStroke(1.dp, Color(0xFF2E3338)),
-            shadowElevation = 2.dp,
+            border = BorderStroke(1.dp, Color(0xFFF57C00).copy(alpha = 0.35f)),
+            shadowElevation = 3.5.dp,
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
@@ -1657,17 +1742,24 @@ private fun OwnerDashboardCard(
                             letterSpacing = 0.5.sp
                         )
                     }
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = Color(0xFF142E20),
+                        border = BorderStroke(1.dp, Color(0xFF1E4B33))
                     ) {
-                        Box(Modifier.size(7.dp).background(RaahiSuccess, CircleShape))
-                        Text(
-                            text = "0% Platform Fee",
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = RaahiSuccess
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Box(Modifier.size(6.dp).background(Color(0xFF22C55E), CircleShape))
+                            Text(
+                                text = "0% Platform Fee",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF4ADE80)
+                            )
+                        }
                     }
                 }
 
@@ -1696,7 +1788,8 @@ private fun OwnerDashboardCard(
                         onClick = onCreateTrip,
                         modifier = Modifier
                             .weight(1.3f)
-                            .height(46.dp),
+                            .height(46.dp)
+                            .shadow(2.dp, RoundedCornerShape(12.dp)),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = RaahiPrimaryButton,
@@ -1739,7 +1832,7 @@ private fun OwnerDashboardCard(
             }
         }
 
-        // 2x2 Quick Action Cards (Screen 2 Mockup)
+        // 2x2 Quick Action Cards (Screen 2 Mockup) with Distinct Automotive Tonal Identity & Depth
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -1749,8 +1842,9 @@ private fun OwnerDashboardCard(
                     .weight(1f)
                     .clickable(onClick = onAgentDashboard),
                 shape = RoundedCornerShape(14.dp),
-                color = if (isDark) Color(0xFF222629) else Color.White,
-                border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
+                color = if (isDark) Color(0xFF222629) else Color(0xFFFFFDFB),
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF3E3124) else Color(0xFFFFE0B2)),
+                shadowElevation = 3.dp,
             ) {
                 Row(
                     modifier = Modifier.padding(12.dp),
@@ -1759,15 +1853,15 @@ private fun OwnerDashboardCard(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(34.dp)
-                            .background(if (isDark) Color(0xFF2A2E32) else Color(0xFFEDF0F2), RoundedCornerShape(8.dp)),
+                            .size(36.dp)
+                            .background(if (isDark) Color(0xFF332214) else Color(0xFFFFF3E0), RoundedCornerShape(10.dp)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Outlined.DirectionsCar, contentDescription = null, tint = RaahiText, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Outlined.DirectionsCar, contentDescription = null, tint = Color(0xFFEA580C), modifier = Modifier.size(18.dp))
                     }
                     Column {
                         Text("My Trips", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = RaahiText)
-                        Text("Posted routes", fontSize = 10.5.sp, color = RaahiTextDim)
+                        Text("Posted routes", fontSize = 10.5.sp, color = if (isDark) Color(0xFFFDBA74) else Color(0xFFC2410C), fontWeight = FontWeight.Medium)
                     }
                 }
             }
@@ -1777,8 +1871,9 @@ private fun OwnerDashboardCard(
                     .weight(1f)
                     .clickable(onClick = onAgentDashboard),
                 shape = RoundedCornerShape(14.dp),
-                color = if (isDark) Color(0xFF222629) else Color.White,
-                border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
+                color = if (isDark) Color(0xFF222629) else Color(0xFFF8FAFD),
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF1E334D) else Color(0xFFBFDBFE)),
+                shadowElevation = 3.dp,
             ) {
                 Row(
                     modifier = Modifier.padding(12.dp),
@@ -1787,15 +1882,15 @@ private fun OwnerDashboardCard(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(34.dp)
-                            .background(if (isDark) Color(0xFF2A2E32) else Color(0xFFEDF0F2), RoundedCornerShape(8.dp)),
+                            .size(36.dp)
+                            .background(if (isDark) Color(0xFF16253C) else Color(0xFFEFF6FF), RoundedCornerShape(10.dp)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Outlined.Person, contentDescription = null, tint = RaahiText, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Outlined.Person, contentDescription = null, tint = Color(0xFF2563EB), modifier = Modifier.size(18.dp))
                     }
                     Column {
                         Text("Driver Interests", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = RaahiText)
-                        Text("Review & assign", fontSize = 10.5.sp, color = RaahiTextDim)
+                        Text("Review & assign", fontSize = 10.5.sp, color = if (isDark) Color(0xFF93C5FD) else Color(0xFF1D4ED8), fontWeight = FontWeight.Medium)
                     }
                 }
             }
@@ -1810,8 +1905,9 @@ private fun OwnerDashboardCard(
                     .weight(1f)
                     .clickable(onClick = onAgentDashboard),
                 shape = RoundedCornerShape(14.dp),
-                color = if (isDark) Color(0xFF222629) else Color.White,
-                border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
+                color = if (isDark) Color(0xFF222629) else Color(0xFFF8FCFA),
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF1B3D2B) else Color(0xFFBBF7D0)),
+                shadowElevation = 3.dp,
             ) {
                 Row(
                     modifier = Modifier.padding(12.dp),
@@ -1820,15 +1916,15 @@ private fun OwnerDashboardCard(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(34.dp)
-                            .background(if (isDark) Color(0xFF2A2E32) else Color(0xFFEDF0F2), RoundedCornerShape(8.dp)),
+                            .size(36.dp)
+                            .background(if (isDark) Color(0xFF132B1E) else Color(0xFFF0FDF4), RoundedCornerShape(10.dp)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Outlined.DirectionsCar, contentDescription = null, tint = RaahiText, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Outlined.DirectionsCar, contentDescription = null, tint = Color(0xFF16A34A), modifier = Modifier.size(18.dp))
                     }
                     Column {
                         Text("Assign Driver", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = RaahiText)
-                        Text("Confirm departure", fontSize = 10.5.sp, color = RaahiTextDim)
+                        Text("Confirm departure", fontSize = 10.5.sp, color = if (isDark) Color(0xFF86EFAC) else Color(0xFF15803D), fontWeight = FontWeight.Medium)
                     }
                 }
             }
@@ -1838,8 +1934,9 @@ private fun OwnerDashboardCard(
                     .weight(1f)
                     .clickable(onClick = onOpenMarketplace),
                 shape = RoundedCornerShape(14.dp),
-                color = if (isDark) Color(0xFF222629) else Color.White,
-                border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
+                color = if (isDark) Color(0xFF222629) else Color(0xFFFAF5FF),
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF32214A) else Color(0xFFDDD6FE)),
+                shadowElevation = 3.dp,
             ) {
                 Row(
                     modifier = Modifier.padding(12.dp),
@@ -1848,15 +1945,15 @@ private fun OwnerDashboardCard(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(34.dp)
-                            .background(if (isDark) Color(0xFF2A2E32) else Color(0xFFEDF0F2), RoundedCornerShape(8.dp)),
+                            .size(36.dp)
+                            .background(if (isDark) Color(0xFF25173E) else Color(0xFFF5F3FF), RoundedCornerShape(10.dp)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Outlined.Search, contentDescription = null, tint = RaahiText, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Outlined.Search, contentDescription = null, tint = Color(0xFF7C3AED), modifier = Modifier.size(18.dp))
                     }
                     Column {
                         Text("My Listings", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = RaahiText)
-                        Text("Explore market", fontSize = 10.5.sp, color = RaahiTextDim)
+                        Text("Explore market", fontSize = 10.5.sp, color = if (isDark) Color(0xFFC4B5FD) else Color(0xFF6D28D9), fontWeight = FontWeight.Medium)
                     }
                 }
             }
@@ -1869,8 +1966,9 @@ private fun OwnerDashboardCard(
                     .fillMaxWidth()
                     .clickable { onOpenActiveTrip(activeIntercityTrip.id) },
                 shape = RoundedCornerShape(12.dp),
-                color = if (isDark) Color(0xFF222629) else Color.White,
-                border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9))
+                color = if (isDark) Color(0xFF14243B) else Color(0xFFEFF6FF),
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF1F3D66) else Color(0xFFBFDBFE)),
+                shadowElevation = 3.dp,
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
@@ -1878,10 +1976,10 @@ private fun OwnerDashboardCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
-                        Text("ACTIVE TRIP", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = RaahiTextDim)
+                        Text("ACTIVE TRIP", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2563EB))
                         Text("${activeIntercityTrip.pickupCity} → ${activeIntercityTrip.destCity}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = RaahiText)
                     }
-                    Text("Track & OTP →", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = RaahiText)
+                    Text("Track & OTP →", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2563EB))
                 }
             }
         }
@@ -1932,8 +2030,8 @@ private fun TravelAgentDashboardCard(
             modifier = Modifier.fillMaxWidth(),
             shape = RaahiCardShape,
             color = Color(0xFF17191B),
-            border = BorderStroke(1.dp, Color(0xFF2E3338)),
-            shadowElevation = 2.dp,
+            border = BorderStroke(1.dp, Color(0xFFF57C00).copy(alpha = 0.35f)),
+            shadowElevation = 3.5.dp,
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
@@ -1959,17 +2057,24 @@ private fun TravelAgentDashboardCard(
                             letterSpacing = 0.5.sp
                         )
                     }
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = Color(0xFF132238),
+                        border = BorderStroke(1.dp, Color(0xFF1E3A60))
                     ) {
-                        Box(Modifier.size(7.dp).background(Color(0xFFE2E7EA), CircleShape))
-                        Text(
-                            text = "Commercial Hub",
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFE2E7EA)
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Box(Modifier.size(6.dp).background(Color(0xFF3B82F6), CircleShape))
+                            Text(
+                                text = "Commercial Hub",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF60A5FA)
+                            )
+                        }
                     }
                 }
 
@@ -1998,7 +2103,8 @@ private fun TravelAgentDashboardCard(
                         onClick = onCreateTrip,
                         modifier = Modifier
                             .weight(1.2f)
-                            .height(46.dp),
+                            .height(46.dp)
+                            .shadow(2.dp, RoundedCornerShape(12.dp)),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = RaahiPrimaryButton,
@@ -2036,7 +2142,7 @@ private fun TravelAgentDashboardCard(
             }
         }
 
-        // 2x2 Metric Cards (Screen 3 Mockup)
+        // 2x2 Metric Cards (Screen 3 Mockup) with Distinct Automotive Tonal Identity & Depth
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -2046,8 +2152,9 @@ private fun TravelAgentDashboardCard(
                     .weight(1f)
                     .clickable(onClick = onAgentDashboard),
                 shape = RoundedCornerShape(14.dp),
-                color = if (isDark) Color(0xFF222629) else Color.White,
-                border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
+                color = if (isDark) Color(0xFF222629) else Color(0xFFFFFDF9),
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF3E3124) else Color(0xFFFFE0B2)),
+                shadowElevation = 3.dp,
             ) {
                 Row(
                     modifier = Modifier.padding(12.dp),
@@ -2056,11 +2163,11 @@ private fun TravelAgentDashboardCard(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(34.dp)
-                            .background(if (isDark) Color(0xFF2A2E32) else Color(0xFFEDF0F2), RoundedCornerShape(8.dp)),
+                            .size(36.dp)
+                            .background(if (isDark) Color(0xFF332214) else Color(0xFFFFF3E0), RoundedCornerShape(10.dp)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Outlined.BusinessCenter, contentDescription = null, tint = RaahiText, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Outlined.BusinessCenter, contentDescription = null, tint = Color(0xFFEA580C), modifier = Modifier.size(18.dp))
                     }
                     Column {
                         Text("My Trips", fontSize = 11.5.sp, color = RaahiTextDim)
@@ -2074,8 +2181,9 @@ private fun TravelAgentDashboardCard(
                     .weight(1f)
                     .clickable(onClick = onAgentDashboard),
                 shape = RoundedCornerShape(14.dp),
-                color = if (isDark) Color(0xFF222629) else Color.White,
-                border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
+                color = if (isDark) Color(0xFF222629) else Color(0xFFF8FAFD),
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF1E334D) else Color(0xFFBFDBFE)),
+                shadowElevation = 3.dp,
             ) {
                 Row(
                     modifier = Modifier.padding(12.dp),
@@ -2084,11 +2192,11 @@ private fun TravelAgentDashboardCard(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(34.dp)
-                            .background(if (isDark) Color(0xFF2A2E32) else Color(0xFFEDF0F2), RoundedCornerShape(8.dp)),
+                            .size(36.dp)
+                            .background(if (isDark) Color(0xFF16253C) else Color(0xFFEFF6FF), RoundedCornerShape(10.dp)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Outlined.Person, contentDescription = null, tint = RaahiText, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Outlined.Person, contentDescription = null, tint = Color(0xFF2563EB), modifier = Modifier.size(18.dp))
                     }
                     Column {
                         Text("Driver Interests", fontSize = 11.5.sp, color = RaahiTextDim)
@@ -2107,8 +2215,9 @@ private fun TravelAgentDashboardCard(
                     .weight(1f)
                     .clickable(onClick = onAgentDashboard),
                 shape = RoundedCornerShape(14.dp),
-                color = if (isDark) Color(0xFF222629) else Color.White,
-                border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
+                color = if (isDark) Color(0xFF222629) else Color(0xFFF8FCFA),
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF1B3D2B) else Color(0xFFBBF7D0)),
+                shadowElevation = 3.dp,
             ) {
                 Row(
                     modifier = Modifier.padding(12.dp),
@@ -2117,11 +2226,11 @@ private fun TravelAgentDashboardCard(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(34.dp)
-                            .background(if (isDark) Color(0xFF2A2E32) else Color(0xFFEDF0F2), RoundedCornerShape(8.dp)),
+                            .size(36.dp)
+                            .background(if (isDark) Color(0xFF132B1E) else Color(0xFFF0FDF4), RoundedCornerShape(10.dp)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Outlined.DirectionsCar, contentDescription = null, tint = RaahiText, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Outlined.DirectionsCar, contentDescription = null, tint = Color(0xFF16A34A), modifier = Modifier.size(18.dp))
                     }
                     Column {
                         Text("Assignments", fontSize = 11.5.sp, color = RaahiTextDim)
@@ -2135,8 +2244,9 @@ private fun TravelAgentDashboardCard(
                     .weight(1f)
                     .clickable(onClick = onAgentDashboard),
                 shape = RoundedCornerShape(14.dp),
-                color = if (isDark) Color(0xFF222629) else Color.White,
-                border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
+                color = if (isDark) Color(0xFF222629) else Color(0xFFFAF5FF),
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF32214A) else Color(0xFFDDD6FE)),
+                shadowElevation = 3.dp,
             ) {
                 Row(
                     modifier = Modifier.padding(12.dp),
@@ -2145,11 +2255,11 @@ private fun TravelAgentDashboardCard(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(34.dp)
-                            .background(if (isDark) Color(0xFF2A2E32) else Color(0xFFEDF0F2), RoundedCornerShape(8.dp)),
+                            .size(36.dp)
+                            .background(if (isDark) Color(0xFF25173E) else Color(0xFFF5F3FF), RoundedCornerShape(10.dp)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Outlined.AccountBalanceWallet, contentDescription = null, tint = RaahiText, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Outlined.AccountBalanceWallet, contentDescription = null, tint = Color(0xFF7C3AED), modifier = Modifier.size(18.dp))
                     }
                     Column {
                         Text("Total Earnings", fontSize = 11.5.sp, color = RaahiTextDim)
@@ -2166,8 +2276,9 @@ private fun TravelAgentDashboardCard(
                 .fillMaxWidth()
                 .clickable(onClick = onAgentDashboard),
             shape = RoundedCornerShape(12.dp),
-            color = if (isDark) Color(0xFF222629) else Color.White,
-            border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9))
+            color = if (isDark) Color(0xFF16251E) else Color(0xFFF0FDF4),
+            border = BorderStroke(1.dp, if (isDark) Color(0xFF1F4E34) else Color(0xFFBBF7D0)),
+            shadowElevation = 2.5.dp,
         ) {
             Row(
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
@@ -2183,7 +2294,32 @@ private fun TravelAgentDashboardCard(
                         color = if (balance < 0) Color(0xFFDC2626) else Color(0xFF16A34A)
                     )
                 }
-                Text("Settlement →", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = RaahiText)
+                Text("Settlement →", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF15803D))
+            }
+        }
+
+        // Active Trip Banner inside card (if available)
+        if (activeIntercityTrip != null) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onOpenActiveTrip(activeIntercityTrip.id) },
+                shape = RoundedCornerShape(12.dp),
+                color = if (isDark) Color(0xFF14243B) else Color(0xFFEFF6FF),
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF1F3D66) else Color(0xFFBFDBFE)),
+                shadowElevation = 3.dp,
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("ACTIVE TRIP", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2563EB))
+                        Text("${activeIntercityTrip.pickupCity} → ${activeIntercityTrip.destCity}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = RaahiText)
+                    }
+                    Text("Track & OTP →", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2563EB))
+                }
             }
         }
 
@@ -2257,8 +2393,8 @@ private fun DriverDashboardCard(
             modifier = Modifier.fillMaxWidth(),
             shape = RaahiCardShape,
             color = Color(0xFF17191B),
-            border = BorderStroke(1.dp, Color(0xFF2E3338)),
-            shadowElevation = 2.dp,
+            border = BorderStroke(1.dp, Color(0xFFF57C00).copy(alpha = 0.35f)),
+            shadowElevation = 3.5.dp,
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
@@ -2284,17 +2420,24 @@ private fun DriverDashboardCard(
                             letterSpacing = 0.5.sp
                         )
                     }
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = Color(0xFF142E20),
+                        border = BorderStroke(1.dp, Color(0xFF1E4B33))
                     ) {
-                        Box(Modifier.size(7.dp).background(RaahiSuccess, CircleShape))
-                        Text(
-                            text = "Paid Routes Open",
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = RaahiSuccess
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Box(Modifier.size(6.dp).background(Color(0xFF22C55E), CircleShape))
+                            Text(
+                                text = "Paid Routes Open",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF4ADE80)
+                            )
+                        }
                     }
                 }
 
@@ -2319,7 +2462,8 @@ private fun DriverDashboardCard(
                     onClick = onOpenMarketplace,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(46.dp),
+                        .height(46.dp)
+                        .shadow(2.dp, RoundedCornerShape(12.dp)),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = RaahiPrimaryButton,
@@ -2351,7 +2495,8 @@ private fun DriverDashboardCard(
                         .clickable { selectedFilterChip = chip },
                     shape = RoundedCornerShape(20.dp),
                     color = if (selected) RaahiPrimaryButton else if (isDark) Color(0xFF222629) else Color.White,
-                    border = BorderStroke(1.dp, if (selected) RaahiPrimaryButton else if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9))
+                    border = BorderStroke(1.dp, if (selected) RaahiPrimaryButton else if (isDark) Color(0xFF2E3338) else Color(0xFFE2E8F0)),
+                    shadowElevation = if (selected) 2.dp else 1.dp
                 ) {
                     Box(
                         modifier = Modifier.padding(vertical = 7.dp),
@@ -2368,35 +2513,41 @@ private fun DriverDashboardCard(
             }
         }
 
-        // Secondary Actions: My Interests & Assigned Trips
+        // Secondary Actions: My Interests & Assigned Trips with Distinctive Tinting & Borders
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             OutlinedButton(
                 onClick = onDriverTrips,
-                modifier = Modifier.weight(1f).height(40.dp),
-                shape = RoundedCornerShape(10.dp),
-                border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = RaahiText),
+                modifier = Modifier.weight(1f).height(42.dp),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF1E3A60) else Color(0xFFBFDBFE)),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = if (isDark) Color(0xFF14243B) else Color(0xFFEFF6FF),
+                    contentColor = Color(0xFF2563EB)
+                ),
                 contentPadding = PaddingValues(horizontal = 6.dp)
             ) {
-                Icon(Icons.Outlined.History, contentDescription = null, modifier = Modifier.size(14.dp), tint = RaahiTextDim)
-                Spacer(Modifier.width(4.dp))
-                Text("My Interests", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                Icon(Icons.Outlined.History, contentDescription = null, modifier = Modifier.size(15.dp), tint = Color(0xFF2563EB))
+                Spacer(Modifier.width(5.dp))
+                Text("My Interests", fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, color = Color(0xFF1D4ED8))
             }
 
             OutlinedButton(
                 onClick = onDriverTrips,
-                modifier = Modifier.weight(1f).height(40.dp),
-                shape = RoundedCornerShape(10.dp),
-                border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = RaahiText),
+                modifier = Modifier.weight(1f).height(42.dp),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF1B3D2B) else Color(0xFFBBF7D0)),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = if (isDark) Color(0xFF132B1E) else Color(0xFFF0FDF4),
+                    contentColor = Color(0xFF16A34A)
+                ),
                 contentPadding = PaddingValues(horizontal = 6.dp)
             ) {
-                Icon(Icons.Outlined.DirectionsCar, contentDescription = null, modifier = Modifier.size(14.dp), tint = RaahiTextDim)
-                Spacer(Modifier.width(4.dp))
-                Text("Assigned Trips", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                Icon(Icons.Outlined.DirectionsCar, contentDescription = null, modifier = Modifier.size(15.dp), tint = Color(0xFF16A34A))
+                Spacer(Modifier.width(5.dp))
+                Text("Assigned Trips", fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, color = Color(0xFF15803D))
             }
         }
 
@@ -2407,8 +2558,9 @@ private fun DriverDashboardCard(
                     .fillMaxWidth()
                     .clickable { onOpenActiveTrip(activeIntercityTrip.id) },
                 shape = RoundedCornerShape(12.dp),
-                color = if (isDark) Color(0xFF222629) else Color.White,
-                border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9))
+                color = if (isDark) Color(0xFF14243B) else Color(0xFFEFF6FF),
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF1F3D66) else Color(0xFFBFDBFE)),
+                shadowElevation = 3.dp,
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
@@ -2416,10 +2568,10 @@ private fun DriverDashboardCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
-                        Text("ASSIGNED ROUTE", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = RaahiTextDim)
-                        Text("${activeIntercityTrip.pickupCity} → ${activeIntercityTrip.destCity} (₹${activeIntercityTrip.fare.toInt()})", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = RaahiPriceText)
+                        Text("ASSIGNED ROUTE", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2563EB))
+                        Text("${activeIntercityTrip.pickupCity} → ${activeIntercityTrip.destCity} (₹${activeIntercityTrip.fare.toInt()})", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF15803D))
                     }
-                    Text("Start Drive →", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = RaahiText)
+                    Text("Start Drive →", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2563EB))
                 }
             }
         }
@@ -2430,9 +2582,9 @@ private fun DriverDashboardCard(
                 .fillMaxWidth()
                 .clickable(onClick = onOpenMarketplace),
             shape = RaahiCardShape,
-            color = if (isDark) Color(0xFF222629) else Color.White,
-            border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
-            shadowElevation = RaahiCardElevation,
+            color = if (isDark) Color(0xFF1F2429) else Color.White,
+            border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3842) else Color(0xFFE2E8F0)),
+            shadowElevation = 3.5.dp,
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
@@ -2450,19 +2602,20 @@ private fun DriverDashboardCard(
                         modifier = Modifier.weight(1f, fill = false)
                     ) {
                         Text("Chandigarh", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = RaahiText)
-                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = RaahiTextDim, modifier = Modifier.size(15.dp))
+                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = RaahiOrange, modifier = Modifier.size(15.dp))
                         Text("Delhi NCR", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = RaahiText)
                     }
                     Surface(
                         shape = RoundedCornerShape(6.dp),
-                        color = if (isDark) Color(0xFF2A2E32) else Color(0xFFEDF0F2),
+                        color = if (isDark) Color(0xFF332214) else Color(0xFFFFF3E0),
+                        border = BorderStroke(1.dp, if (isDark) Color(0xFF4A321E) else Color(0xFFFFD180))
                     ) {
                         Text(
                             text = "By Owner",
                             modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
                             fontSize = 10.5.sp,
                             fontWeight = FontWeight.Bold,
-                            color = RaahiText
+                            color = Color(0xFFEA580C)
                         )
                     }
                 }
@@ -2486,8 +2639,8 @@ private fun DriverDashboardCard(
                 // Dedicated Fare & Action Section: Fare has its own dedicated space with clear boundaries
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = if (isDark) Color(0xFF1E2428) else Color(0xFFF7FAF9),
-                    border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE6EBE9)),
+                    color = if (isDark) Color(0xFF132A1D) else Color(0xFFF0FDF4),
+                    border = BorderStroke(1.dp, if (isDark) Color(0xFF1E4E33) else Color(0xFFBBF7D0)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -2502,14 +2655,14 @@ private fun DriverDashboardCard(
                                 text = "DRIVER EARNING",
                                 fontSize = 9.5.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = RaahiTextDim,
+                                color = Color(0xFF15803D),
                                 letterSpacing = 0.5.sp
                             )
                             Text(
                                 text = "₹4,500",
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 20.sp,
-                                color = RaahiPriceText
+                                color = Color(0xFF15803D)
                             )
                         }
 
@@ -2621,9 +2774,9 @@ private fun VehicleHeroCard(
                 .padding(horizontal = 16.dp)
                 .clickable(onClick = onSetupVehicle),
             shape = RaahiCardShape,
-            color = if (isDark) Color(0xFF222629) else Color.White,
-            border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
-            shadowElevation = RaahiCardElevation,
+            color = if (isDark) Color(0xFF1E2226) else Color.White,
+            border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3640) else Color(0xFFE2E8F0)),
+            shadowElevation = 3.5.dp,
         ) {
             Column(
                 modifier = Modifier
@@ -2643,22 +2796,22 @@ private fun VehicleHeroCard(
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(44.dp)
+                                .size(46.dp)
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(if (isDark) Color(0xFF2A2E32) else Color(0xFFEDF0F2)),
+                                .background(if (isDark) Color(0xFF332214) else Color(0xFFFFF3E0)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 Icons.Outlined.DirectionsCar,
                                 contentDescription = null,
-                                tint = RaahiText,
+                                tint = Color(0xFFEA580C),
                                 modifier = Modifier.size(24.dp)
                             )
                         }
                         Column {
                             Text(
                                 text = "MY VEHICLE",
-                                color = RaahiTextDim,
+                                color = Color(0xFFEA580C),
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 1.sp
@@ -2676,16 +2829,16 @@ private fun VehicleHeroCard(
 
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = if (isDark) Color(0xFF2A2E32) else Color(0xFFF1F5F9),
-                        border = BorderStroke(1.dp, if (isDark) Color(0xFF353B42) else Color(0xFFDFE4EA))
+                        color = if (isDark) Color(0xFF332214) else Color(0xFFFFF3E0),
+                        border = BorderStroke(1.dp, if (isDark) Color(0xFF4A3420) else Color(0xFFFFD180))
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(3.dp)
                         ) {
-                            Icon(Icons.Outlined.Add, contentDescription = null, tint = RaahiText, modifier = Modifier.size(13.dp))
-                            Text("Add", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RaahiText)
+                            Icon(Icons.Outlined.Add, contentDescription = null, tint = Color(0xFFEA580C), modifier = Modifier.size(13.dp))
+                            Text("Add", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFFEA580C))
                         }
                     }
                 }
@@ -2697,7 +2850,7 @@ private fun VehicleHeroCard(
                     lineHeight = 16.sp
                 )
 
-                // Feature pills
+                // Feature pills with colorful tinting
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -2717,9 +2870,9 @@ private fun VehicleHeroCard(
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
         shape = RaahiCardShape,
-        color = if (isDark) Color(0xFF222629) else Color.White,
-        border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
-        shadowElevation = RaahiCardElevation,
+        color = if (isDark) Color(0xFF1E2226) else Color.White,
+        border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3640) else Color(0xFFE2E8F0)),
+        shadowElevation = 3.5.dp,
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -2734,7 +2887,7 @@ private fun VehicleHeroCard(
                 Column(Modifier.weight(1f)) {
                     Text(
                         text = "MY VEHICLE",
-                        color = RaahiTextDim,
+                        color = Color(0xFFEA580C),
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.2.sp
@@ -2743,7 +2896,7 @@ private fun VehicleHeroCard(
                     Text(
                         text = "${vehicle.brand} ${vehicle.model}${if (!vehicle.variant.isNullOrBlank()) " ${vehicle.variant}" else ""}".trim(),
                         color = RaahiText,
-                        fontSize = 17.sp,
+                        fontSize = 17.5.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = RaahiDisplayFont
                     )
@@ -2765,77 +2918,98 @@ private fun VehicleHeroCard(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            // Compact Specification Bar
+            // Compact Specification Bar with Distinct Visual Telemetry Cards
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(10.dp),
-                color = if (isDark) Color(0xFF222629) else Color(0xFFF8FAFC),
-                border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
+                shape = RoundedCornerShape(12.dp),
+                color = if (isDark) Color(0xFF161A1E) else Color(0xFFF8FAFC),
+                border = BorderStroke(1.dp, if (isDark) Color(0xFF272F38) else Color(0xFFE2E8F0)),
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     // Spec 1: Odometer
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Speed,
-                            contentDescription = null,
-                            tint = RaahiText,
-                            modifier = Modifier.size(15.dp)
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .background(if (isDark) Color(0xFF14243B) else Color(0xFFEFF6FF), RoundedCornerShape(8.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Speed,
+                                contentDescription = null,
+                                tint = Color(0xFF2563EB),
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
                         Column {
                             Text("ODOMETER", fontSize = 8.5.sp, color = RaahiTextDim, fontWeight = FontWeight.Bold)
                             Text(if (vehicle.odometerKm > 0) "%,d km".format(vehicle.odometerKm) else "0 km", fontSize = 11.5.sp, color = RaahiText, fontWeight = FontWeight.Bold)
                         }
                     }
 
-                    Box(Modifier.width(1.dp).height(24.dp).background(if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)))
+                    Box(Modifier.width(1.dp).height(24.dp).background(if (isDark) Color(0xFF2E3338) else Color(0xFFE2E8F0)))
 
                     // Spec 2: Fuel Type
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Outlined.LocalGasStation,
-                            contentDescription = null,
-                            tint = RaahiText,
-                            modifier = Modifier.size(15.dp)
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .background(if (isDark) Color(0xFF352611) else Color(0xFFFFFBEB), RoundedCornerShape(8.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.LocalGasStation,
+                                contentDescription = null,
+                                tint = Color(0xFFD97706),
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
                         Column {
                             Text("FUEL", fontSize = 8.5.sp, color = RaahiTextDim, fontWeight = FontWeight.Bold)
                             Text(vehicle.fuelType.lowercase().replaceFirstChar { it.uppercase() }, fontSize = 11.5.sp, color = RaahiText, fontWeight = FontWeight.Bold)
                         }
                     }
 
-                    Box(Modifier.width(1.dp).height(24.dp).background(if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)))
+                    Box(Modifier.width(1.dp).height(24.dp).background(if (isDark) Color(0xFF2E3338) else Color(0xFFE2E8F0)))
 
                     // Spec 3: Car Health Score
                     val (serviceText, serviceTone) = serviceStat(carHealth)
                     val serviceColor = when (serviceTone) {
                         ServiceTone.NO_DATA -> RaahiSecondaryText
-                        ServiceTone.OK -> RaahiSuccess
+                        ServiceTone.OK -> Color(0xFF15803D)
                         ServiceTone.DUE_SOON -> RaahiAmber
                         ServiceTone.OVERDUE -> RaahiRed
                     }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                         modifier = Modifier.clickable(onClick = onCarHealth)
                     ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Favorite,
-                            contentDescription = null,
-                            tint = serviceColor,
-                            modifier = Modifier.size(15.dp)
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .background(if (isDark) Color(0xFF132B1E) else Color(0xFFF0FDF4), RoundedCornerShape(8.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Favorite,
+                                contentDescription = null,
+                                tint = serviceColor,
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
                         Column {
                             Text("HEALTH", fontSize = 8.5.sp, color = RaahiTextDim, fontWeight = FontWeight.Bold)
                             Text(if (carHealth?.score != null) "${carHealth.score}/100" else serviceText, fontSize = 11.5.sp, color = serviceColor, fontWeight = FontWeight.Bold)
@@ -2856,13 +3030,13 @@ private fun VehicleHeroCard(
                 Text(
                     text = "Manage vehicle records & garage",
                     fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = RaahiText,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFEA580C),
                 )
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                     contentDescription = null,
-                    tint = RaahiTextDim,
+                    tint = Color(0xFFEA580C),
                     modifier = Modifier.size(15.dp)
                 )
             }
@@ -2885,19 +3059,47 @@ private fun WeekStrip(metrics: HomeMetrics, onAddFuel: () -> Unit, modifier: Mod
 
 @Composable
 private fun WeekStat(icon: ImageVector, value: String, label: String, modifier: Modifier, onClick: (() -> Unit)? = null) {
+    val isDark = RaahiIsDark
+    val (iconBg, iconTint) = when {
+        label.contains("km", ignoreCase = true) -> (if (isDark) Color(0xFF14243B) else Color(0xFFEFF6FF)) to Color(0xFF2563EB)
+        label.contains("help", ignoreCase = true) -> (if (isDark) Color(0xFF132B1E) else Color(0xFFF0FDF4)) to Color(0xFF16A34A)
+        else -> (if (isDark) Color(0xFF352611) else Color(0xFFFFFBEB)) to Color(0xFFD97706)
+    }
+
     Column(
         modifier
-            .shadow(elevation = 1.dp, shape = RaahiShapeMedium, spotColor = Color(0x0C000000))
-            .background(RaahiGlass, RaahiShapeMedium)
-            .border(1.dp, RaahiBorderSoft, RaahiShapeMedium)
+            .shadow(elevation = 2.5.dp, shape = RoundedCornerShape(14.dp), spotColor = Color(0x10000000))
+            .background(if (isDark) Color(0xFF1E2226) else Color(0xFFFFFFFF), RoundedCornerShape(14.dp))
+            .border(1.dp, if (isDark) Color(0xFF2E3842) else Color(0xFFE2E8F0), RoundedCornerShape(14.dp))
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(vertical = 11.dp, horizontal = 6.dp),
+            .padding(vertical = 12.dp, horizontal = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(icon, contentDescription = null, tint = RaahiText, modifier = Modifier.size(16.dp))
-        Spacer(Modifier.height(4.dp))
-        Text(value, color = RaahiText, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, fontFamily = RaahiDisplayFont)
-        Text(label, color = RaahiTextDim, fontSize = 9.sp, maxLines = 1)
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .background(iconBg, RoundedCornerShape(8.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(16.dp))
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            value,
+            color = RaahiText,
+            fontSize = 13.5.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = RaahiDisplayFont,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+        )
+        Text(
+            label,
+            color = RaahiTextDim,
+            fontSize = 9.sp,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+        )
     }
 }
 
@@ -2909,13 +3111,15 @@ private fun PlanTripCard(
 ) {
     val isDark = RaahiIsDark
     if (activeTrip != null) {
-        GlassCard(
+        Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            borderColor = RaahiCyan.copy(alpha = 0.4f),
-            background = if (isDark) Color(0xFF14273E) else Color(0xFFF0F9FF),
-            onClick = { onOpenActiveTrip(activeTrip.id) }
+                .padding(horizontal = 16.dp)
+                .clickable { onOpenActiveTrip(activeTrip.id) },
+            shape = RoundedCornerShape(18.dp),
+            color = if (isDark) Color(0xFF13243A) else Color(0xFFF0F9FF),
+            border = BorderStroke(1.dp, if (isDark) Color(0xFF1E3D66) else Color(0xFF93C5FD)),
+            shadowElevation = 3.5.dp,
         ) {
             Row(
                 modifier = Modifier.padding(16.dp),
@@ -2923,35 +3127,37 @@ private fun PlanTripCard(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(42.dp)
-                        .clip(CircleShape)
-                        .background(RaahiCyan.copy(alpha = 0.2f)),
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (isDark) Color(0xFF1D3557) else Color(0xFFDBEAFE)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Filled.Navigation, contentDescription = null, tint = RaahiCyan, modifier = Modifier.size(22.dp))
+                    Icon(Icons.Filled.Navigation, contentDescription = null, tint = Color(0xFF2563EB), modifier = Modifier.size(22.dp))
                 }
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("ACTIVE TRIP", color = RaahiCyan, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                        Text("ACTIVE HIGHWAY TRIP", color = Color(0xFF2563EB), fontSize = 10.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
                         Spacer(Modifier.width(8.dp))
-                        Box(Modifier.size(6.dp).clip(CircleShape).background(RaahiGreen))
+                        Box(Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF15803D)))
                     }
                     Spacer(Modifier.height(3.dp))
-                    Text(activeTrip.title, color = RaahiText, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, fontFamily = RaahiDisplayFont)
+                    Text(activeTrip.title, color = RaahiText, fontSize = 15.sp, fontWeight = FontWeight.Bold, fontFamily = RaahiDisplayFont)
                     Text("${activeTrip.distanceKm} km · In progress", color = RaahiTextDim, fontSize = 12.sp)
                 }
-                Text("Resume →", color = RaahiCyan, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Text("Resume →", color = Color(0xFF2563EB), fontSize = 13.sp, fontWeight = FontWeight.Bold)
             }
         }
     } else {
-        GlassCard(
+        Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            borderColor = if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9),
-            background = RaahiGlass,
-            onClick = onPlanTrip
+                .padding(horizontal = 16.dp)
+                .clickable(onClick = onPlanTrip),
+            shape = RoundedCornerShape(18.dp),
+            color = if (isDark) Color(0xFF24201A) else Color(0xFFFFFDF9),
+            border = BorderStroke(1.dp, if (isDark) Color(0xFF45331E) else Color(0xFFFFD180)),
+            shadowElevation = 3.5.dp,
         ) {
             Row(
                 modifier = Modifier.padding(16.dp),
@@ -2959,12 +3165,12 @@ private fun PlanTripCard(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(42.dp)
-                        .clip(CircleShape)
-                        .background(if (isDark) Color(0xFF222629) else Color(0xFFEDF0F2)),
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (isDark) Color(0xFF382514) else Color(0xFFFFF3E0)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Filled.Place, contentDescription = null, tint = RaahiText, modifier = Modifier.size(22.dp))
+                    Icon(Icons.Filled.Place, contentDescription = null, tint = Color(0xFFEF6C00), modifier = Modifier.size(22.dp))
                 }
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
@@ -2972,13 +3178,18 @@ private fun PlanTripCard(
                     Spacer(Modifier.height(2.dp))
                     Text("Fuel stops, pit stops & weather warnings", color = RaahiTextDim, fontSize = 12.sp)
                 }
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (isDark) Color(0xFF2E3338) else Color(0xFFEDF0F2))
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = RaahiPrimaryButton,
+                    shadowElevation = 2.dp
                 ) {
-                    Text("Plan →", color = RaahiText, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Plan →",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                    )
                 }
             }
         }
@@ -2995,21 +3206,29 @@ private fun DailyRow(onOpenDaily: (String) -> Unit) {
         Triple("places", "\uD83D\uDCCD", "Places"), Triple("tips", "\uD83D\uDCA1", "Tips"),
         Triple("fuel", "\u26FD", "Fuel"), Triple("shop", "\uD83D\uDED2", "Shop"), Triple("plans", "\u2B50", "Plans"),
     )
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(horizontal = 18.dp)) {
+    val isDark = RaahiIsDark
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(horizontal = 16.dp)) {
         items(items) { (key, emoji, label) ->
             Column(
                 modifier = Modifier
-                    .width(76.dp)
-                    .shadow(elevation = 1.dp, shape = RaahiShapeMedium, spotColor = Color(0x0C000000))
-                    .background(RaahiGlass, RaahiShapeMedium)
-                    .border(1.dp, RaahiBorderSoft, RaahiShapeMedium)
+                    .width(78.dp)
+                    .shadow(elevation = 2.5.dp, shape = RoundedCornerShape(14.dp), spotColor = Color(0x10000000))
+                    .background(if (isDark) Color(0xFF1E2226) else Color(0xFFFFFFFF), RoundedCornerShape(14.dp))
+                    .border(1.dp, if (isDark) Color(0xFF2E3842) else Color(0xFFE2E8F0), RoundedCornerShape(14.dp))
                     .clickable { onOpenDaily(key) }
-                    .padding(vertical = 14.dp),
+                    .padding(vertical = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text(emoji, fontSize = 18.sp)
-                Spacer(Modifier.height(4.dp))
-                Text(label, color = RaahiTextDim, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .background(if (isDark) Color(0xFF2A313A) else Color(0xFFF1F5F9), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(emoji, fontSize = 17.sp)
+                }
+                Spacer(Modifier.height(6.dp))
+                Text(label, color = RaahiText, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             }
         }
     }
@@ -3049,8 +3268,10 @@ fun LocationSelectionDialog(
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var isDetectingGps by remember { mutableStateOf(false) }
+    var isResolvingCustomLocation by remember { mutableStateOf(false) }
     var gpsError by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val isDark = RaahiIsDark
 
     val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -3075,9 +3296,10 @@ fun LocationSelectionDialog(
     }
 
     val filteredCities = remember(searchQuery) {
-        if (searchQuery.isBlank()) POPULAR_CITIES
-        else POPULAR_CITIES.filter {
-            it.name.contains(searchQuery, ignoreCase = true) || it.state.contains(searchQuery, ignoreCase = true)
+        if (searchQuery.isBlank()) {
+            CityCatalogue.popularCities()
+        } else {
+            CityCatalogue.filter(searchQuery)
         }
     }
 
@@ -3170,7 +3392,7 @@ fun LocationSelectionDialog(
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    placeholder = { Text("Search city (e.g. Mohali, Zirakpur)", fontSize = 12.5.sp, color = RaahiTextFaint) },
+                    placeholder = { Text("Search city (e.g. Abohar, Chandigarh, Jaipur)", fontSize = 12.5.sp, color = RaahiTextFaint) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),
                     singleLine = true,
@@ -3183,7 +3405,6 @@ fun LocationSelectionDialog(
                         unfocusedTextColor = RaahiText
                     )
                 )
-
 
                 Spacer(Modifier.height(12.dp))
 
@@ -3218,10 +3439,44 @@ fun LocationSelectionDialog(
                             Spacer(Modifier.width(10.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(city.name, color = if (isSelected) RaahiOrange else RaahiText, fontSize = 13.5.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium)
-                                Text(city.state, color = RaahiTextDim, fontSize = 10.5.sp)
+                                Text("${city.region} • ${city.state}", color = RaahiTextDim, fontSize = 10.5.sp)
                             }
                             if (isSelected) {
                                 Text("Selected", color = RaahiOrange, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    if (filteredCities.isEmpty() && searchQuery.isNotBlank()) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(RaahiOrange.copy(alpha = 0.08f))
+                                .clickable(enabled = !isResolvingCustomLocation) {
+                                    coroutineScope.launch {
+                                        isResolvingCustomLocation = true
+                                        val resolved = LocationResolver.resolveCoordinates(context, searchQuery)
+                                        isResolvingCustomLocation = false
+                                        val lat = resolved?.first ?: 30.1453
+                                        val lng = resolved?.second ?: 74.1993
+                                        onSelectCity(searchQuery.trim(), lat, lng)
+                                        onDismiss()
+                                    }
+                                }
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (isResolvingCustomLocation) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), color = RaahiOrange, strokeWidth = 2.dp)
+                            } else {
+                                Icon(Icons.Filled.Place, contentDescription = null, tint = RaahiOrange, modifier = Modifier.size(16.dp))
+                            }
+                            Spacer(Modifier.width(10.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text("Use \"$searchQuery\"", color = RaahiOrange, fontSize = 13.5.sp, fontWeight = FontWeight.Bold)
+                                Text("Resolve coordinates for village / town", color = RaahiTextDim, fontSize = 10.5.sp)
                             }
                         }
                     }

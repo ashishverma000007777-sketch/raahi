@@ -47,22 +47,76 @@ public class IntercityTripService {
         this.notificationService = notificationService;
     }
 
-    public static BigDecimal calculateOwnerSuggestedFare(BigDecimal distanceKm) {
+    public static BigDecimal getRecommendedRatePerKm(String vehicleCategory) {
+        if (vehicleCategory == null) return new BigDecimal("15");
+        return switch (vehicleCategory.trim().toUpperCase()) {
+            case "SUV" -> new BigDecimal("20");
+            case "LUXURY" -> new BigDecimal("30");
+            case "TRAVELLER" -> new BigDecimal("25");
+            case "HATCHBACK", "SEDAN" -> new BigDecimal("15");
+            default -> new BigDecimal("15");
+        };
+    }
+
+    public static BigDecimal getMinimumRatePerKm(String vehicleCategory, BigDecimal distanceKm) {
+        if (vehicleCategory == null) return new BigDecimal("12");
+        String cat = vehicleCategory.trim().toUpperCase();
+        boolean shortTrip = distanceKm != null && distanceKm.compareTo(new BigDecimal("50")) <= 0;
+        return switch (cat) {
+            case "SUV" -> shortTrip ? new BigDecimal("20") : new BigDecimal("18");
+            case "LUXURY" -> shortTrip ? new BigDecimal("30") : new BigDecimal("25");
+            case "TRAVELLER" -> shortTrip ? new BigDecimal("25") : new BigDecimal("22");
+            case "HATCHBACK", "SEDAN" -> shortTrip ? new BigDecimal("15") : new BigDecimal("12");
+            default -> shortTrip ? new BigDecimal("15") : new BigDecimal("12");
+        };
+    }
+
+    public static BigDecimal calculateOwnerSuggestedFare(BigDecimal distanceKm, String vehicleCategory) {
         if (distanceKm == null || distanceKm.compareTo(BigDecimal.ZERO) <= 0) {
             return BigDecimal.ZERO;
         }
-        return distanceKm.multiply(new BigDecimal("15")).setScale(0, RoundingMode.CEILING);
+        BigDecimal rate = getRecommendedRatePerKm(vehicleCategory);
+        return distanceKm.multiply(rate).setScale(0, RoundingMode.CEILING);
+    }
+
+    public static BigDecimal calculateOwnerMinimumFare(BigDecimal distanceKm, String vehicleCategory) {
+        if (distanceKm == null || distanceKm.compareTo(BigDecimal.ZERO) <= 0) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal rate = getMinimumRatePerKm(vehicleCategory, distanceKm);
+        return distanceKm.multiply(rate).setScale(0, RoundingMode.CEILING);
+    }
+
+    public static BigDecimal calculateOwnerSuggestedFare(BigDecimal distanceKm) {
+        return calculateOwnerSuggestedFare(distanceKm, "SEDAN");
     }
 
     public static BigDecimal calculateOwnerMinimumFare(BigDecimal distanceKm) {
-        if (distanceKm == null || distanceKm.compareTo(BigDecimal.ZERO) <= 0) {
-            return BigDecimal.ZERO;
+        return calculateOwnerMinimumFare(distanceKm, "SEDAN");
+    }
+
+    public boolean hasScheduleConflict(UUID driverId, Instant newStart, Integer newDurationMin, UUID excludeTripId) {
+        if (driverId == null || newStart == null) return false;
+        int duration1 = (newDurationMin != null && newDurationMin > 0) ? newDurationMin : 180;
+        int bufferMin = 60; // 1-hour conflict buffer
+        Instant newEnd = newStart.plus(duration1 + bufferMin, java.time.temporal.ChronoUnit.MINUTES);
+        Instant effNewStart = newStart.minus(bufferMin, java.time.temporal.ChronoUnit.MINUTES);
+
+        List<IntercityTrip> scheduledTrips = tripRepository.findScheduledTripsForDriver(driverId);
+        for (IntercityTrip t : scheduledTrips) {
+            if (excludeTripId != null && t.getId().equals(excludeTripId)) {
+                continue;
+            }
+            Instant existStart = t.getDepartureTime();
+            int duration2 = (t.getEstimatedDurationMin() != null && t.getEstimatedDurationMin() > 0) ? t.getEstimatedDurationMin() : 180;
+            Instant existEnd = existStart.plus(duration2 + bufferMin, java.time.temporal.ChronoUnit.MINUTES);
+            Instant effExistStart = existStart.minus(bufferMin, java.time.temporal.ChronoUnit.MINUTES);
+
+            if (effNewStart.isBefore(existEnd) && effExistStart.isBefore(newEnd)) {
+                return true;
+            }
         }
-        if (distanceKm.compareTo(new BigDecimal("50")) <= 0) {
-            return distanceKm.multiply(new BigDecimal("15")).setScale(0, RoundingMode.CEILING);
-        } else {
-            return distanceKm.multiply(new BigDecimal("12")).setScale(0, RoundingMode.CEILING);
-        }
+        return false;
     }
 
     @Transactional
@@ -74,7 +128,7 @@ public class IntercityTripService {
             throw ApiException.forbidden("ACCOUNT_SUSPENDED", "Account is suspended");
         }
 
-        if (req.departureTime.isBefore(Instant.now().minusSeconds(300))) {
+        if (req.departureTime == null || req.departureTime.isBefore(Instant.now().minusSeconds(120))) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_DEPARTURE_TIME", "Departure time cannot be in the past");
         }
 
@@ -121,27 +175,30 @@ public class IntercityTripService {
             if (custFare == null || custFare.compareTo(BigDecimal.ZERO) <= 0) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_FARE", "Customer fare must be greater than 0");
             }
-            BigDecimal drvPayout = req.driverPayout != null ? req.driverPayout : custFare;
-            BigDecimal comm = req.agentCommission != null ? req.agentCommission : custFare.subtract(drvPayout);
+            BigDecimal comm = req.agentCommission != null ? req.agentCommission : BigDecimal.ZERO;
             if (comm.compareTo(BigDecimal.ZERO) < 0) {
-                comm = BigDecimal.ZERO;
+                throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_COMMISSION", "Agent commission cannot be negative");
             }
+            if (comm.compareTo(custFare) >= 0) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_COMMISSION", "Agent commission must be strictly less than customer fare");
+            }
+            BigDecimal drvPayout = custFare.subtract(comm);
 
             trip.setFare(custFare);
             trip.setCustomerFare(custFare);
             trip.setDriverPayout(drvPayout);
             trip.setAgentCommission(comm);
-            trip.setPaymentRecipient(req.paymentRecipient != null ? req.paymentRecipient : "DRIVER");
-            trip.setSettlementResponsibility(req.settlementResponsibility != null ? req.settlementResponsibility : "DRIVER_TO_AGENT");
+            trip.setPaymentRecipient("DRIVER");
+            trip.setSettlementResponsibility("DRIVER_TO_AGENT");
         } else {
             // OWNER ride
             if (req.estimatedDistanceKm == null || req.estimatedDistanceKm.compareTo(BigDecimal.ZERO) <= 0) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_DISTANCE", "Estimated road distance is required for owner rides");
             }
-            BigDecimal minFare = calculateOwnerMinimumFare(req.estimatedDistanceKm);
+            BigDecimal minFare = calculateOwnerMinimumFare(req.estimatedDistanceKm, req.vehicleCategory);
             if (req.fare == null || req.fare.compareTo(minFare) < 0) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "FARE_BELOW_MINIMUM",
-                        "Fare ₹" + req.fare + " is below minimum allowed fare of ₹" + minFare);
+                        "Fare ₹" + req.fare + " is below minimum allowed fare of ₹" + minFare + " for " + req.vehicleCategory);
             }
             trip.setFare(req.fare);
             trip.setCustomerFare(req.fare);
@@ -215,6 +272,10 @@ public class IntercityTripService {
 
     @Transactional(readOnly = true)
     public IntercityTripDto getActiveTrip(UUID userId) {
+        List<IntercityTrip> ongoingForDriver = tripRepository.findOngoingTripsForDriver(userId);
+        if (!ongoingForDriver.isEmpty()) {
+            return toDto(ongoingForDriver.get(0), userId);
+        }
         List<IntercityTrip> activeForDriver = tripRepository.findActiveTripsForDriver(userId);
         if (!activeForDriver.isEmpty()) {
             return toDto(activeForDriver.get(0), userId);
@@ -250,8 +311,8 @@ public class IntercityTripService {
             throw new ApiException(HttpStatus.CONFLICT, "ALREADY_APPLIED", "You have already applied for this trip");
         }
 
-        if (tripRepository.countActiveTripsForDriver(driverId) > 0) {
-            throw new ApiException(HttpStatus.CONFLICT, "DRIVER_HAS_ACTIVE_TRIP", "You already have an active intercity booking. Complete your current trip before applying for new ones.");
+        if (hasScheduleConflict(driverId, trip.getDepartureTime(), trip.getEstimatedDurationMin(), trip.getId())) {
+            throw new ApiException(HttpStatus.CONFLICT, "SCHEDULE_CONFLICT", "You have a conflicting booking during this trip's time window.");
         }
 
         IntercityTripApplication app = new IntercityTripApplication();
@@ -305,8 +366,8 @@ public class IntercityTripService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "DRIVER_SUSPENDED", "Selected driver is not eligible");
         }
 
-        if (tripRepository.countActiveTripsForDriver(selectedDriverId) > 0) {
-            throw new ApiException(HttpStatus.CONFLICT, "DRIVER_ALREADY_BUSY", "Selected driver is already committed to another active trip.");
+        if (hasScheduleConflict(selectedDriverId, trip.getDepartureTime(), trip.getEstimatedDurationMin(), trip.getId())) {
+            throw new ApiException(HttpStatus.CONFLICT, "DRIVER_SCHEDULE_CONFLICT", "Selected driver has a conflicting booking during this trip schedule.");
         }
 
         // Generate 6-digit pickup OTP
@@ -350,6 +411,12 @@ public class IntercityTripService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_STATUS_TRANSITION", "Trip cannot transition to ARRIVED from " + trip.getStatus());
         }
 
+        List<IntercityTrip> ongoing = tripRepository.findOngoingTripsForDriver(driverId);
+        boolean otherOngoing = ongoing.stream().anyMatch(t -> !t.getId().equals(tripId));
+        if (otherOngoing) {
+            throw new ApiException(HttpStatus.CONFLICT, "DRIVER_ALREADY_BUSY", "You have another active trip currently in progress. Complete it first.");
+        }
+
         trip.setStatus(IntercityTrip.Status.ARRIVED);
         trip.setArrivedAt(Instant.now());
         IntercityTrip saved = tripRepository.save(trip);
@@ -382,15 +449,9 @@ public class IntercityTripService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_OTP", "Invalid pickup OTP. Please verify with agent.");
         }
 
-        // Generate completion OTP only for AGENT trips
-        if (trip.getRideType() == IntercityTrip.RideType.AGENT) {
-            String completionOtp = String.format("%06d", secureRandom.nextInt(1_000_000));
-            trip.setCompletionOtp(completionOtp);
-            trip.setCompletionOtpAttempts(0);
-        } else {
-            trip.setCompletionOtp(null);
-            trip.setCompletionOtpAttempts(0);
-        }
+        // Completion OTP is NOT generated at pickup. It is generated only after agent confirms commission payment.
+        trip.setCompletionOtp(null);
+        trip.setCompletionOtpAttempts(0);
 
         trip.setStatus(IntercityTrip.Status.IN_PROGRESS);
         trip.setStartedAt(Instant.now());
@@ -522,8 +583,14 @@ public class IntercityTripService {
             throw ApiException.forbidden("NOT_ASSIGNED_DRIVER", "Only the assigned driver can complete this trip");
         }
 
-        if (trip.getStatus() != IntercityTrip.Status.IN_PROGRESS && trip.getStatus() != IntercityTrip.Status.SETTLEMENT_CONFIRMED) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_STATUS_TRANSITION", "Trip must have confirmed settlement or be in progress to complete");
+        if (trip.getRideType() == IntercityTrip.RideType.AGENT) {
+            if (trip.getStatus() != IntercityTrip.Status.SETTLEMENT_CONFIRMED) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "SETTLEMENT_NOT_CONFIRMED", "Agent commission settlement must be confirmed before entering completion OTP");
+            }
+        } else {
+            if (trip.getStatus() != IntercityTrip.Status.IN_PROGRESS && trip.getStatus() != IntercityTrip.Status.ARRIVED) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_STATUS_TRANSITION", "Trip must be in progress to complete");
+            }
         }
 
         if (trip.getCompletionOtpAttempts() >= 5) {
@@ -539,6 +606,7 @@ public class IntercityTripService {
         trip.setStatus(IntercityTrip.Status.COMPLETED);
         trip.setCompletedAt(Instant.now());
         trip.setPaymentStatus(IntercityTrip.PaymentStatus.PAID);
+        trip.setCompletionOtp(null); // Invalidate OTP to prevent replay attacks
         IntercityTrip saved = tripRepository.save(trip);
 
         // Update driver total helps / completed trips
@@ -743,10 +811,9 @@ public class IntercityTripService {
             if (t.getStatus() == IntercityTrip.Status.ASSIGNED || t.getStatus() == IntercityTrip.Status.ARRIVED) {
                 dto.pickupOtp = t.getPickupOtp();
             }
-            // AGENT sees completion OTP during active/settled trip so they can verify destination arrival
+            // AGENT sees completion OTP only after confirming commission settlement
             if (t.getRideType() == IntercityTrip.RideType.AGENT &&
-               (t.getStatus() == IntercityTrip.Status.IN_PROGRESS || t.getStatus() == IntercityTrip.Status.AWAITING_AGENT_SETTLEMENT ||
-                t.getStatus() == IntercityTrip.Status.SETTLEMENT_SUBMITTED || t.getStatus() == IntercityTrip.Status.SETTLEMENT_CONFIRMED)) {
+                t.getStatus() == IntercityTrip.Status.SETTLEMENT_CONFIRMED) {
                 dto.completionOtp = t.getCompletionOtp();
             }
         } else if (isAssignedDriver) {

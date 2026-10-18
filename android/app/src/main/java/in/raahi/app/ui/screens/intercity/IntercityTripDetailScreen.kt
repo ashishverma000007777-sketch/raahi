@@ -27,6 +27,23 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import android.content.Intent
+import android.net.Uri
+import android.os.Bundle
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.MapView
+import com.google.android.gms.maps.MapsInitializer
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
+import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.LatLngBounds
+import com.google.android.gms.maps.model.MarkerOptions
+import com.google.android.gms.maps.model.PolylineOptions
+import `in`.raahi.app.data.CityCatalogue
 import `in`.raahi.app.network.IntercityTripApplicationDto
 import `in`.raahi.app.network.IntercityTripDto
 import `in`.raahi.app.ui.theme.*
@@ -278,26 +295,48 @@ fun IntercityTripDetailScreen(
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Column {
-                                        Text("Departure Time", fontSize = 12.sp, color = RaahiTextDim)
-                                        Text(trip.departureTime.take(16).replace("T", " "), fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = RaahiText)
+                                        Text("Departure Time (24h)", fontSize = 12.sp, color = RaahiTextDim)
+                                        val formattedDeparture = try {
+                                            val instant = java.time.Instant.parse(trip.departureTime)
+                                            val zdt = instant.atZone(java.time.ZoneId.systemDefault())
+                                            zdt.format(java.time.format.DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm"))
+                                        } catch (_: Exception) {
+                                            trip.departureTime.take(16).replace("T", " ")
+                                        }
+                                        Text(formattedDeparture, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = RaahiText)
                                     }
                                     if (trip.returnTime != null) {
                                         Column {
-                                            Text("Return Time", fontSize = 12.sp, color = RaahiTextDim)
-                                            Text(trip.returnTime.take(16).replace("T", " "), fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = RaahiText)
+                                            Text("Return Time (24h)", fontSize = 12.sp, color = RaahiTextDim)
+                                            val formattedReturn = try {
+                                                val instant = java.time.Instant.parse(trip.returnTime)
+                                                val zdt = instant.atZone(java.time.ZoneId.systemDefault())
+                                                zdt.format(java.time.format.DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm"))
+                                            } catch (_: Exception) {
+                                                trip.returnTime.take(16).replace("T", " ")
+                                            }
+                                            Text(formattedReturn, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = RaahiText)
                                         }
                                     }
                                 }
 
                                 if (!trip.specialInstructions.isNullOrBlank()) {
                                     HorizontalDivider(color = RaahiCardBorder)
-                                    Column {
-                                        Text("Special Instructions", fontSize = 12.sp, color = RaahiTextDim)
-                                        Text(trip.specialInstructions, fontSize = 13.sp, color = RaahiText)
+                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text(
+                                            if (trip.tripType == "ROUND_TRIP") "Tour Itinerary & Instructions" else "Special Instructions",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = RaahiTextDim
+                                        )
+                                        Text(trip.specialInstructions, fontSize = 13.sp, color = RaahiText, lineHeight = 18.sp)
                                     }
                                 }
                             }
                         }
+
+                        // Intercity Route Map Card
+                        TripRouteMapCard(trip)
 
                         // Counterparty Information Card (Agency or Driver)
                         Surface(
@@ -355,15 +394,11 @@ fun IntercityTripDetailScreen(
                                         Text("Agent Commission", fontSize = 13.sp, color = RaahiTextDim)
                                         Text("₹${(trip.agentCommission ?: 0.0).toInt()}", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = RaahiPriceText)
                                     }
-                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                        Text("Settlement Responsibility", fontSize = 13.sp, color = RaahiTextDim)
-                                        Text(trip.settlementResponsibility?.replace("_", " ") ?: "Driver to Agent", fontWeight = FontWeight.Medium, fontSize = 12.sp, color = RaahiText)
-                                    }
                                 } else {
                                     HorizontalDivider(color = RaahiCardBorder)
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                         Text("Owner Journey", fontSize = 13.sp, color = RaahiTextDim)
-                                        Text("Zero Commission (Free)", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = RaahiPrimaryTeal)
+                                        Text("0% Commission • Keep 100% Fare", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = RaahiPrimaryTeal)
                                     }
                                     if (trip.estimatedDistanceKm != null) {
                                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -638,3 +673,141 @@ private fun BadgePill(text: String, textColor: Color, bgColor: Color) {
         Text(text = text, color = textColor, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
     }
 }
+
+@Composable
+private fun TripRouteMapCard(trip: IntercityTripDto) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    val pCoords = remember(trip) {
+        if (trip.pickupLat != 0.0 && trip.pickupLng != 0.0) {
+            trip.pickupLat to trip.pickupLng
+        } else {
+            CityCatalogue.getCoordinates(trip.pickupCity) ?: (30.7333 to 76.7794)
+        }
+    }
+
+    val dCoords = remember(trip) {
+        if (trip.destLat != 0.0 && trip.destLng != 0.0) {
+            trip.destLat to trip.destLng
+        } else {
+            CityCatalogue.getCoordinates(trip.destCity) ?: (28.6139 to 77.2090)
+        }
+    }
+
+    val mapView = remember {
+        try {
+            MapsInitializer.initialize(context.applicationContext)
+        } catch (_: Exception) {}
+        MapView(context).apply {
+            onCreate(Bundle())
+        }
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> mapView.onStart()
+                Lifecycle.Event.ON_RESUME -> mapView.onResume()
+                Lifecycle.Event.ON_PAUSE -> mapView.onPause()
+                Lifecycle.Event.ON_STOP -> mapView.onStop()
+                Lifecycle.Event.ON_DESTROY -> mapView.onDestroy()
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            try {
+                mapView.onDestroy()
+            } catch (_: Exception) {}
+        }
+    }
+
+    LaunchedEffect(pCoords, dCoords) {
+        mapView.getMapAsync { googleMap ->
+            googleMap.clear()
+            val pLatLng = LatLng(pCoords.first, pCoords.second)
+            val dLatLng = LatLng(dCoords.first, dCoords.second)
+
+            googleMap.addMarker(
+                MarkerOptions()
+                    .position(pLatLng)
+                    .title("Pickup: ${trip.pickupCity}")
+                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
+            )
+            googleMap.addMarker(
+                MarkerOptions()
+                    .position(dLatLng)
+                    .title("Destination: ${trip.destCity}")
+                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE))
+            )
+
+            googleMap.addPolyline(
+                PolylineOptions()
+                    .add(pLatLng, dLatLng)
+                    .width(8f)
+                    .color(android.graphics.Color.parseColor("#EF6C00"))
+                    .geodesic(true)
+            )
+
+            try {
+                val bounds = LatLngBounds.builder().include(pLatLng).include(dLatLng).build()
+                googleMap.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 90))
+            } catch (_: Exception) {
+                googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(pLatLng, 10f))
+            }
+        }
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RaahiCardShape,
+        color = RaahiCardWhite,
+        border = androidx.compose.foundation.BorderStroke(1.dp, RaahiCardBorder),
+        shadowElevation = RaahiCardElevation,
+    ) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Intercity Route Overview", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = RaahiText)
+                if (trip.estimatedDistanceKm != null) {
+                    Text("${trip.estimatedDistanceKm.toInt()} km", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RaahiCoralPrimary)
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(150.dp)
+                    .clip(RoundedCornerShape(12.dp))
+            ) {
+                AndroidView(
+                    factory = { mapView },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+
+            Button(
+                onClick = {
+                    val uri = Uri.parse("https://www.google.com/maps/dir/?api=1&origin=${pCoords.first},${pCoords.second}&destination=${dCoords.first},${dCoords.second}&travelmode=driving")
+                    val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(intent)
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = RaahiCoralPrimary),
+            ) {
+                Icon(Icons.Outlined.Navigation, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.White)
+                Spacer(Modifier.width(8.dp))
+                Text("Open Navigation in Maps", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.White)
+            }
+        }
+    }
+}
+

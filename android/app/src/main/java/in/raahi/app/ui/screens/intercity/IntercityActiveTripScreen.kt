@@ -457,10 +457,6 @@ fun IntercityActiveTripScreen(
                                                 Text("Agent Commission", fontSize = 12.sp, color = RaahiTextDim)
                                                 Text("₹${(trip.agentCommission ?: 0.0).toInt()}", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = RaahiPriceText)
                                             }
-                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                                Text("Settlement Responsibility", fontSize = 12.sp, color = RaahiTextDim)
-                                                Text(trip.settlementResponsibility?.replace("_", " ") ?: "Driver to Agent", fontWeight = FontWeight.Medium, fontSize = 11.sp, color = RaahiText)
-                                            }
                                         }
                                     }
                                 }
@@ -537,8 +533,8 @@ fun IntercityActiveTripScreen(
                                         }
                                     }
 
-                                    // Agent Completion OTP Banner
-                                    if (!isOwnerTrip && trip.completionOtp != null && (trip.status == "SETTLEMENT_CONFIRMED" || trip.status == "IN_PROGRESS")) {
+                                    // Agent Completion OTP Banner (Issued strictly after commission settlement is confirmed)
+                                    if (!isOwnerTrip && trip.completionOtp != null && trip.status == "SETTLEMENT_CONFIRMED") {
                                         Surface(
                                             modifier = Modifier.fillMaxWidth(),
                                             shape = RoundedCornerShape(14.dp),

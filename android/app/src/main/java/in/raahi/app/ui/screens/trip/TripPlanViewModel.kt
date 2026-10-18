@@ -1,15 +1,23 @@
 package `in`.raahi.app.ui.screens.trip
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.android.gms.maps.model.LatLng
 import dagger.hilt.android.lifecycle.HiltViewModel
-import `in`.raahi.app.data.LocationProvider
+import dagger.hilt.android.qualifiers.ApplicationContext
 import `in`.raahi.app.data.AuthRepository
+import `in`.raahi.app.data.GoogleRoutesProvider
+import `in`.raahi.app.data.GoogleRoutesStatus
+import `in`.raahi.app.data.LocationProvider
+import `in`.raahi.app.data.LocationResolver
 import `in`.raahi.app.data.TripRepository
 import `in`.raahi.app.data.VehicleRepository
 import `in`.raahi.app.network.CreateTripRequest
-import `in`.raahi.app.network.toUserFriendlyMessage
 import `in`.raahi.app.network.VehicleDto
+import `in`.raahi.app.network.toUserFriendlyMessage
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -18,21 +26,35 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import javax.inject.Inject
+import kotlin.math.roundToInt
 
 data class TripPlanUiState(
     val startLocationName: String = "Current Location",
     val startLat: Double = 28.6139,
     val startLng: Double = 77.2090,
     val destLocationName: String = "",
-    val destLat: Double = 32.2396, // default e.g. Manali coordinate for routing if entered as text
+    val destLat: Double = 32.2396,
     val destLng: Double = 77.1887,
+    val departureDateTime: LocalDateTime = LocalDateTime.now().plusHours(1).withMinute(0).withSecond(0),
+    val isDepartureValid: Boolean = true,
     val vehicle: VehicleDto? = null,
     val fuelType: String = "PETROL",
     val currentOdometer: String = "",
     val tankFull: Boolean = false,
     val passengers: Int = 1,
     val preferredRoute: String = "Fastest Highway",
+    val routePolyline: List<LatLng> = emptyList(),
+    val routeDistanceKm: Double? = null,
+    val routeDurationMinutes: Int? = null,
+    val routeDurationFormatted: String? = null,
+    val routeEstimatedFuelLitres: Double? = null,
+    val routeEstimatedFuelCost: Double? = null,
+    val isCalculatingRoute: Boolean = false,
+    val isResolvingLocation: Boolean = false,
     val isLoading: Boolean = false,
     val isSubmitting: Boolean = false,
     val error: String? = null,
@@ -48,6 +70,7 @@ class TripPlanViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val vehicleRepository: VehicleRepository,
     private val locationProvider: LocationProvider,
+    @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(TripPlanUiState())
@@ -55,6 +78,11 @@ class TripPlanViewModel @Inject constructor(
 
     private val _events = MutableSharedFlow<TripPlanEvent>()
     val events: SharedFlow<TripPlanEvent> = _events.asSharedFlow()
+
+    private val routesProvider = GoogleRoutesProvider(context)
+    private var resolveStartJob: Job? = null
+    private var resolveDestJob: Job? = null
+    private var routeJob: Job? = null
 
     init {
         loadPreTripData()
@@ -80,16 +108,17 @@ class TripPlanViewModel @Inject constructor(
                 // Auto-obtain current location
                 val loc = locationProvider.getCurrentLocation()
                 if (loc != null) {
+                    val resolvedName = LocationResolver.reverseGeocode(context, loc.lat, loc.lng)
                     _state.update {
                         it.copy(
                             startLat = loc.lat,
                             startLng = loc.lng,
-                            startLocationName = "Current Location"
+                            startLocationName = resolvedName?.let { name -> "$name (Current Location)" } ?: "Current Location"
                         )
                     }
                 }
-            } catch (e: Exception) {
-                // Keep default baseline, do not break
+            } catch (_: Exception) {
+                // Keep baseline default coordinates
             } finally {
                 _state.update { it.copy(isLoading = false) }
             }
@@ -97,20 +126,171 @@ class TripPlanViewModel @Inject constructor(
     }
 
     fun onStartLocationChanged(name: String) {
-        _state.update { it.copy(startLocationName = name) }
+        _state.update { it.copy(startLocationName = name, error = null) }
+        resolveStartJob?.cancel()
+        resolveStartJob = viewModelScope.launch {
+            delay(400) // debounce
+            _state.update { it.copy(isResolvingLocation = true) }
+            val coords = LocationResolver.resolveCoordinates(context, name)
+            _state.update { it.copy(isResolvingLocation = false) }
+            if (coords != null) {
+                _state.update { it.copy(startLat = coords.first, startLng = coords.second) }
+                calculateDrivingRoute()
+            }
+        }
     }
 
     fun onDestinationChanged(name: String) {
-        // Resolve rough lat/lng based on prominent Indian road trip destinations if matched, else offset
-        val (lat, lng) = resolveCoordinates(name)
+        _state.update { it.copy(destLocationName = name, error = null) }
+        resolveDestJob?.cancel()
+        resolveDestJob = viewModelScope.launch {
+            delay(400) // debounce
+            _state.update { it.copy(isResolvingLocation = true) }
+            val coords = LocationResolver.resolveCoordinates(context, name)
+            _state.update { it.copy(isResolvingLocation = false) }
+            if (coords != null) {
+                _state.update { it.copy(destLat = coords.first, destLng = coords.second) }
+                calculateDrivingRoute()
+            }
+        }
+    }
+
+    fun onStartCoordsUpdated(lat: Double, lng: Double) {
+        viewModelScope.launch {
+            val name = LocationResolver.reverseGeocode(context, lat, lng)
+            _state.update {
+                it.copy(
+                    startLat = lat,
+                    startLng = lng,
+                    startLocationName = name ?: "${String.format(Locale.ROOT, "%.4f", lat)}, ${String.format(Locale.ROOT, "%.4f", lng)}"
+                )
+            }
+            calculateDrivingRoute()
+        }
+    }
+
+    fun onDestCoordsUpdated(lat: Double, lng: Double) {
+        viewModelScope.launch {
+            val name = LocationResolver.reverseGeocode(context, lat, lng)
+            _state.update {
+                it.copy(
+                    destLat = lat,
+                    destLng = lng,
+                    destLocationName = name ?: "${String.format(Locale.ROOT, "%.4f", lat)}, ${String.format(Locale.ROOT, "%.4f", lng)}"
+                )
+            }
+            calculateDrivingRoute()
+        }
+    }
+
+    fun swapLocations() {
+        val current = _state.value
+        if (current.destLocationName.isBlank()) return
         _state.update {
             it.copy(
-                destLocationName = name,
-                destLat = lat,
-                destLng = lng,
-                error = null
+                startLocationName = it.destLocationName,
+                startLat = it.destLat,
+                startLng = it.destLng,
+                destLocationName = it.startLocationName,
+                destLat = it.startLat,
+                destLng = it.startLng
             )
         }
+        calculateDrivingRoute()
+    }
+
+    fun onDepartureDateTimeChanged(newDateTime: LocalDateTime) {
+        val isValid = newDateTime.isAfter(LocalDateTime.now().minusMinutes(2))
+        _state.update {
+            it.copy(
+                departureDateTime = newDateTime,
+                isDepartureValid = isValid,
+                error = if (!isValid) "Departure date and time cannot be in the past" else null
+            )
+        }
+    }
+
+    fun calculateDrivingRoute() {
+        val current = _state.value
+        if (current.destLocationName.isBlank()) return
+
+        routeJob?.cancel()
+        routeJob = viewModelScope.launch {
+            _state.update { it.copy(isCalculatingRoute = true) }
+            try {
+                when (val res = routesProvider.computeDrivingRoute(current.startLat, current.startLng, current.destLat, current.destLng)) {
+                    is GoogleRoutesStatus.Success -> {
+                        val route = res.route
+                        val fuelEst = calculateFuel(current.fuelType, route.distanceKm)
+                        _state.update {
+                            it.copy(
+                                routePolyline = route.points,
+                                routeDistanceKm = route.distanceKm,
+                                routeDurationMinutes = route.durationMinutes,
+                                routeDurationFormatted = route.formattedEta,
+                                routeEstimatedFuelLitres = fuelEst.first,
+                                routeEstimatedFuelCost = fuelEst.second,
+                                isCalculatingRoute = false,
+                                error = null
+                            )
+                        }
+                    }
+                    is GoogleRoutesStatus.Unavailable -> {
+                        // Fallback straight-line baseline if API is rate-limited or offline
+                        val straightKm = haversineKm(current.startLat, current.startLng, current.destLat, current.destLng) * 1.25
+                        val dist = (straightKm * 10.0).roundToInt() / 10.0
+                        val durMin = (dist / 55.0 * 60.0).roundToInt().coerceAtLeast(5)
+                        val formattedEta = if (durMin < 60) "$durMin min" else "${durMin / 60}h ${durMin % 60}m"
+                        val fuelEst = calculateFuel(current.fuelType, dist)
+                        _state.update {
+                            it.copy(
+                                routePolyline = listOf(LatLng(current.startLat, current.startLng), LatLng(current.destLat, current.destLng)),
+                                routeDistanceKm = dist,
+                                routeDurationMinutes = durMin,
+                                routeDurationFormatted = formattedEta,
+                                routeEstimatedFuelLitres = fuelEst.first,
+                                routeEstimatedFuelCost = fuelEst.second,
+                                isCalculatingRoute = false
+                            )
+                        }
+                    }
+                    else -> {
+                        _state.update { it.copy(isCalculatingRoute = false) }
+                    }
+                }
+            } catch (_: Exception) {
+                _state.update { it.copy(isCalculatingRoute = false) }
+            }
+        }
+    }
+
+    private fun calculateFuel(fuelType: String, distanceKm: Double): Pair<Double, Double> {
+        val mileage = when (fuelType.uppercase()) {
+            "DIESEL" -> 18.0
+            "CNG" -> 24.0
+            "EV" -> 7.0
+            else -> 14.5 // PETROL
+        }
+        val litres = ((distanceKm / mileage) * 10.0).roundToInt() / 10.0
+        val pricePerUnit = when (fuelType.uppercase()) {
+            "DIESEL" -> 89.62
+            "CNG" -> 79.50
+            "EV" -> 12.00
+            else -> 96.72 // PETROL
+        }
+        val cost = (litres * pricePerUnit).roundToInt().toDouble()
+        return litres to cost
+    }
+
+    private fun haversineKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+        val r = 6371.0
+        val dLat = Math.toRadians(lat2 - lat1)
+        val dLon = Math.toRadians(lon2 - lon1)
+        val a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2)
+        val c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+        return r * c
     }
 
     fun onTankFullToggled(full: Boolean) {
@@ -137,9 +317,16 @@ class TripPlanViewModel @Inject constructor(
             return
         }
 
+        if (!current.departureDateTime.isAfter(LocalDateTime.now().minusMinutes(2))) {
+            _state.update { it.copy(error = "Departure date and time cannot be in the past") }
+            return
+        }
+
         viewModelScope.launch {
             _state.update { it.copy(isSubmitting = true, error = null) }
             try {
+                val formattedDep = current.departureDateTime.format(DateTimeFormatter.ofPattern("EEE, dd MMM • HH:mm", Locale.ENGLISH))
+                val title = "${current.destLocationName.trim()} Trip ($formattedDep)"
                 val req = CreateTripRequest(
                     startLocationName = current.startLocationName.ifBlank { "Start Point" },
                     startLat = current.startLat,
@@ -147,7 +334,7 @@ class TripPlanViewModel @Inject constructor(
                     destLocationName = current.destLocationName.trim(),
                     destLat = current.destLat,
                     destLng = current.destLng,
-                    title = "${current.destLocationName.trim()} Trip",
+                    title = title,
                     fuelType = current.fuelType,
                     tankFull = current.tankFull,
                     passengers = current.passengers,
@@ -160,29 +347,6 @@ class TripPlanViewModel @Inject constructor(
                 _state.update { it.copy(error = e.toUserFriendlyMessage("Failed to generate trip plan. Please try again.")) }
             } finally {
                 _state.update { it.copy(isSubmitting = false) }
-            }
-        }
-    }
-
-    private fun resolveCoordinates(name: String): Pair<Double, Double> {
-        val lower = name.lowercase().trim()
-        return when {
-            "manali" in lower -> 32.2396 to 77.1887
-            "shimla" in lower -> 31.1048 to 77.1734
-            "jaipur" in lower -> 26.9124 to 75.7873
-            "agra" in lower -> 27.1767 to 78.0081
-            "chandigarh" in lower -> 30.7333 to 76.7794
-            "goa" in lower -> 15.2993 to 74.1240
-            "mumbai" in lower -> 19.0760 to 72.8777
-            "pune" in lower -> 18.5204 to 73.8567
-            "bangalore" in lower || "bengaluru" in lower -> 12.9716 to 77.5946
-            "delhi" in lower -> 28.6139 to 77.2090
-            "dehradun" in lower || "mussoorie" in lower -> 30.3165 to 78.0322
-            "rishikesh" in lower -> 30.0869 to 78.2676
-            "lucknow" in lower -> 26.8467 to 80.9462
-            else -> {
-                // Realistic highway destination offset from start point (~180 km North-East default)
-                (_state.value.startLat + 1.6) to (_state.value.startLng + 1.2)
             }
         }
     }

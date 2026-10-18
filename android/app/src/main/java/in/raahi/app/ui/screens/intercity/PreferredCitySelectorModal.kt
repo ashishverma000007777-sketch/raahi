@@ -391,7 +391,23 @@ fun PreferredCitySelectorModal(
                                     lineHeight = 16.sp,
                                 )
 
-                                Spacer(Modifier.height(12.dp))
+                                if (searchQuery.isNotBlank()) {
+                                    Spacer(Modifier.height(8.dp))
+                                    Button(
+                                        onClick = {
+                                            selectedCity = searchQuery.trim()
+                                            focusManager.clearFocus()
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = RaahiCoralPrimary),
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Icon(Icons.Outlined.LocationOn, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("Select \"${searchQuery.trim()}\" as Custom Location", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    }
+                                }
+
+                                Spacer(Modifier.height(8.dp))
 
                                 TextButton(
                                     onClick = { searchQuery = "" },
