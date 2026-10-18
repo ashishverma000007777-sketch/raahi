@@ -7,6 +7,8 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import androidx.core.app.NotificationCompat
+import `in`.raahi.app.R
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -363,12 +365,7 @@ class DrivingTrackingService : Service() {
 
     private fun buildForegroundNotification(): Notification {
         val isDriving = isConfirmedDriving
-        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Notification.Builder(this, CHANNEL_ID)
-        } else {
-            @Suppress("DEPRECATION")
-            Notification.Builder(this)
-        }
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
 
         val launchIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
             addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
@@ -382,7 +379,7 @@ class DrivingTrackingService : Service() {
             )
         }
 
-        builder.setSmallIcon(android.R.drawable.ic_menu_directions)
+        builder.setSmallIcon(R.drawable.ic_notification)
             .setOngoing(true)
             .setContentIntent(contentPendingIntent)
 
@@ -398,11 +395,9 @@ class DrivingTrackingService : Service() {
             builder.setContentTitle("Raahi trip in progress")
                 .setContentText("Recording trip distance • Odometer sync active")
                 .addAction(
-                    Notification.Action.Builder(
-                        null,
-                        "Stop Drive",
-                        stopPendingIntent
-                    ).build()
+                    0,
+                    "Stop Drive",
+                    stopPendingIntent
                 )
         } else {
             builder.setContentTitle("Raahi auto drive detection")
@@ -536,17 +531,12 @@ class DrivingTrackingService : Service() {
         }
 
         val manager = getSystemService(NotificationManager::class.java)
-        val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Notification.Builder(this, ALERT_CHANNEL_ID)
-        } else {
-            @Suppress("DEPRECATION")
-            Notification.Builder(this)
-        }
-            .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+        val notification = NotificationCompat.Builder(this, ALERT_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("Raahi trip completed")
             .setContentText(String.format(java.util.Locale.getDefault(), "%.2f km • %s", distanceKm, duration))
             .setStyle(
-                Notification.BigTextStyle().bigText(
+                NotificationCompat.BigTextStyle().bigText(
                     String.format(java.util.Locale.getDefault(), "Trip distance: %.2f km\nDuration: %s", distanceKm, duration)
                 )
             )
@@ -751,36 +741,27 @@ class DrivingTrackingService : Service() {
             )
         }
 
-        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Notification.Builder(this, ALERT_CHANNEL_ID)
-        } else {
-            @Suppress("DEPRECATION")
-            Notification.Builder(this)
-        }
+        val builder = NotificationCompat.Builder(this, ALERT_CHANNEL_ID)
 
         val notification = builder
-            .setSmallIcon(android.R.drawable.ic_menu_directions)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("Are you driving your car?")
             .setContentText("Raahi detected vehicle motion. Confirm to track distance.")
-            .setCategory(Notification.CATEGORY_ALARM)
-            .setPriority(Notification.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .apply {
                 if (pendingIntent != null) setContentIntent(pendingIntent)
             }
             .addAction(
-                Notification.Action.Builder(
-                    null,
-                    "Yes, I'm driving",
-                    yesPendingIntent
-                ).build()
+                0,
+                "Yes, I'm driving",
+                yesPendingIntent
             )
             .addAction(
-                Notification.Action.Builder(
-                    null,
-                    "No, not now",
-                    noPendingIntent
-                ).build()
+                0,
+                "No, not now",
+                noPendingIntent
             )
             .build()
 
