@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -50,6 +51,7 @@ public class GeminiAiMechanicProvider implements AiMechanicProvider {
     private final String endpoint;
     private final RestTemplate restTemplate;
 
+    @Autowired
     public GeminiAiMechanicProvider(
             @Value("${raahi.ai.gemini-api-key:}") String apiKey,
             @Value("${raahi.ai.gemini-model:" + DEFAULT_MODEL + "}") String model,
@@ -67,10 +69,7 @@ public class GeminiAiMechanicProvider implements AiMechanicProvider {
         this.restTemplate = new RestTemplate(factory);
     }
 
-    public GeminiAiMechanicProvider(
-            @Value("${raahi.ai.gemini-api-key:}") String apiKey,
-            @Value("${raahi.ai.gemini-model:" + DEFAULT_MODEL + "}") String model
-    ) {
+    public GeminiAiMechanicProvider(String apiKey, String model) {
         this(apiKey, model, DEFAULT_API_VERSION, DEFAULT_ENDPOINT);
     }
 
