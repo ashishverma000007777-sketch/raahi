@@ -99,6 +99,16 @@ class IntercityViewModel @Inject constructor(
     private val _actionSuccess = MutableStateFlow<String?>(null)
     val actionSuccess: StateFlow<String?> = _actionSuccess.asStateFlow()
 
+    private val _currentUser = MutableStateFlow<UserDto?>(null)
+    val currentUser: StateFlow<UserDto?> = _currentUser.asStateFlow()
+
+    fun loadCurrentUser() {
+        viewModelScope.launch {
+            val user = runCatching { authRepository.currentUser() }.getOrNull()
+            _currentUser.value = user
+        }
+    }
+
     fun clearActionStatus() {
         _actionError.value = null
         _actionSuccess.value = null
@@ -165,6 +175,7 @@ class IntercityViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val user = runCatching { authRepository.currentUser() }.getOrNull()
+                if (user != null) _currentUser.value = user
                 val active = runCatching { repository.getActiveTrip() }.getOrNull()
                 val role = user?.role ?: "DRIVER"
                 val onlineStatus = runCatching { repository.getMarketplaceStatus() }.getOrNull()

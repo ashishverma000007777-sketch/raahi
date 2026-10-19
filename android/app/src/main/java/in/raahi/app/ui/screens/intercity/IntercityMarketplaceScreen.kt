@@ -126,19 +126,23 @@ fun IntercityMarketplaceScreen(
                             fontSize = 11.5.sp,
                         )
                     }
-                    Button(
-                        onClick = onNavigateToCreate,
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = RaahiPrimaryTeal,
-                            contentColor = Color.White,
-                        ),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                        modifier = Modifier.height(36.dp),
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("Post", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    val userRole = (landingState as? MarketplaceLandingUiState.Success)?.role?.uppercase()
+                    val canPostTrip = userRole != null && userRole != "DRIVER" && userRole in listOf("TRAVEL_AGENT", "ADMIN", "VEHICLE_OWNER", "OWNER")
+                    if (canPostTrip) {
+                        Button(
+                            onClick = onNavigateToCreate,
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = RaahiPrimaryTeal,
+                                contentColor = Color.White,
+                            ),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            modifier = Modifier.height(36.dp),
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Post", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
                     }
                 }
             }
@@ -203,6 +207,8 @@ fun IntercityMarketplaceScreen(
                     val user = s.user
                     val activeTrip = s.activeTrip
                     val isAgent = s.role == "TRAVEL_AGENT" || s.role == "ADMIN"
+                    val isOwner = s.role in listOf("VEHICLE_OWNER", "OWNER")
+                    val isDriver = !isAgent && !isOwner
                     val publishedTrips = s.publishedTrips
 
                     Column(
@@ -219,16 +225,18 @@ fun IntercityMarketplaceScreen(
                             role = s.role,
                         )
 
-                        // 1. Online / Offline Trip Alerts Banner
-                        MarketplaceOnlineStatusBanner(
-                            isOnline = isOnline,
-                            preferredCity = preferredCity,
-                            isUpdating = isUpdatingStatus,
-                            onToggleOnline = { newOnline ->
-                                viewModel.setMarketplaceStatus(newOnline, preferredCity)
-                            },
-                            onChangeCity = { showCityDialog = true },
-                        )
+                        // 1. Online / Offline Trip Alerts Banner (Drivers Only)
+                        if (isDriver) {
+                            MarketplaceOnlineStatusBanner(
+                                isOnline = isOnline,
+                                preferredCity = preferredCity,
+                                isUpdating = isUpdatingStatus,
+                                onToggleOnline = { newOnline ->
+                                    viewModel.setMarketplaceStatus(newOnline, preferredCity)
+                                },
+                                onChangeCity = { showCityDialog = true },
+                            )
+                        }
 
                         // 2. Single Pickup-City Search Bar ("Where do you want to start?")
                         Surface(
@@ -411,12 +419,15 @@ fun IntercityMarketplaceScreen(
                                                     Text("Show All Cities", fontSize = 12.5.sp)
                                                 }
                                             }
-                                            Button(
-                                                onClick = onNavigateToCreate,
-                                                colors = ButtonDefaults.buttonColors(containerColor = RaahiPrimaryTeal),
-                                                shape = RoundedCornerShape(10.dp),
-                                            ) {
-                                                Text("Post a Trip", fontSize = 12.5.sp)
+                                            val canPostEmpty = s.role.uppercase() in listOf("TRAVEL_AGENT", "ADMIN", "VEHICLE_OWNER", "OWNER")
+                                            if (canPostEmpty) {
+                                                Button(
+                                                    onClick = onNavigateToCreate,
+                                                    colors = ButtonDefaults.buttonColors(containerColor = RaahiPrimaryTeal),
+                                                    shape = RoundedCornerShape(10.dp),
+                                                ) {
+                                                    Text("Post a Trip", fontSize = 12.5.sp)
+                                                }
                                             }
                                         }
                                     }
@@ -439,35 +450,41 @@ fun IntercityMarketplaceScreen(
                             color = RaahiText,
                         )
 
-                        // Action 1: Post a Trip
-                        MarketplaceActionCard(
-                            icon = Icons.Default.Add,
-                            title = "Post a Trip",
-                            subtitle = "Publish route, timing & driver fare for verified drivers.",
-                            badge = if (isAgent) "TRAVEL AGENT" else "POST TRIP",
-                            accentColor = Color(0xFF22B573),
-                            onClick = onNavigateToCreate,
-                        )
+                        val roleUpper = s.role.uppercase()
+                        val isDriverRole = roleUpper == "DRIVER"
+                        val isOwnerRole = roleUpper in listOf("VEHICLE_OWNER", "OWNER")
 
-                        // Action 2: My Agency Trips
-                        MarketplaceActionCard(
-                            icon = Icons.Outlined.BusinessCenter,
-                            title = "My Agency Trips",
-                            subtitle = "Manage trips posted by your agency, review applicants.",
-                            badge = "MANAGE TRIPS",
-                            accentColor = Color(0xFF4D9EFF),
-                            onClick = onNavigateToAgencyTrips,
-                        )
+                        if (!isDriverRole) {
+                            // Action 1: Post a Trip
+                            MarketplaceActionCard(
+                                icon = Icons.Default.Add,
+                                title = if (isAgent) "Post Commercial Trip" else "Post a Personal Trip",
+                                subtitle = "Publish route, timing & driver fare for verified drivers.",
+                                badge = if (isAgent) "TRAVEL AGENT" else "VEHICLE OWNER",
+                                accentColor = Color(0xFF22B573),
+                                onClick = onNavigateToCreate,
+                            )
 
-                        // Action 3: My Driver Trips
-                        MarketplaceActionCard(
-                            icon = Icons.Outlined.DirectionsCar,
-                            title = "My Driver Trips",
-                            subtitle = "View applications, assigned trips and OTP verification.",
-                            badge = "MY ASSIGNMENTS",
-                            accentColor = Color(0xFF9C51E0),
-                            onClick = onNavigateToDriverTrips,
-                        )
+                            // Action 2: My Posted / Agency Trips
+                            MarketplaceActionCard(
+                                icon = Icons.Outlined.BusinessCenter,
+                                title = if (isAgent) "My Agency Trips" else "My Posted Trips",
+                                subtitle = "Manage your posted trips, review applicants & assign.",
+                                badge = "MANAGE TRIPS",
+                                accentColor = Color(0xFF4D9EFF),
+                                onClick = onNavigateToAgencyTrips,
+                            )
+                        } else {
+                            // Driver-only action: My Rides
+                            MarketplaceActionCard(
+                                icon = Icons.Outlined.DirectionsCar,
+                                title = "My Rides & Applications",
+                                subtitle = "View applied trips, assigned rides, and active drives.",
+                                badge = "MY RIDES",
+                                accentColor = Color(0xFF2563EB),
+                                onClick = onNavigateToDriverTrips,
+                            )
+                        }
 
                         // 6. Marketplace Standards Banner
                         MarketplaceFeaturesBanner()
@@ -883,6 +900,23 @@ private fun MarketplaceUserBanner(
     agencyName: String?,
     role: String,
 ) {
+    val isOwner = role in listOf("VEHICLE_OWNER", "OWNER")
+    val isAgent = role == "TRAVEL_AGENT" || role == "ADMIN"
+
+    val subtitle = if (!agencyName.isNullOrBlank()) {
+        agencyName
+    } else when {
+        isOwner -> "Vehicle Owner"
+        isAgent -> "Registered Travel Agency"
+        else -> "Verified Highway Driver"
+    }
+
+    val badgeText = when {
+        isOwner -> "VEHICLE OWNER"
+        isAgent -> "TRAVEL AGENT"
+        else -> "VERIFIED DRIVER"
+    }
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RaahiCardShape,
@@ -903,7 +937,7 @@ private fun MarketplaceUserBanner(
                     color = RaahiPrimaryText,
                 )
                 Text(
-                    text = if (!agencyName.isNullOrBlank()) agencyName else if (role == "TRAVEL_AGENT") "Registered Travel Agency" else "Verified Highway Driver",
+                    text = subtitle,
                     fontSize = 12.sp,
                     color = RaahiSecondaryText,
                 )
@@ -914,7 +948,7 @@ private fun MarketplaceUserBanner(
                 color = RaahiLightTeal,
             ) {
                 Text(
-                    text = if (role == "TRAVEL_AGENT") "TRAVEL AGENT" else "VERIFIED DRIVER",
+                    text = badgeText,
                     color = RaahiPrimaryTeal,
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 10.sp,

@@ -20,12 +20,20 @@ data class GoogleRouteData(
     val durationSeconds: Double,
     val durationMinutes: Int,
     val formattedEta: String,
+    val description: String? = null,
+    val tollCost: Double? = null,
+    val tollAvailable: Boolean = false,
+    val tollUnavailableReason: String? = null,
+    val routeLabel: String? = null,
 )
 
 sealed class GoogleRoutesStatus {
     data object Idle : GoogleRoutesStatus()
     data object Loading : GoogleRoutesStatus()
-    data class Success(val route: GoogleRouteData) : GoogleRoutesStatus()
+    data class Success(
+        val route: GoogleRouteData,
+        val alternatives: List<GoogleRouteData> = emptyList()
+    ) : GoogleRoutesStatus()
     data class Unavailable(val reason: String) : GoogleRoutesStatus()
 }
 
@@ -80,6 +88,10 @@ class GoogleRoutesProvider(
                 })
                 put("travelMode", "DRIVE")
                 put("routingPreference", "TRAFFIC_AWARE")
+                put("computeAlternativeRoutes", true)
+                put("extraComputations", org.json.JSONArray().apply {
+                    put("TOLLS")
+                })
             }
 
             val request = Request.Builder()
@@ -88,7 +100,7 @@ class GoogleRoutesProvider(
                 .addHeader("Content-Type", "application/json")
                 .addHeader("X-Goog-Api-Key", apiKey)
                 .addHeader("X-Android-Package", packageName)
-                .addHeader("X-Goog-FieldMask", "routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline")
+                .addHeader("X-Goog-FieldMask", "routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline,routes.description,routes.travelAdvisory.tollInfo")
                 .build()
 
             val response = client.newCall(request).execute()
@@ -97,42 +109,84 @@ class GoogleRoutesProvider(
 
             if (code == 200) {
                 val json = JSONObject(bodyString)
-                val routes = json.optJSONArray("routes")
-                if (routes == null || routes.length() == 0) {
+                val routesJson = json.optJSONArray("routes")
+                if (routesJson == null || routesJson.length() == 0) {
                     return@withContext GoogleRoutesStatus.Unavailable("No route found between coordinates")
                 }
-                val routeObj = routes.getJSONObject(0)
-                val distanceMeters = routeObj.optDouble("distanceMeters", 0.0)
-                val durationStr = routeObj.optString("duration", "0s")
-                val durationSec = durationStr.removeSuffix("s").toDoubleOrNull() ?: 0.0
-                val encodedPolyline = routeObj.optJSONObject("polyline")?.optString("encodedPolyline").orEmpty()
 
-                val points = if (encodedPolyline.isNotEmpty()) {
-                    decodePolyline(encodedPolyline)
-                } else {
-                    emptyList()
+                val parsedRoutes = mutableListOf<GoogleRouteData>()
+                val maxRoutes = minOf(routesJson.length(), 3)
+                for (i in 0 until maxRoutes) {
+                    val routeObj = routesJson.getJSONObject(i)
+                    val distanceMeters = routeObj.optDouble("distanceMeters", 0.0)
+                    val durationStr = routeObj.optString("duration", "0s")
+                    val durationSec = durationStr.removeSuffix("s").toDoubleOrNull() ?: 0.0
+                    val description = routeObj.optString("description").takeIf { it.isNotBlank() }
+                    val encodedPolyline = routeObj.optJSONObject("polyline")?.optString("encodedPolyline").orEmpty()
+
+                    val points = if (encodedPolyline.isNotEmpty()) {
+                        decodePolyline(encodedPolyline)
+                    } else {
+                        emptyList()
+                    }
+
+                    if (points.isEmpty()) continue
+
+                    val distanceKm = (distanceMeters / 1000.0 * 10.0).roundToInt() / 10.0
+                    val durationMinutes = (durationSec / 60.0).roundToInt().coerceAtLeast(1)
+                    val formattedEta = when {
+                        durationMinutes < 60 -> "$durationMinutes min"
+                        else -> "${durationMinutes / 60}h ${durationMinutes % 60}m"
+                    }
+
+                    var tollCost: Double? = null
+                    var tollAvailable = false
+                    var tollUnavailableReason: String? = null
+
+                    val travelAdvisory = routeObj.optJSONObject("travelAdvisory")
+                    val tollInfo = travelAdvisory?.optJSONObject("tollInfo")
+                    val estimatedPrice = tollInfo?.optJSONArray("estimatedPrice")
+                    if (estimatedPrice != null && estimatedPrice.length() > 0) {
+                        val priceObj = estimatedPrice.getJSONObject(0)
+                        val units = priceObj.optString("units", "0").toDoubleOrNull() ?: 0.0
+                        val nanos = priceObj.optDouble("nanos", 0.0)
+                        val totalToll = units + (nanos / 1_000_000_000.0)
+                        if (totalToll >= 0.0) {
+                            tollCost = (totalToll * 100.0).roundToInt() / 100.0
+                            tollAvailable = true
+                        } else {
+                            tollUnavailableReason = "Toll data not provided for this route"
+                        }
+                    } else {
+                        tollUnavailableReason = "Toll data not provided for this route"
+                    }
+
+                    parsedRoutes.add(
+                        GoogleRouteData(
+                            points = points,
+                            distanceMeters = distanceMeters,
+                            distanceKm = distanceKm,
+                            durationSeconds = durationSec,
+                            durationMinutes = durationMinutes,
+                            formattedEta = formattedEta,
+                            description = description,
+                            tollCost = tollCost,
+                            tollAvailable = tollAvailable,
+                            tollUnavailableReason = tollUnavailableReason,
+                            routeLabel = null
+                        )
+                    )
                 }
 
-                if (points.isEmpty()) {
+                if (parsedRoutes.isEmpty()) {
                     return@withContext GoogleRoutesStatus.Unavailable("Route polyline was empty")
                 }
 
-                val distanceKm = (distanceMeters / 1000.0 * 10.0).roundToInt() / 10.0
-                val durationMinutes = (durationSec / 60.0).roundToInt().coerceAtLeast(1)
-                val formattedEta = when {
-                    durationMinutes < 60 -> "$durationMinutes min"
-                    else -> "${durationMinutes / 60}h ${durationMinutes % 60}m"
-                }
+                val labeledRoutes = assignRouteLabels(parsedRoutes)
 
                 GoogleRoutesStatus.Success(
-                    GoogleRouteData(
-                        points = points,
-                        distanceMeters = distanceMeters,
-                        distanceKm = distanceKm,
-                        durationSeconds = durationSec,
-                        durationMinutes = durationMinutes,
-                        formattedEta = formattedEta,
-                    )
+                    route = labeledRoutes.first(),
+                    alternatives = labeledRoutes
                 )
             } else {
                 val errorMsg = try {
@@ -153,6 +207,31 @@ class GoogleRoutesProvider(
     }
 
     companion object {
+        fun assignRouteLabels(routes: List<GoogleRouteData>): List<GoogleRouteData> {
+            if (routes.isEmpty()) return emptyList()
+            if (routes.size == 1) {
+                return listOf(routes[0].copy(routeLabel = "Fastest Route"))
+            }
+
+            val minDuration = routes.minOf { it.durationSeconds }
+            val minDistance = routes.minOf { it.distanceKm }
+
+            return routes.mapIndexed { index, route ->
+                val isFastest = route.durationSeconds == minDuration
+                val isShortest = route.distanceKm == minDistance
+
+                val label = when {
+                    isFastest && isShortest -> "Fastest & Shortest"
+                    isFastest -> "Fastest"
+                    isShortest -> "Shortest Distance"
+                    route.tollAvailable && route.tollCost == 0.0 -> "Toll-Free Route"
+                    !route.description.isNullOrBlank() -> "Via ${route.description}"
+                    else -> "Alternative Route ${index + 1}"
+                }
+                route.copy(routeLabel = label)
+            }
+        }
+
         fun decodePolyline(encoded: String): List<LatLng> {
             val poly = ArrayList<LatLng>()
             var index = 0

@@ -95,7 +95,7 @@ public class User {
     @Column(name = "preferred_pickup_city")
     private String preferredPickupCity;
 
-    public enum Role { DRIVER, MECHANIC, HELPER, ADMIN, TRAVEL_AGENT }
+    public enum Role { DRIVER, MECHANIC, HELPER, ADMIN, TRAVEL_AGENT, VEHICLE_OWNER, OWNER }
     public enum Status { ACTIVE, SUSPENDED }
 
     // getters/setters

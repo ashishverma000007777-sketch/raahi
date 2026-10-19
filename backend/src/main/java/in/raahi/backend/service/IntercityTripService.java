@@ -138,6 +138,13 @@ public class IntercityTripService {
             }
         }
 
+        if (agent.getRole() == User.Role.DRIVER) {
+            if ("AGENT".equalsIgnoreCase(req.rideType)) {
+                throw ApiException.forbidden("NOT_TRAVEL_AGENT", "Only authorized travel agents can publish travel agent rides");
+            }
+            throw ApiException.forbidden("DRIVER_CANNOT_CREATE_TRIP", "Drivers cannot post trips. Only Vehicle Owners and Travel Agents can post trips.");
+        }
+
         IntercityTrip.RideType rideType;
         if (req.rideType != null && !req.rideType.isBlank()) {
             if ("AGENT".equalsIgnoreCase(req.rideType.trim())) {
@@ -294,6 +301,10 @@ public class IntercityTripService {
 
         if (driver.getStatus() == User.Status.SUSPENDED) {
             throw ApiException.forbidden("ACCOUNT_SUSPENDED", "Account is suspended");
+        }
+
+        if (driver.getRole() != User.Role.DRIVER && driver.getRole() != User.Role.ADMIN) {
+            throw ApiException.forbidden("NOT_A_DRIVER", "Only registered drivers can apply for trips.");
         }
 
         IntercityTrip trip = tripRepository.findById(tripId)
@@ -865,6 +876,9 @@ public class IntercityTripService {
     public MarketplaceStatusDto updateMarketplaceStatus(UUID userId, UpdateMarketplaceStatusRequest req) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> ApiException.notFound("NOT_FOUND", "User not found"));
+        if (req != null && req.online && user.getRole() != User.Role.DRIVER && user.getRole() != User.Role.ADMIN) {
+            throw ApiException.forbidden("NOT_A_DRIVER", "Only registered drivers can go online for marketplace trip alerts.");
+        }
         user.setMarketplaceOnline(req != null && req.online);
         user.setPreferredPickupCity(req != null && req.pickupCity != null && !req.pickupCity.isBlank() ? req.pickupCity.trim() : null);
         userRepository.save(user);

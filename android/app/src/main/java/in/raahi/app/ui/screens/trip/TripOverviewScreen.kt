@@ -393,16 +393,56 @@ fun TripOverviewScreen(
                             )
 
                             // Tolls: Real data rule (No fake numbers)
-                            val tollVal = if (trip.estimatedTolls != null) "₹${trip.estimatedTolls}" else "Unavailable"
-                            val tollSub = if (trip.estimatedTolls != null) "FASTag supported" else "NHAI API unlinked"
+                            val tollVal = if (s.tollAvailable && s.tollCost != null) "₹${s.tollCost.toInt()}" else "Unavailable"
+                            val tollSub = if (s.tollAvailable) "Google Routes / FASTag" else (s.tollUnavailableReason ?: "Toll data not provided")
                             OverviewMetricCard(
                                 label = "ESTIMATED TOLLS",
                                 value = tollVal,
                                 subtext = tollSub,
                                 icon = Icons.Outlined.Toll,
-                                accentColor = if (trip.estimatedTolls != null) Color(0xFF059669) else Color(0xFF94A3B8),
+                                accentColor = if (s.tollAvailable) Color(0xFF059669) else Color(0xFF94A3B8),
                                 modifier = Modifier.weight(1f)
                             )
+                        }
+
+                        // Total Estimated Trip Budget Banner
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color(0xFFECFDF5),
+                            border = BorderStroke(1.dp, Color(0xFFA7F3D0))
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        "ESTIMATED TOTAL TRIP BUDGET",
+                                        fontSize = 9.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF065F46),
+                                        letterSpacing = 0.5.sp
+                                    )
+                                    val budgetSub = if (s.costPerKm != null) {
+                                        "₹${String.format(Locale.ROOT, "%.2f", s.costPerKm)}/km • ${if (s.tollAvailable) "Fuel & Tolls included" else "Estimated fuel only"}"
+                                    } else {
+                                        if (s.tollAvailable) "Fuel & Tolls included" else "Estimated fuel only (tolls unavailable)"
+                                    }
+                                    Text(budgetSub, fontSize = 11.sp, color = Color(0xFF047857))
+                                }
+                                val totalStr = s.totalEstimatedBudget?.let { "₹${it.toInt()}" } ?: "—"
+                                Text(
+                                    text = totalStr,
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color(0xFF065F46),
+                                    fontFamily = RaahiDisplayFont
+                                )
+                            }
                         }
                     }
 
@@ -457,11 +497,69 @@ fun TripOverviewScreen(
                     }
 
                     // 5. RECOMMENDED FUEL STOPS
-                    val fuelStops = trip.prominentFuelStops.orEmpty()
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         SectionLabel("Recommended Fuel Stops")
 
-                        if (fuelStops.isEmpty()) {
+                        if (s.fuelStops.isNotEmpty()) {
+                            s.fuelStops.forEachIndexed { index, stop ->
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color.White,
+                                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                    shadowElevation = 1.dp
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(22.dp)
+                                                        .clip(CircleShape)
+                                                        .background(Color(0xFFFFF7ED)),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Icon(Icons.Outlined.LocalGasStation, contentDescription = null, tint = RaahiOrange, modifier = Modifier.size(13.dp))
+                                                }
+                                                Text(stop.name, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1E293B), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                            }
+                                            Spacer(Modifier.height(2.dp))
+                                            Text(
+                                                "~${stop.distanceAlongRouteKm} km into route • Detour +${stop.detourKm} km",
+                                                fontSize = 11.sp,
+                                                color = Color(0xFF64748B)
+                                            )
+                                        }
+
+                                        OutlinedButton(
+                                            onClick = {
+                                                val uri = Uri.parse("https://www.google.com/maps/search/?api=1&query=${stop.lat},${stop.lng}")
+                                                context.startActivity(Intent(Intent.ACTION_VIEW, uri))
+                                            },
+                                            shape = RoundedCornerShape(8.dp),
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                            modifier = Modifier.height(30.dp),
+                                            border = BorderStroke(1.dp, RaahiOrange)
+                                        ) {
+                                            Text("Open in Maps", fontSize = 10.5.sp, color = RaahiOrange, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            }
+                        } else if (!trip.prominentFuelStops.isNullOrEmpty()) {
+                            trip.prominentFuelStops.take(2).forEachIndexed { index, stop ->
+                                FuelStopCard(stop = stop, index = index + 1)
+                            }
+                        } else {
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(14.dp),
@@ -495,22 +593,105 @@ fun TripOverviewScreen(
                                     }
                                 }
                             }
-                        } else {
-                            fuelStops.take(2).forEachIndexed { index, stop ->
-                                FuelStopCard(stop = stop, index = index + 1)
-                            }
                         }
                     }
 
-                    // 6. PIT STOPS & MECHANICS
-                    val pitStops = trip.pitStops.orEmpty()
-                    if (pitStops.isNotEmpty()) {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            SectionLabel("Useful Pit Stops (Food & Rest)")
+                    // 6. SMART BREAKS (DHABAS & REST STOPS)
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SectionLabel("Smart Breaks & Rest Stops Along Route")
+
+                        if (s.smartBreaks.isNotEmpty()) {
+                            s.smartBreaks.forEach { stop ->
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color.White,
+                                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                    shadowElevation = 1.dp
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                Surface(
+                                                    shape = RoundedCornerShape(4.dp),
+                                                    color = when (stop.type) {
+                                                        "dhaba" -> Color(0xFFFEF3C7)
+                                                        "toilet" -> Color(0xFFE0F2FE)
+                                                        else -> Color(0xFFF1F5F9)
+                                                    }
+                                                ) {
+                                                    Text(
+                                                        text = stop.typeLabel,
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = when (stop.type) {
+                                                            "dhaba" -> Color(0xFF92400E)
+                                                            "toilet" -> Color(0xFF0369A1)
+                                                            else -> Color(0xFF334155)
+                                                        },
+                                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                                    )
+                                                }
+                                                Text(
+                                                    stop.name,
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFF1E293B),
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                            Spacer(Modifier.height(2.dp))
+                                            Text(
+                                                "~${stop.distanceAlongRouteKm} km into trip • Detour +${stop.detourKm} km",
+                                                fontSize = 11.sp,
+                                                color = Color(0xFF64748B)
+                                            )
+                                        }
+
+                                        OutlinedButton(
+                                            onClick = {
+                                                val uri = Uri.parse("https://www.google.com/maps/search/?api=1&query=${stop.lat},${stop.lng}")
+                                                context.startActivity(Intent(Intent.ACTION_VIEW, uri))
+                                            },
+                                            shape = RoundedCornerShape(8.dp),
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                            modifier = Modifier.height(30.dp),
+                                            border = BorderStroke(1.dp, Color(0xFF0284C7))
+                                        ) {
+                                            Text("Open in Maps", fontSize = 10.5.sp, color = Color(0xFF0284C7), fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            }
+                        } else if (!trip.pitStops.isNullOrEmpty()) {
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                items(pitStops) { stop ->
+                                items(trip.pitStops) { stop ->
                                     PitStopCard(stop)
                                 }
+                            }
+                        } else {
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color.White,
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                            ) {
+                                Text(
+                                    "No highway rest stops indexed along corridor. Schedule rest breaks every 2-3 hours.",
+                                    fontSize = 11.5.sp,
+                                    color = Color(0xFF64748B),
+                                    modifier = Modifier.padding(12.dp)
+                                )
                             }
                         }
                     }

@@ -67,8 +67,23 @@ fun IntercityCreateTripScreen(
     val coroutineScope = rememberCoroutineScope()
     val routesProvider = remember { GoogleRoutesProvider(context.applicationContext) }
 
+    val currentUser by viewModel.currentUser.collectAsState()
+    LaunchedEffect(Unit) {
+        viewModel.loadCurrentUser()
+    }
+
     // Ride Type: OWNER vs AGENT
     var rideType by remember { mutableStateOf("OWNER") }
+    LaunchedEffect(currentUser) {
+        currentUser?.let { u ->
+            val r = u.role.uppercase()
+            if (r == "TRAVEL_AGENT") {
+                rideType = "AGENT"
+            } else if (r in listOf("VEHICLE_OWNER", "OWNER")) {
+                rideType = "OWNER"
+            }
+        }
+    }
 
     var pickupCity by remember { mutableStateOf("Chandigarh") }
     var destCity by remember { mutableStateOf("Delhi") }
@@ -383,6 +398,89 @@ fun IntercityCreateTripScreen(
         )
     }
 
+    val userRole = currentUser?.role?.uppercase()
+    if (userRole == "DRIVER") {
+        Scaffold(
+            topBar = {
+                Surface(
+                    color = RaahiCharcoalHeader,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        IconButton(
+                            onClick = onBack,
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(RaahiDarkSurface)
+                                .border(1.dp, Color(0xFF2E3438), CircleShape),
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            text = "Post a Trip",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp,
+                            fontFamily = RaahiDisplayFont,
+                        )
+                    }
+                }
+            },
+            containerColor = RaahiLightBg,
+        ) { padding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    Icons.Outlined.DirectionsCar,
+                    contentDescription = null,
+                    tint = RaahiCoralPrimary,
+                    modifier = Modifier.size(56.dp)
+                )
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    "Driver Account",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp,
+                    color = RaahiText
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Driver accounts cannot create trip listings. As a verified driver, you can browse available trips and express interest in rides.",
+                    fontSize = 14.sp,
+                    color = RaahiTextDim,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+                Spacer(Modifier.height(24.dp))
+                Button(
+                    onClick = onBack,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = RaahiCoralPrimary)
+                ) {
+                    Text("Browse Available Trips", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+        return
+    }
+
     Scaffold(
         topBar = {
             Surface(
@@ -420,7 +518,7 @@ fun IntercityCreateTripScreen(
                             fontFamily = RaahiDisplayFont,
                         )
                         Text(
-                            if (rideType == "OWNER") "Zero platform fee • Verified community drivers" else "Custom commercial terms & agency payouts",
+                            if (rideType == "OWNER") "Personal trip • Verified community drivers" else "Custom commercial terms & agency payouts",
                             color = Color(0xFFA0AAB0),
                             fontSize = 11.5.sp,
                         )
@@ -471,6 +569,10 @@ fun IntercityCreateTripScreen(
                         letterSpacing = 0.6.sp,
                     )
                     Spacer(Modifier.height(10.dp))
+                    val isAdmin = userRole == "ADMIN"
+                    val canSelectOwner = isAdmin || (userRole in listOf("VEHICLE_OWNER", "OWNER"))
+                    val canSelectAgent = isAdmin || (userRole == "TRAVEL_AGENT")
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -489,10 +591,12 @@ fun IntercityCreateTripScreen(
                         Surface(
                             modifier = Modifier
                                 .weight(1f)
-                                .clickable {
-                                    rideType = "OWNER"
-                                    if (suggestedFare > 0) fareText = suggestedFare.toString()
-                                },
+                                .then(
+                                    if (canSelectOwner) Modifier.clickable {
+                                        rideType = "OWNER"
+                                        if (suggestedFare > 0) fareText = suggestedFare.toString()
+                                    } else Modifier
+                                ),
                             shape = RoundedCornerShape(14.dp),
                             color = ownerBgColor,
                             border = BorderStroke(if (isOwner) 2.dp else 1.dp, ownerBorderColor),
@@ -560,9 +664,11 @@ fun IntercityCreateTripScreen(
                         Surface(
                             modifier = Modifier
                                 .weight(1f)
-                                .clickable {
-                                    rideType = "AGENT"
-                                },
+                                .then(
+                                    if (canSelectAgent) Modifier.clickable {
+                                        rideType = "AGENT"
+                                    } else Modifier
+                                ),
                             shape = RoundedCornerShape(14.dp),
                             color = agentBgColor,
                             border = BorderStroke(if (isAgent) 2.dp else 1.dp, agentBorderColor),

@@ -612,6 +612,11 @@ fun RaahiNavHost(
                 onEarnWithRaahi = { navController.navigate(Routes.HELPER_APPLICATION) { launchSingleTop = true } },
                 onNotifications = { navController.navigate(Routes.NOTIFICATIONS) },
                 onPayments = { navController.navigate(Routes.WALLET) },
+                onPostTrip = { navController.navigate(Routes.INTERCITY_CREATE) },
+                onMyTrips = { navController.navigate(Routes.INTERCITY_AGENT_DASHBOARD) },
+                onTripHistory = { navController.navigate(Routes.TRIP_HISTORY) },
+                onDriverTrips = { navController.navigate(Routes.INTERCITY_DRIVER_TRIPS) },
+                onExploreIntercity = { navController.navigate(Routes.INTERCITY_MARKETPLACE) },
             )
         }
 

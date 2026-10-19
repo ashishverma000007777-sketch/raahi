@@ -561,6 +561,21 @@ class IntercityTripServiceTest {
     }
 
     @Test
+    void updateMarketplaceStatus_RejectsVehicleOwnerGoingOnline() {
+        User owner = new User();
+        owner.setId(UUID.randomUUID());
+        owner.setRole(User.Role.VEHICLE_OWNER);
+        when(userRepository.findById(owner.getId())).thenReturn(Optional.of(owner));
+
+        UpdateMarketplaceStatusRequest req = new UpdateMarketplaceStatusRequest();
+        req.online = true;
+        req.pickupCity = "Delhi";
+
+        ApiException ex = assertThrows(ApiException.class, () -> service.updateMarketplaceStatus(owner.getId(), req));
+        assertEquals("NOT_A_DRIVER", ex.code);
+    }
+
+    @Test
     void createTrip_PublishedTrip_NotifiesMatchingOnlineDrivers() {
         when(userRepository.findById(agent.getId())).thenReturn(Optional.of(agent));
         when(tripRepository.save(any(IntercityTrip.class))).thenAnswer(inv -> {
@@ -1042,6 +1057,130 @@ class IntercityTripServiceTest {
 
         ApiException ex = assertThrows(ApiException.class, () -> service.createTrip(agent.getId(), req));
         assertEquals("INVALID_COMMISSION", ex.code);
+    }
+
+    @Test
+    void createTrip_DriverCannotCreateOwnerTrip_ThrowsForbidden() {
+        CreateIntercityTripRequest req = new CreateIntercityTripRequest();
+        req.pickupCity = "Delhi";
+        req.destCity = "Jaipur";
+        req.pickupAddress = "CP";
+        req.destAddress = "MI Road";
+        req.pickupLat = 28.6;
+        req.pickupLng = 77.2;
+        req.destLat = 26.9;
+        req.destLng = 75.8;
+        req.departureTime = Instant.now().plusSeconds(3600);
+        req.vehicleCategory = "SEDAN";
+        req.rideType = "OWNER";
+        req.estimatedDistanceKm = new BigDecimal("100");
+        req.fare = new BigDecimal("1500");
+
+        ApiException ex = assertThrows(ApiException.class, () -> service.createTrip(driver.getId(), req));
+        assertEquals("DRIVER_CANNOT_CREATE_TRIP", ex.code);
+    }
+
+    @Test
+    void createTrip_VehicleOwnerRole_CreatesOwnerTrip_Success() {
+        User vehicleOwner = new User();
+        vehicleOwner.setId(UUID.randomUUID());
+        vehicleOwner.setName("Vehicle Owner");
+        vehicleOwner.setRole(User.Role.VEHICLE_OWNER);
+        vehicleOwner.setStatus(User.Status.ACTIVE);
+        when(userRepository.findById(vehicleOwner.getId())).thenReturn(Optional.of(vehicleOwner));
+
+        CreateIntercityTripRequest req = new CreateIntercityTripRequest();
+        req.pickupCity = "Delhi";
+        req.destCity = "Chandigarh";
+        req.pickupAddress = "Connaught Place";
+        req.destAddress = "Sector 17";
+        req.pickupLat = 28.6139;
+        req.pickupLng = 77.2090;
+        req.destLat = 30.7333;
+        req.destLng = 76.7794;
+        req.departureTime = Instant.now().plusSeconds(7200);
+        req.vehicleCategory = "SEDAN";
+        req.rideType = "OWNER";
+        req.estimatedDistanceKm = new BigDecimal("250");
+        req.fare = new BigDecimal("3500");
+
+        IntercityTripDto result = service.createTrip(vehicleOwner.getId(), req);
+        assertNotNull(result);
+        assertEquals("OWNER", result.rideType);
+        assertEquals(new BigDecimal("3500"), result.fare);
+        assertEquals(new BigDecimal("3500"), result.driverPayout);
+        assertEquals(BigDecimal.ZERO, result.agentCommission);
+    }
+
+    @Test
+    void createTrip_VehicleOwnerCannotCreateAgentTrip_ThrowsForbidden() {
+        User vehicleOwner = new User();
+        vehicleOwner.setId(UUID.randomUUID());
+        vehicleOwner.setName("Vehicle Owner");
+        vehicleOwner.setRole(User.Role.VEHICLE_OWNER);
+        vehicleOwner.setStatus(User.Status.ACTIVE);
+        when(userRepository.findById(vehicleOwner.getId())).thenReturn(Optional.of(vehicleOwner));
+
+        CreateIntercityTripRequest req = new CreateIntercityTripRequest();
+        req.pickupCity = "Delhi";
+        req.destCity = "Chandigarh";
+        req.pickupAddress = "Connaught Place";
+        req.destAddress = "Sector 17";
+        req.pickupLat = 28.6139;
+        req.pickupLng = 77.2090;
+        req.destLat = 30.7333;
+        req.destLng = 76.7794;
+        req.departureTime = Instant.now().plusSeconds(7200);
+        req.vehicleCategory = "SEDAN";
+        req.rideType = "AGENT";
+        req.fare = new BigDecimal("4500");
+
+        ApiException ex = assertThrows(ApiException.class, () -> service.createTrip(vehicleOwner.getId(), req));
+        assertEquals("NOT_TRAVEL_AGENT", ex.code);
+    }
+
+    @Test
+    void applyForTrip_VehicleOwnerRole_ThrowsForbiddenNotADriver() {
+        User vehicleOwner = new User();
+        vehicleOwner.setId(UUID.randomUUID());
+        vehicleOwner.setName("Vehicle Owner");
+        vehicleOwner.setRole(User.Role.VEHICLE_OWNER);
+        vehicleOwner.setStatus(User.Status.ACTIVE);
+        when(userRepository.findById(vehicleOwner.getId())).thenReturn(Optional.of(vehicleOwner));
+
+        IntercityTrip trip = createSampleTrip();
+        when(tripRepository.findById(trip.getId())).thenReturn(Optional.of(trip));
+
+        ApiException ex = assertThrows(ApiException.class, () -> service.applyForTrip(vehicleOwner.getId(), trip.getId(), null));
+        assertEquals("NOT_A_DRIVER", ex.code);
+    }
+
+    @Test
+    void applyForTrip_TravelAgentRole_ThrowsForbiddenNotADriver() {
+        IntercityTrip trip = createSampleTrip();
+        User anotherAgent = new User();
+        anotherAgent.setId(UUID.randomUUID());
+        anotherAgent.setRole(User.Role.TRAVEL_AGENT);
+        anotherAgent.setStatus(User.Status.ACTIVE);
+        when(userRepository.findById(anotherAgent.getId())).thenReturn(Optional.of(anotherAgent));
+        when(tripRepository.findById(trip.getId())).thenReturn(Optional.of(trip));
+
+        ApiException ex = assertThrows(ApiException.class, () -> service.applyForTrip(anotherAgent.getId(), trip.getId(), null));
+        assertEquals("NOT_A_DRIVER", ex.code);
+    }
+
+    @Test
+    void applyForTrip_DriverRole_CreatesApplicationWithStatusApplied_NotAssigned() {
+        IntercityTrip trip = createSampleTrip();
+        when(tripRepository.findById(trip.getId())).thenReturn(Optional.of(trip));
+        when(applicationRepository.existsByTripIdAndDriverId(trip.getId(), driver.getId())).thenReturn(false);
+
+        IntercityTripApplicationDto app = service.applyForTrip(driver.getId(), trip.getId(), null);
+        assertNotNull(app);
+        assertEquals("APPLIED", app.status);
+        // Verify trip itself is STILL PUBLISHED, NOT ASSIGNED!
+        assertEquals(IntercityTrip.Status.PUBLISHED, trip.getStatus());
+        assertNull(trip.getDriver());
     }
 
     private IntercityTrip createSampleTrip() {

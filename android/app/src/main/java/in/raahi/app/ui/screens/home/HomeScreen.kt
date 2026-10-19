@@ -840,7 +840,7 @@ private fun HomeContent(
             )
 
             Spacer(Modifier.height(14.dp))
-            if (user?.role == "HELPER" || user?.role == "MECHANIC" || user?.role == "DRIVER") {
+            if (user?.role == "HELPER" || user?.role == "MECHANIC") {
                 HelperApplicationStatusCard(
                     status = helperStatus, busy = helperBusy, error = helperError,
                     onToggle = onToggleHelperOnline, onRetry = onRefreshHelperStatus,
@@ -1659,11 +1659,12 @@ private fun RoleBasedMarketplaceDashboard(
     onOpenActiveTrip: (String) -> Unit,
     onTripHistory: () -> Unit,
 ) {
-    val role = user?.role?.uppercase() ?: "DRIVER"
+    if (user == null) {
+        return
+    }
+    val role = user.role.uppercase()
     val isTravelAgent = role == "TRAVEL_AGENT"
-    val isExplicitOwner = role == "OWNER"
-    val hasVehicle = vehicle != null || !user?.vehicleReg.isNullOrBlank()
-    val isOwner = isExplicitOwner || (role == "DRIVER" && hasVehicle)
+    val isOwner = role in listOf("VEHICLE_OWNER", "OWNER")
 
     when {
         isTravelAgent -> TravelAgentDashboardCard(
@@ -1678,14 +1679,12 @@ private fun RoleBasedMarketplaceDashboard(
         isOwner -> OwnerDashboardCard(
             activeIntercityTrip = activeIntercityTrip,
             onCreateTrip = onCreateTrip,
-            onAgentDashboard = onAgentDashboard,
-            onOpenMarketplace = onOpenMarketplace,
+            onMyTrips = onAgentDashboard,
             onOpenActiveTrip = onOpenActiveTrip,
             onTripHistory = onTripHistory,
         )
         else -> DriverDashboardCard(
             activeIntercityTrip = activeIntercityTrip,
-            onCreateTrip = onCreateTrip,
             onDriverTrips = onDriverTrips,
             onOpenMarketplace = onOpenMarketplace,
             onOpenActiveTrip = onOpenActiveTrip,
@@ -1698,8 +1697,7 @@ private fun RoleBasedMarketplaceDashboard(
 private fun OwnerDashboardCard(
     activeIntercityTrip: IntercityTripDto?,
     onCreateTrip: () -> Unit,
-    onAgentDashboard: () -> Unit,
-    onOpenMarketplace: () -> Unit,
+    onMyTrips: () -> Unit,
     onOpenActiveTrip: (String) -> Unit,
     onTripHistory: () -> Unit,
 ) {
@@ -1766,73 +1764,45 @@ private fun OwnerDashboardCard(
                 // Title & Subtitle
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
-                        text = "Your Journey, Our Drivers",
+                        text = "Your Journey, Verified Drivers",
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White,
                         fontFamily = RaahiDisplayFont
                     )
                     Text(
-                        text = "Post your vehicle journey, review interested drivers, and assign for departure.",
+                        text = "Post your personal vehicle journey, review interested drivers, and assign for departure.",
                         fontSize = 12.sp,
                         color = Color(0xFFA0AAB0)
                     )
                 }
 
-                // Dominant Actions: Post a Trip as Owner (Primary) and Completed Trips (Secondary)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                // Dominant Action: Post a Trip as Owner
+                Button(
+                    onClick = onCreateTrip,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(46.dp)
+                        .shadow(2.dp, RoundedCornerShape(12.dp)),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = RaahiPrimaryButton,
+                        contentColor = Color.White
+                    )
                 ) {
-                    Button(
-                        onClick = onCreateTrip,
-                        modifier = Modifier
-                            .weight(1.3f)
-                            .height(46.dp)
-                            .shadow(2.dp, RoundedCornerShape(12.dp)),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = RaahiPrimaryButton,
-                            contentColor = Color.White
-                        )
-                    ) {
-                        Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            text = "Post a Trip as Owner",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1
-                        )
-                    }
-
-                    OutlinedButton(
-                        onClick = onTripHistory,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(46.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, Color(0xFF2E3338)),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = Color(0xFF222629),
-                            contentColor = Color.White
-                        )
-                    ) {
-                        Icon(Icons.Outlined.History, contentDescription = null, modifier = Modifier.size(15.dp), tint = Color(0xFFD1D8DC))
-                        Spacer(Modifier.width(5.dp))
-                        Text(
-                            text = "Completed Trips",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color.White,
-                            maxLines = 1
-                        )
-                    }
+                    Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = "Post a Trip as Owner",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    )
                 }
             }
         }
 
-        // 2x2 Quick Action Cards (Screen 2 Mockup) with Distinct Automotive Tonal Identity & Depth
+        // Two Primary Role Actions: My Trips (with applicant info inside) & Completed Trips
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -1840,28 +1810,28 @@ private fun OwnerDashboardCard(
             Surface(
                 modifier = Modifier
                     .weight(1f)
-                    .clickable(onClick = onAgentDashboard),
+                    .clickable(onClick = onMyTrips),
                 shape = RoundedCornerShape(14.dp),
                 color = if (isDark) Color(0xFF222629) else Color(0xFFFFFDFB),
                 border = BorderStroke(1.dp, if (isDark) Color(0xFF3E3124) else Color(0xFFFFE0B2)),
                 shadowElevation = 3.dp,
             ) {
                 Row(
-                    modifier = Modifier.padding(12.dp),
+                    modifier = Modifier.padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(36.dp)
+                            .size(38.dp)
                             .background(if (isDark) Color(0xFF332214) else Color(0xFFFFF3E0), RoundedCornerShape(10.dp)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Outlined.DirectionsCar, contentDescription = null, tint = Color(0xFFEA580C), modifier = Modifier.size(18.dp))
+                        Icon(Icons.Outlined.DirectionsCar, contentDescription = null, tint = Color(0xFFEA580C), modifier = Modifier.size(20.dp))
                     }
                     Column {
-                        Text("My Trips", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = RaahiText)
-                        Text("Posted routes", fontSize = 10.5.sp, color = if (isDark) Color(0xFFFDBA74) else Color(0xFFC2410C), fontWeight = FontWeight.Medium)
+                        Text("My Trips", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = RaahiText)
+                        Text("Posted routes & drivers", fontSize = 11.sp, color = if (isDark) Color(0xFFFDBA74) else Color(0xFFC2410C), fontWeight = FontWeight.Medium)
                     }
                 }
             }
@@ -1869,91 +1839,28 @@ private fun OwnerDashboardCard(
             Surface(
                 modifier = Modifier
                     .weight(1f)
-                    .clickable(onClick = onAgentDashboard),
+                    .clickable(onClick = onTripHistory),
                 shape = RoundedCornerShape(14.dp),
                 color = if (isDark) Color(0xFF222629) else Color(0xFFF8FAFD),
                 border = BorderStroke(1.dp, if (isDark) Color(0xFF1E334D) else Color(0xFFBFDBFE)),
                 shadowElevation = 3.dp,
             ) {
                 Row(
-                    modifier = Modifier.padding(12.dp),
+                    modifier = Modifier.padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(36.dp)
+                            .size(38.dp)
                             .background(if (isDark) Color(0xFF16253C) else Color(0xFFEFF6FF), RoundedCornerShape(10.dp)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Outlined.Person, contentDescription = null, tint = Color(0xFF2563EB), modifier = Modifier.size(18.dp))
+                        Icon(Icons.Outlined.History, contentDescription = null, tint = Color(0xFF2563EB), modifier = Modifier.size(20.dp))
                     }
                     Column {
-                        Text("Driver Interests", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = RaahiText)
-                        Text("Review & assign", fontSize = 10.5.sp, color = if (isDark) Color(0xFF93C5FD) else Color(0xFF1D4ED8), fontWeight = FontWeight.Medium)
-                    }
-                }
-            }
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Surface(
-                modifier = Modifier
-                    .weight(1f)
-                    .clickable(onClick = onAgentDashboard),
-                shape = RoundedCornerShape(14.dp),
-                color = if (isDark) Color(0xFF222629) else Color(0xFFF8FCFA),
-                border = BorderStroke(1.dp, if (isDark) Color(0xFF1B3D2B) else Color(0xFFBBF7D0)),
-                shadowElevation = 3.dp,
-            ) {
-                Row(
-                    modifier = Modifier.padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .background(if (isDark) Color(0xFF132B1E) else Color(0xFFF0FDF4), RoundedCornerShape(10.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Outlined.DirectionsCar, contentDescription = null, tint = Color(0xFF16A34A), modifier = Modifier.size(18.dp))
-                    }
-                    Column {
-                        Text("Assign Driver", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = RaahiText)
-                        Text("Confirm departure", fontSize = 10.5.sp, color = if (isDark) Color(0xFF86EFAC) else Color(0xFF15803D), fontWeight = FontWeight.Medium)
-                    }
-                }
-            }
-
-            Surface(
-                modifier = Modifier
-                    .weight(1f)
-                    .clickable(onClick = onOpenMarketplace),
-                shape = RoundedCornerShape(14.dp),
-                color = if (isDark) Color(0xFF222629) else Color(0xFFFAF5FF),
-                border = BorderStroke(1.dp, if (isDark) Color(0xFF32214A) else Color(0xFFDDD6FE)),
-                shadowElevation = 3.dp,
-            ) {
-                Row(
-                    modifier = Modifier.padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .background(if (isDark) Color(0xFF25173E) else Color(0xFFF5F3FF), RoundedCornerShape(10.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Outlined.Search, contentDescription = null, tint = Color(0xFF7C3AED), modifier = Modifier.size(18.dp))
-                    }
-                    Column {
-                        Text("My Listings", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = RaahiText)
-                        Text("Explore market", fontSize = 10.5.sp, color = if (isDark) Color(0xFFC4B5FD) else Color(0xFF6D28D9), fontWeight = FontWeight.Medium)
+                        Text("Completed Trips", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = RaahiText)
+                        Text("History & summaries", fontSize = 11.sp, color = if (isDark) Color(0xFF93C5FD) else Color(0xFF1D4ED8), fontWeight = FontWeight.Medium)
                     }
                 }
             }
@@ -1982,28 +1889,6 @@ private fun OwnerDashboardCard(
                     Text("Track & OTP →", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2563EB))
                 }
             }
-        }
-
-        // Footer Links
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Explore Available Marketplace",
-                modifier = Modifier.clickable(onClick = onOpenMarketplace).padding(vertical = 4.dp),
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = RaahiText
-            )
-            Text(
-                text = "Trip History",
-                modifier = Modifier.clickable(onClick = onTripHistory).padding(vertical = 4.dp),
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                color = RaahiTextDim
-            )
         }
     }
 }
@@ -2374,7 +2259,6 @@ private fun TravelAgentDashboardCard(
 @Composable
 private fun DriverDashboardCard(
     activeIntercityTrip: IntercityTripDto?,
-    onCreateTrip: () -> Unit,
     onDriverTrips: () -> Unit,
     onOpenMarketplace: () -> Unit,
     onOpenActiveTrip: (String) -> Unit,
@@ -2683,59 +2567,29 @@ private fun DriverDashboardCard(
             }
         }
 
-        // Elevated Quick Trip Actions
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        // Driver Completed Rides Action
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onTripHistory),
+            shape = RoundedCornerShape(12.dp),
+            color = if (isDark) Color(0xFF222629) else Color.White,
+            border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
         ) {
-            Surface(
-                modifier = Modifier
-                    .weight(1.2f)
-                    .clickable(onClick = onCreateTrip),
-                shape = RoundedCornerShape(10.dp),
-                color = if (isDark) Color(0xFF222629) else Color.White,
-                border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
+            Row(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Icon(Icons.Outlined.Add, contentDescription = null, tint = RaahiText, modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text(
-                        text = "Post a Trip as Owner",
-                        fontSize = 11.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = RaahiText,
-                        maxLines = 1
-                    )
-                }
-            }
-
-            Surface(
-                modifier = Modifier
-                    .weight(1f)
-                    .clickable(onClick = onTripHistory),
-                shape = RoundedCornerShape(10.dp),
-                color = if (isDark) Color(0xFF222629) else Color.White,
-                border = BorderStroke(1.dp, if (isDark) Color(0xFF2E3338) else Color(0xFFE3E7E9)),
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Icon(Icons.Outlined.History, contentDescription = null, tint = RaahiTextDim, modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text(
-                        text = "Completed Trips",
-                        fontSize = 11.5.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = RaahiTextDim,
-                        maxLines = 1
-                    )
-                }
+                Icon(Icons.Outlined.History, contentDescription = null, tint = RaahiTextDim, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = "View Completed Rides & Summaries",
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = RaahiText,
+                    maxLines = 1
+                )
             }
         }
     }

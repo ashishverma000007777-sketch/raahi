@@ -488,7 +488,8 @@ fun IntercityTripDetailScreen(
                             }
                         }
 
-                        if (!isAgent && trip.status == "PUBLISHED") {
+                        val isDriverRole = state.currentUserRole?.uppercase() == "DRIVER"
+                        if (!isAgent && isDriverRole && trip.status == "PUBLISHED") {
                             if (hasApplied) {
                                 Surface(
                                     modifier = Modifier.fillMaxWidth(),

@@ -2,6 +2,7 @@ package in.raahi.backend.controller;
 
 import com.google.firebase.auth.FirebaseToken;
 import in.raahi.backend.dto.AuthDtos.VerifyRequest;
+import in.raahi.backend.dto.AuthDtos.UpdateProfileRequest;
 import in.raahi.backend.entity.Subscription;
 import in.raahi.backend.entity.User;
 import in.raahi.backend.exception.ApiException;
@@ -387,6 +388,108 @@ class AuthControllerTest {
         assertNotNull(res);
         assertTrue(res.data.isNewUser);
         assertEquals("+19876543210", res.data.user.phone);
+    }
+
+    @Test
+    void testUpdateProfile_SetsVehicleOwnerRole() {
+        User user = new User();
+        user.setId(UUID.randomUUID());
+        user.setRole(User.Role.DRIVER);
+        user.setName("Old Name");
+        when(userRepository.findById(principal.userId())).thenReturn(Optional.of(user));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        UpdateProfileRequest req = new UpdateProfileRequest();
+        req.name = "Vikram Owner";
+        req.role = "VEHICLE_OWNER";
+
+        var res = controller.updateProfile(principal, req);
+        assertNotNull(res);
+        assertTrue(res.success);
+        assertEquals("VEHICLE_OWNER", res.data.role);
+        assertEquals("Vikram Owner", res.data.name);
+    }
+
+    @Test
+    void testUpdateProfile_SetsTravelAgentRoleAndAgencyName() {
+        User user = new User();
+        user.setId(UUID.randomUUID());
+        user.setRole(User.Role.DRIVER);
+        when(userRepository.findById(principal.userId())).thenReturn(Optional.of(user));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        UpdateProfileRequest req = new UpdateProfileRequest();
+        req.name = "Suresh Agent";
+        req.role = "TRAVEL_AGENT";
+        req.agencyName = "Royal Tours & Travels";
+
+        var res = controller.updateProfile(principal, req);
+        assertNotNull(res);
+        assertTrue(res.success);
+        assertEquals("TRAVEL_AGENT", res.data.role);
+        assertEquals("Royal Tours & Travels", res.data.agencyName);
+    }
+
+    @Test
+    void testVerify_CreatesUserWithRequestedRoleVehicleOwner() {
+        FirebaseToken token = mock(FirebaseToken.class);
+        when(token.getUid()).thenReturn("owner-uid-123");
+        when(token.getClaims()).thenReturn(Map.of("phone_number", "+919876543219"));
+        when(token.getEmail()).thenReturn("owner@raahi.in");
+        when(token.isEmailVerified()).thenReturn(true);
+        when(firebaseVerifier.verify("token-owner-req")).thenReturn(token);
+
+        when(userRepository.findByFirebaseUid("owner-uid-123")).thenReturn(Optional.empty());
+        when(userRepository.findByPhoneIn(any())).thenReturn(List.of());
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> {
+            User u = inv.getArgument(0);
+            u.setId(UUID.randomUUID());
+            return u;
+        });
+
+        VerifyRequest req = new VerifyRequest();
+        req.idToken = "token-owner-req";
+        req.requestedRole = "VEHICLE_OWNER";
+
+        var res = controller.verify(req, null);
+
+        assertNotNull(res);
+        assertTrue(res.success);
+        assertTrue(res.data.isNewUser);
+        assertEquals("VEHICLE_OWNER", res.data.user.role);
+        verify(subscriptionRepository, never()).save(any(Subscription.class));
+    }
+
+    @Test
+    void testVerify_ExistingOwnerWithoutVehicleDetailsIsNotMarkedNewUser() {
+        FirebaseToken token = mock(FirebaseToken.class);
+        when(token.getUid()).thenReturn("existing-owner-uid");
+        when(token.getClaims()).thenReturn(Map.of("phone_number", "+919876543210"));
+        when(token.getEmail()).thenReturn(null);
+        when(token.isEmailVerified()).thenReturn(false);
+        when(firebaseVerifier.verify("token-existing-owner")).thenReturn(token);
+
+        User existingOwner = new User();
+        existingOwner.setId(UUID.randomUUID());
+        existingOwner.setFirebaseUid("existing-owner-uid");
+        existingOwner.setPhone("+919876543210");
+        existingOwner.setName("Rajesh Owner");
+        existingOwner.setRole(User.Role.VEHICLE_OWNER);
+        existingOwner.setVehicleType(null); // No vehicle entered yet
+        existingOwner.setVehicleReg(null);
+        existingOwner.setStatus(User.Status.ACTIVE);
+
+        when(userRepository.findByFirebaseUid("existing-owner-uid")).thenReturn(Optional.of(existingOwner));
+
+        VerifyRequest req = new VerifyRequest();
+        req.idToken = "token-existing-owner";
+
+        var res = controller.verify(req, null);
+
+        assertNotNull(res);
+        assertTrue(res.success);
+        assertFalse(res.data.isNewUser, "Existing owner with name must not be marked isNewUser");
+        assertEquals("VEHICLE_OWNER", res.data.user.role);
     }
 }
 

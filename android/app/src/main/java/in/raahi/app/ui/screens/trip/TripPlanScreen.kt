@@ -2,6 +2,8 @@ package `in`.raahi.app.ui.screens.trip
 
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -11,6 +13,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -21,10 +24,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -44,6 +49,7 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Calendar
 import java.util.Locale
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -607,8 +613,8 @@ fun TripPlanScreen(
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text("EST. FUEL", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B), letterSpacing = 0.5.sp)
                             Spacer(Modifier.height(2.dp))
-                            val fuelText = if (state.routeEstimatedFuelCost != null && state.routeEstimatedFuelLitres != null) {
-                                "₹${state.routeEstimatedFuelCost!!.toInt()} (${state.routeEstimatedFuelLitres}L)"
+                            val fuelText = if (state.estimatedFuelCost != null && state.estimatedFuelLitres != null) {
+                                "₹${state.estimatedFuelCost!!.toInt()} (${state.estimatedFuelLitres}L)"
                             } else "—"
                             Text(fuelText, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF16A34A))
                         }
@@ -705,7 +711,7 @@ fun TripPlanScreen(
                 }
             }
 
-            // 5. TRIP SETUP & PREFERENCES
+            // 5. TRIP BUDGET CALCULATOR
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(18.dp),
@@ -719,92 +725,731 @@ fun TripPlanScreen(
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Text(
-                        text = "Trip Preferences",
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF1E293B)
-                    )
-
-                    // Tank Full Toggle
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
-                            Text("Tank full before start?", color = Color(0xFF1E293B), fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold)
-                            Text("Optimizes fuel stop corridor alerts", color = Color(0xFF64748B), fontSize = 11.5.sp)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFE0F2FE)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.AccountBalanceWallet,
+                                    contentDescription = null,
+                                    tint = Color(0xFF0284C7),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            Text(
+                                text = "Trip Budget Calculator",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF1E293B)
+                            )
                         }
-                        Switch(
-                            checked = state.tankFull,
-                            onCheckedChange = { viewModel.onTankFullToggled(it) },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color.White,
-                                checkedTrackColor = RaahiOrange,
-                                uncheckedTrackColor = Color(0xFFE2E8F0),
-                                uncheckedBorderColor = Color(0xFFCBD5E1)
+
+                        // Round-trip toggle
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                "Round Trip",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (state.isRoundTrip) RaahiOrange else Color(0xFF64748B)
+                            )
+                            Switch(
+                                checked = state.isRoundTrip,
+                                onCheckedChange = { viewModel.onRoundTripToggled(it) },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = Color.White,
+                                    checkedTrackColor = RaahiOrange,
+                                    uncheckedTrackColor = Color(0xFFE2E8F0),
+                                    uncheckedBorderColor = Color(0xFFCBD5E1)
+                                ),
+                                modifier = Modifier.scale(0.85f)
+                            )
+                        }
+                    }
+
+                    // Editable Mileage & Fuel Rate Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        // Mileage editor
+                        OutlinedTextField(
+                            value = if (state.editableMileage > 0) state.editableMileage.toString() else "",
+                            onValueChange = { str ->
+                                str.toDoubleOrNull()?.let { viewModel.onMileageChanged(it) }
+                            },
+                            modifier = Modifier.weight(1f),
+                            label = { Text("Mileage (km/L)", fontSize = 11.5.sp) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = RaahiText,
+                                unfocusedTextColor = RaahiText,
+                                focusedBorderColor = RaahiOrange,
+                                unfocusedBorderColor = Color(0xFFCBD5E1),
+                                focusedContainerColor = Color.White,
+                                unfocusedContainerColor = Color(0xFFF8FAFC),
+                            )
+                        )
+
+                        // Fuel price editor
+                        OutlinedTextField(
+                            value = if (state.editableFuelPrice > 0) state.editableFuelPrice.toString() else "",
+                            onValueChange = { str ->
+                                str.toDoubleOrNull()?.let { viewModel.onFuelPriceChanged(it) }
+                            },
+                            modifier = Modifier.weight(1f),
+                            label = { Text("Fuel Price (₹/L)", fontSize = 11.5.sp) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = RaahiText,
+                                unfocusedTextColor = RaahiText,
+                                focusedBorderColor = RaahiOrange,
+                                unfocusedBorderColor = Color(0xFFCBD5E1),
+                                focusedContainerColor = Color.White,
+                                unfocusedContainerColor = Color(0xFFF8FAFC),
                             )
                         )
                     }
 
-                    HorizontalDivider(color = Color(0xFFF1F5F9))
+                    // Budget Metrics Grid (2x2)
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFFF8FAFC),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            // Row 1: Distance & Fuel Litres
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column {
+                                    val distLabel = if (state.isRoundTrip) "TOTAL DISTANCE (ROUND-TRIP)" else "TOTAL DISTANCE"
+                                    val distVal = state.routeDistanceKm?.let {
+                                        val effective = if (state.isRoundTrip) it * 2.0 else it
+                                        "${String.format(Locale.ROOT, "%.1f", effective)} km"
+                                    } ?: "—"
+                                    Text(distLabel, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B), letterSpacing = 0.5.sp)
+                                    Text(distVal, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0F172A))
+                                }
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text("ESTIMATED FUEL", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B), letterSpacing = 0.5.sp)
+                                    val fuelVal = if (state.estimatedFuelLitres != null && state.estimatedFuelCost != null) {
+                                        "${state.estimatedFuelLitres} L (₹${state.estimatedFuelCost?.toInt()})"
+                                    } else "—"
+                                    Text(fuelVal, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF16A34A))
+                                }
+                            }
 
-                    // Passengers Count
+                            HorizontalDivider(color = Color(0xFFE2E8F0))
+
+                            // Row 2: Toll Cost & Cost per km
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column {
+                                    Text("ESTIMATED TOLLS", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B), letterSpacing = 0.5.sp)
+                                    val tollText = if (state.tollAvailable && state.tollCost != null) {
+                                        "₹${state.tollCost?.toInt()}"
+                                    } else {
+                                        "Unavailable"
+                                    }
+                                    Text(
+                                        tollText,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = if (state.tollAvailable) Color(0xFF0284C7) else Color(0xFF94A3B8)
+                                    )
+                                    if (!state.tollAvailable) {
+                                        Text(
+                                            state.tollUnavailableReason ?: "Toll data not provided for this route",
+                                            fontSize = 10.sp,
+                                            color = Color(0xFF94A3B8)
+                                        )
+                                    }
+                                }
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text("COST PER KM", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B), letterSpacing = 0.5.sp)
+                                    val costKmText = state.costPerKm?.let { "₹${String.format(Locale.ROOT, "%.2f", it)}/km" } ?: "—"
+                                    Text(costKmText, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0F172A))
+                                }
+                            }
+                        }
+                    }
+
+                    // Total Cost Banner
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFFECFDF5),
+                        border = BorderStroke(1.dp, Color(0xFFA7F3D0))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    "TOTAL ESTIMATED TRIP COST",
+                                    fontSize = 9.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF065F46),
+                                    letterSpacing = 0.5.sp
+                                )
+                                Text(
+                                    if (state.tollAvailable) "Includes fuel & tolls" else "Estimated fuel only (tolls unavailable)",
+                                    fontSize = 10.5.sp,
+                                    color = Color(0xFF047857)
+                                )
+                            }
+                            val totalStr = state.estimatedTotalCost?.let { "₹${it.toInt()}" } ?: "—"
+                            Text(
+                                text = totalStr,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFF065F46),
+                                fontFamily = RaahiDisplayFont
+                            )
+                        }
+                    }
+                }
+            }
+
+            // 6. FUEL RANGE & STOP PLANNER
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                color = Color.White,
+                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                shadowElevation = 2.dp
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFFFF7ED)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.LocalGasStation,
+                                contentDescription = null,
+                                tint = Color(0xFFEA580C),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Column {
+                            Text(
+                                text = "Fuel Range & Stop Planner",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF1E293B)
+                            )
+                            Text(
+                                text = "Live telemetry based on remaining fuel & vehicle mileage",
+                                fontSize = 11.5.sp,
+                                color = Color(0xFF64748B)
+                            )
+                        }
+                    }
+
+                    // Fuel Input & Range Estimation Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Passengers", color = Color(0xFF1E293B), fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold)
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            listOf(1, 2, 4, 6).forEach { count ->
-                                val selected = state.passengers == count
+                        OutlinedTextField(
+                            value = if (state.remainingFuelLitres > 0) state.remainingFuelLitres.toString() else "",
+                            onValueChange = { str ->
+                                str.toDoubleOrNull()?.let { viewModel.onRemainingFuelChanged(it) }
+                            },
+                            modifier = Modifier.weight(1f),
+                            label = { Text("Remaining Fuel (L)", fontSize = 11.5.sp) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = RaahiText,
+                                unfocusedTextColor = RaahiText,
+                                focusedBorderColor = RaahiOrange,
+                                unfocusedBorderColor = Color(0xFFCBD5E1),
+                                focusedContainerColor = Color.White,
+                                unfocusedContainerColor = Color(0xFFF8FAFC),
+                            )
+                        )
+
+                        Surface(
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color(0xFFF8FAFC),
+                            border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp)) {
+                                Text("ESTIMATED RANGE", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B), letterSpacing = 0.5.sp)
+                                Text(
+                                    "${state.remainingFuelRangeKm.toInt()} km",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = if (state.needsRefuel) Color(0xFFDC2626) else Color(0xFF16A34A)
+                                )
+                            }
+                        }
+                    }
+
+                    // Range alert banner
+                    if (state.refuelAdviceMessage != null) {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (state.needsRefuel) Color(0xFFFFFBEB) else Color(0xFFF0FDF4),
+                            border = BorderStroke(1.dp, if (state.needsRefuel) Color(0xFFFDE68A) else Color(0xFFBBF7D0))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (state.needsRefuel) Icons.Filled.Warning else Icons.Filled.CheckCircle,
+                                    contentDescription = null,
+                                    tint = if (state.needsRefuel) Color(0xFFD97706) else Color(0xFF16A34A),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = state.refuelAdviceMessage!!,
+                                    color = if (state.needsRefuel) Color(0xFF92400E) else Color(0xFF166534),
+                                    fontSize = 11.5.sp,
+                                    lineHeight = 15.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+
+                    // Recommended Fuel Stations along Route
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            "Verified Fuel Stations Along Corridor:",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF475569)
+                        )
+
+                        if (state.isLoadingFuelStations) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 2.dp, color = RaahiOrange)
+                                Text("Indexing fuel stations along corridor...", fontSize = 11.sp, color = Color(0xFF64748B))
+                            }
+                        } else if (state.recommendedFuelStations.isEmpty()) {
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFFF8FAFC),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                            ) {
+                                Text(
+                                    "No verified fuel stations indexed along this specific highway segment. Fill tank prior to departure.",
+                                    fontSize = 11.5.sp,
+                                    color = Color(0xFF64748B),
+                                    modifier = Modifier.padding(10.dp)
+                                )
+                            }
+                        } else {
+                            state.recommendedFuelStations.forEach { station ->
                                 Surface(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .clickable { viewModel.onPassengersChanged(count) },
+                                    modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(10.dp),
-                                    color = if (selected) RaahiOrange else Color(0xFFF8FAFC),
-                                    border = BorderStroke(1.dp, if (selected) RaahiOrange else Color(0xFFCBD5E1))
+                                    color = Color(0xFFF8FAFC),
+                                    border = BorderStroke(1.dp, Color(0xFFE2E8F0))
                                 ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Text(
-                                            "$count",
-                                            color = if (selected) Color.White else Color(0xFF334155),
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 13.sp
-                                        )
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(10.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                station.name,
+                                                fontSize = 12.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF1E293B),
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                "~${station.distanceAlongRouteKm} km into trip • Detour +${station.detourKm} km",
+                                                fontSize = 11.sp,
+                                                color = Color(0xFF64748B)
+                                            )
+                                        }
+                                        OutlinedButton(
+                                            onClick = {
+                                                val uri = Uri.parse("https://www.google.com/maps/search/?api=1&query=${station.lat},${station.lng}")
+                                                context.startActivity(Intent(Intent.ACTION_VIEW, uri))
+                                            },
+                                            shape = RoundedCornerShape(8.dp),
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                            modifier = Modifier.height(30.dp),
+                                            border = BorderStroke(1.dp, RaahiOrange)
+                                        ) {
+                                            Text("Open in Maps", fontSize = 10.5.sp, color = RaahiOrange, fontWeight = FontWeight.Bold)
+                                        }
                                     }
                                 }
                             }
                         }
                     }
+                }
+            }
 
-                    HorizontalDivider(color = Color(0xFFF1F5F9))
+            // 7. ALTERNATIVE ROUTE COMPARISON
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                color = Color.White,
+                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                shadowElevation = 2.dp
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFEDE9FE)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.AltRoute,
+                                contentDescription = null,
+                                tint = Color(0xFF7C3AED),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Column {
+                            Text(
+                                text = "Alternative Route Comparison",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF1E293B)
+                            )
+                            Text(
+                                text = "Compare genuine routes computed via Google Routes API",
+                                fontSize = 11.5.sp,
+                                color = Color(0xFF64748B)
+                            )
+                        }
+                    }
 
-                    // Preferred Route
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Preferred Route Strategy", color = Color(0xFF1E293B), fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            listOf("Fastest Highway", "Scenic / Less Tolls").forEach { route ->
-                                val selected = state.preferredRoute == route
-                                Surface(
-                                    shape = RoundedCornerShape(10.dp),
-                                    color = if (selected) RaahiOrange.copy(alpha = 0.12f) else Color(0xFFF8FAFC),
-                                    border = BorderStroke(1.dp, if (selected) RaahiOrange else Color(0xFFCBD5E1)),
-                                    modifier = Modifier.clickable { viewModel.onPreferredRouteChanged(route) }
+                    if (state.alternativeRoutes.isEmpty()) {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color(0xFFF8FAFC),
+                            border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                        ) {
+                            Text(
+                                "Enter a destination above to compute alternative routes.",
+                                fontSize = 11.5.sp,
+                                color = Color(0xFF64748B),
+                                modifier = Modifier.padding(10.dp)
+                            )
+                        }
+                    } else {
+                        state.alternativeRoutes.forEachIndexed { index, route ->
+                            val isSelected = state.selectedRouteIndex == index
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { viewModel.selectRoute(index) },
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isSelected) Color(0xFFFFF7ED) else Color(0xFFF8FAFC),
+                                border = BorderStroke(
+                                    if (isSelected) 1.5.dp else 1.dp,
+                                    if (isSelected) RaahiOrange else Color(0xFFE2E8F0)
+                                )
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    Text(
-                                        text = route,
-                                        color = if (selected) RaahiOrange else Color(0xFF475569),
-                                        fontSize = 12.5.sp,
-                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
-                                    )
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        // Badge label
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = if (isSelected) RaahiOrange else Color(0xFFE2E8F0)
+                                        ) {
+                                            Text(
+                                                text = route.routeLabel ?: "Route ${index + 1}",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isSelected) Color.White else Color(0xFF334155),
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                                            )
+                                        }
+
+                                        if (isSelected) {
+                                            Text(
+                                                "SELECTED",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = RaahiOrange
+                                            )
+                                        }
+                                    }
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column {
+                                            Text(
+                                                "${route.distanceKm} km • ${route.formattedEta}",
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF0F172A)
+                                            )
+                                            val tollNote = if (route.tollAvailable && route.tollCost != null) {
+                                                "Toll: ₹${route.tollCost.toInt()}"
+                                            } else {
+                                                "Toll: Unavailable"
+                                            }
+                                            Text(
+                                                tollNote,
+                                                fontSize = 11.5.sp,
+                                                color = Color(0xFF64748B)
+                                            )
+                                        }
+
+                                        val routeFuelCost = ((route.distanceKm / state.editableMileage) * state.editableFuelPrice).roundToInt()
+                                        Text(
+                                            "₹$routeFuelCost (Fuel)",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = Color(0xFF16A34A)
+                                        )
+                                    }
                                 }
                             }
                         }
+
+                        if (state.alternativeRoutes.size == 1) {
+                            Text(
+                                "Only 1 primary highway corridor available for this route from Google Routes API.",
+                                fontSize = 11.sp,
+                                color = Color(0xFF94A3B8)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // 8. SMART BREAK PLANNER
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                color = Color.White,
+                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                shadowElevation = 2.dp
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFFEF3C7)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.FreeBreakfast,
+                                contentDescription = null,
+                                tint = Color(0xFFD97706),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Column {
+                            Text(
+                                text = "Smart Break Suggestions",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF1E293B)
+                            )
+                            Text(
+                                text = "Dhabas, highway rest stops & washrooms along selected route",
+                                fontSize = 11.5.sp,
+                                color = Color(0xFF64748B)
+                            )
+                        }
+                    }
+
+                    if (state.isLoadingBreaks) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 2.dp, color = RaahiOrange)
+                            Text("Finding rest stops along corridor...", fontSize = 11.sp, color = Color(0xFF64748B))
+                        }
+                    } else if (state.smartBreaks.isEmpty()) {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color(0xFFF8FAFC),
+                            border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                        ) {
+                            Text(
+                                "No verified highway rest stops found along this immediate route segment. Plan scheduled pauses every 2-3 hours.",
+                                fontSize = 11.5.sp,
+                                color = Color(0xFF64748B),
+                                modifier = Modifier.padding(10.dp)
+                            )
+                        }
+                    } else {
+                        state.smartBreaks.forEach { stop ->
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFFF8FAFC),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Surface(
+                                                shape = RoundedCornerShape(4.dp),
+                                                color = when (stop.type) {
+                                                    "dhaba" -> Color(0xFFFEF3C7)
+                                                    "toilet" -> Color(0xFFE0F2FE)
+                                                    else -> Color(0xFFF1F5F9)
+                                                }
+                                            ) {
+                                                Text(
+                                                    text = stop.typeLabel,
+                                                    fontSize = 9.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = when (stop.type) {
+                                                        "dhaba" -> Color(0xFF92400E)
+                                                        "toilet" -> Color(0xFF0369A1)
+                                                        else -> Color(0xFF334155)
+                                                    },
+                                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                        }
+                                        Spacer(Modifier.height(3.dp))
+                                        Text(
+                                            stop.name,
+                                            fontSize = 12.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF1E293B),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            "~${stop.distanceAlongRouteKm} km into trip • Detour +${stop.detourKm} km",
+                                            fontSize = 11.sp,
+                                            color = Color(0xFF64748B)
+                                        )
+                                    }
+
+                                    OutlinedButton(
+                                        onClick = {
+                                            val uri = Uri.parse("https://www.google.com/maps/search/?api=1&query=${stop.lat},${stop.lng}")
+                                            context.startActivity(Intent(Intent.ACTION_VIEW, uri))
+                                        },
+                                        shape = RoundedCornerShape(8.dp),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                        modifier = Modifier.height(30.dp),
+                                        border = BorderStroke(1.dp, Color(0xFF0284C7))
+                                    ) {
+                                        Text("Open in Maps", fontSize = 10.5.sp, color = Color(0xFF0284C7), fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+
+                        Text(
+                            "Stops are suggestions. Tap 'Open in Maps' to inspect locations; stops are never added without confirmation.",
+                            fontSize = 10.5.sp,
+                            color = Color(0xFF94A3B8)
+                        )
                     }
                 }
             }

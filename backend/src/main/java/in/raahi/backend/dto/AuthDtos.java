@@ -36,6 +36,7 @@ public class AuthDtos {
         public boolean isVerified;
         public double ratingAvg;
         public int totalHelps;
+        public String agencyName;
     }
 
     public static class UpdateProfileRequest {
@@ -47,6 +48,10 @@ public class AuthDtos {
         public String vehicleReg;
         @Size(max = 10)
         public String language;
+        @Size(max = 50)
+        public String role;
+        @Size(max = 100)
+        public String agencyName;
     }
 
     public static class LocationRequest {

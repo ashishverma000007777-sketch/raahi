@@ -86,11 +86,7 @@ public class AuthController {
 
         boolean isNewUser = existingUser.isEmpty()
                 || existingUser.get().getName() == null
-                || existingUser.get().getName().isBlank()
-                || existingUser.get().getVehicleType() == null
-                || existingUser.get().getVehicleType().isBlank()
-                || existingUser.get().getVehicleReg() == null
-                || existingUser.get().getVehicleReg().isBlank();
+                || existingUser.get().getName().isBlank();
 
         boolean emailVerified = Boolean.TRUE.equals(decoded.isEmailVerified())
                 || (decoded.getClaims() != null && Boolean.TRUE.equals(decoded.getClaims().get("email_verified")));
@@ -137,14 +133,25 @@ public class AuthController {
             u.setPhone(phone);
             u.setEmail(decoded.getEmail());
             u.setEmailVerified(emailVerified);
-            u.setRole(User.Role.DRIVER);
+            User.Role initialRole = User.Role.DRIVER;
+            if (req.requestedRole != null && !req.requestedRole.isBlank()) {
+                String cleanRole = req.requestedRole.trim().toUpperCase();
+                if ("VEHICLE_OWNER".equals(cleanRole) || "OWNER".equals(cleanRole)) {
+                    initialRole = User.Role.VEHICLE_OWNER;
+                } else if ("TRAVEL_AGENT".equals(cleanRole)) {
+                    initialRole = User.Role.TRAVEL_AGENT;
+                }
+            }
+            u.setRole(initialRole);
             user = userRepository.save(u);
 
-            Subscription sub = new Subscription();
-            sub.setUser(user);
-            sub.setTier(Subscription.Tier.NONE);
-            sub.setStatus(Subscription.Status.INACTIVE);
-            subscriptionRepository.save(sub);
+            if (initialRole == User.Role.DRIVER) {
+                Subscription sub = new Subscription();
+                sub.setUser(user);
+                sub.setTier(Subscription.Tier.NONE);
+                sub.setStatus(Subscription.Status.INACTIVE);
+                subscriptionRepository.save(sub);
+            }
         }
 
         if (user.getStatus() == User.Status.SUSPENDED) {
@@ -279,6 +286,23 @@ public class AuthController {
             String clean = req.language.trim().toLowerCase();
             if (clean.length() > 10) throw ApiException.badRequest("INVALID_LANGUAGE", "Invalid language code");
             user.setLanguage(clean);
+        }
+        if (req.role != null && !req.role.isBlank()) {
+            String cleanRole = req.role.trim().toUpperCase();
+            if (user.getRole() != User.Role.ADMIN) {
+                if ("VEHICLE_OWNER".equals(cleanRole) || "OWNER".equals(cleanRole)) {
+                    user.setRole(User.Role.VEHICLE_OWNER);
+                } else if ("DRIVER".equals(cleanRole)) {
+                    user.setRole(User.Role.DRIVER);
+                } else if ("TRAVEL_AGENT".equals(cleanRole)) {
+                    user.setRole(User.Role.TRAVEL_AGENT);
+                }
+            }
+        }
+        if (req.agencyName != null) {
+            String cleanAgency = req.agencyName.trim();
+            if (cleanAgency.length() > 100) throw ApiException.badRequest("AGENCY_NAME_TOO_LONG", "Agency name exceeds 100 characters");
+            user.setAgencyName(cleanAgency.isEmpty() ? null : cleanAgency);
         }
 
         userRepository.save(user);
@@ -448,6 +472,7 @@ public class AuthController {
         dto.isVerified = u.isVerified();
         dto.ratingAvg = u.getRatingAvg() == null ? 0 : u.getRatingAvg();
         dto.totalHelps = u.getTotalHelps() == null ? 0 : u.getTotalHelps();
+        dto.agencyName = u.getAgencyName();
         return dto;
     }
 }

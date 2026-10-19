@@ -23,8 +23,12 @@ data class UserDto(
 )
 
 data class UpdateProfileRequest(
-    val name: String? = null, val vehicleType: String? = null,
-    val vehicleReg: String? = null, val language: String? = null
+    val name: String? = null,
+    val vehicleType: String? = null,
+    val vehicleReg: String? = null,
+    val language: String? = null,
+    val role: String? = null,
+    val agencyName: String? = null
 )
 data class FcmTokenRequest(val token: String)
 

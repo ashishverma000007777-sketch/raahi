@@ -15,6 +15,7 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.DirectionsCar
@@ -24,6 +25,7 @@ import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.material.icons.outlined.BrightnessAuto
@@ -59,6 +61,19 @@ import `in`.raahi.app.ui.screens.vehicle.CarHealthUiState
 import `in`.raahi.app.ui.screens.vehicle.CarHealthViewModel
 import `in`.raahi.app.ui.theme.*
 
+fun formatRoleDisplayName(role: String?): String {
+    return when (role?.uppercase()) {
+        "VEHICLE_OWNER", "OWNER" -> "Vehicle Owner"
+        "TRAVEL_AGENT" -> "Travel Agent"
+        "DRIVER" -> "Driver"
+        "MECHANIC" -> "Mechanic"
+        "HELPER" -> "Helper"
+        "ADMIN" -> "Admin"
+        null, "" -> "--"
+        else -> role.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+    }
+}
+
 private enum class ProfileSubTab { CAR_HEALTH, PROFILE }
 
 /** Profile / Car Health, restyled to the concept redesign — glass cards, the shared
@@ -73,6 +88,11 @@ fun ProfileScreen(
     onNotifications: () -> Unit = {},
     onPayments: () -> Unit = {},
     onEarnWithRaahi: () -> Unit = onHelper,
+    onPostTrip: () -> Unit = {},
+    onMyTrips: () -> Unit = {},
+    onTripHistory: () -> Unit = {},
+    onDriverTrips: () -> Unit = {},
+    onExploreIntercity: () -> Unit = {},
     viewModel: ProfileViewModel = hiltViewModel(),
     carHealthViewModel: CarHealthViewModel = hiltViewModel(),
 ) {
@@ -131,6 +151,11 @@ fun ProfileScreen(
                                 onEarnWithRaahi = onEarnWithRaahi,
                                 onNotifications = onNotifications,
                                 onPayments = onPayments,
+                                onPostTrip = onPostTrip,
+                                onMyTrips = onMyTrips,
+                                onTripHistory = onTripHistory,
+                                onDriverTrips = onDriverTrips,
+                                onExploreIntercity = onExploreIntercity,
                             )
                         }
                         Spacer(Modifier.height(24.dp))
@@ -166,6 +191,11 @@ fun ProfileScreen(
                                 onEarnWithRaahi = onEarnWithRaahi,
                                 onNotifications = onNotifications,
                                 onPayments = onPayments,
+                                onPostTrip = onPostTrip,
+                                onMyTrips = onMyTrips,
+                                onTripHistory = onTripHistory,
+                                onDriverTrips = onDriverTrips,
+                                onExploreIntercity = onExploreIntercity,
                             )
                         }
                         Spacer(Modifier.height(24.dp))
@@ -240,7 +270,7 @@ private fun ProfileHeader(onBack: () -> Unit, user: UserDto?, onEdit: () -> Unit
                         color = RaahiLightOrange,
                     ) {
                         Text(
-                            text = (user?.role?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Driver").uppercase(),
+                            text = formatRoleDisplayName(user?.role).uppercase(),
                             color = RaahiOrange,
                             fontWeight = FontWeight.Bold,
                             fontSize = 9.5.sp,
@@ -257,11 +287,11 @@ private fun ProfileHeader(onBack: () -> Unit, user: UserDto?, onEdit: () -> Unit
 
 @Composable
 private fun StatsRow(user: UserDto?) {
-    val totalHelpsText = user?.totalHelps?.toString() ?: "--"
+    val roleUpper = user?.role?.uppercase()
+    val isOwner = roleUpper in listOf("VEHICLE_OWNER", "OWNER")
+    val isTravelAgent = roleUpper == "TRAVEL_AGENT"
+
     val ratingText = if (user != null && user.ratingAvg > 0.0) "%.1f".format(user.ratingAvg) else "--"
-    val roleText = user?.role?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "--"
-    val statusText = if (user?.isVerified == true) "Verified" else "Pending"
-    val statusColor = if (user?.isVerified == true) RaahiGreen else RaahiOrange
 
     Surface(
         modifier = Modifier
@@ -278,13 +308,42 @@ private fun StatsRow(user: UserDto?) {
                 .padding(vertical = 14.dp, horizontal = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            StatTelemetryItem(totalHelpsText, "HELPS", RaahiGreen, Modifier.weight(1f))
-            Box(Modifier.width(1.dp).height(26.dp).background(RaahiBorderSoft))
-            StatTelemetryItem(ratingText, "RATING", RaahiAmber, Modifier.weight(1f))
-            Box(Modifier.width(1.dp).height(26.dp).background(RaahiBorderSoft))
-            StatTelemetryItem(roleText, "ROLE", Color(0xFF3B82F6), Modifier.weight(1f))
-            Box(Modifier.width(1.dp).height(26.dp).background(RaahiBorderSoft))
-            StatTelemetryItem(statusText, "STATUS", statusColor, Modifier.weight(1f))
+            when {
+                isOwner -> {
+                    val vehicleText = user?.vehicleType?.takeIf { it.isNotBlank() } ?: "Personal"
+                    StatTelemetryItem(vehicleText, "VEHICLE", RaahiCyan, Modifier.weight(1f))
+                    Box(Modifier.width(1.dp).height(26.dp).background(RaahiBorderSoft))
+                    StatTelemetryItem(ratingText, "RATING", RaahiAmber, Modifier.weight(1f))
+                    Box(Modifier.width(1.dp).height(26.dp).background(RaahiBorderSoft))
+                    StatTelemetryItem("Owner", "ROLE", Color(0xFF3B82F6), Modifier.weight(1f))
+                    Box(Modifier.width(1.dp).height(26.dp).background(RaahiBorderSoft))
+                    StatTelemetryItem("Active", "ACCOUNT", RaahiGreen, Modifier.weight(1f))
+                }
+                isTravelAgent -> {
+                    val agencyText = if (!user?.agencyName.isNullOrBlank()) "Agent" else "Commercial"
+                    StatTelemetryItem(agencyText, "TYPE", RaahiCyan, Modifier.weight(1f))
+                    Box(Modifier.width(1.dp).height(26.dp).background(RaahiBorderSoft))
+                    StatTelemetryItem(ratingText, "RATING", RaahiAmber, Modifier.weight(1f))
+                    Box(Modifier.width(1.dp).height(26.dp).background(RaahiBorderSoft))
+                    StatTelemetryItem("Agent", "ROLE", Color(0xFF3B82F6), Modifier.weight(1f))
+                    Box(Modifier.width(1.dp).height(26.dp).background(RaahiBorderSoft))
+                    StatTelemetryItem("Active", "ACCOUNT", RaahiGreen, Modifier.weight(1f))
+                }
+                else -> {
+                    val totalHelpsText = user?.totalHelps?.toString() ?: "--"
+                    val roleText = if (user != null) formatRoleDisplayName(user.role) else "--"
+                    val statusText = if (user?.isVerified == true) "Verified" else "Pending"
+                    val statusColor = if (user?.isVerified == true) RaahiGreen else RaahiOrange
+
+                    StatTelemetryItem(totalHelpsText, "HELPS", RaahiGreen, Modifier.weight(1f))
+                    Box(Modifier.width(1.dp).height(26.dp).background(RaahiBorderSoft))
+                    StatTelemetryItem(ratingText, "RATING", RaahiAmber, Modifier.weight(1f))
+                    Box(Modifier.width(1.dp).height(26.dp).background(RaahiBorderSoft))
+                    StatTelemetryItem(roleText, "ROLE", Color(0xFF3B82F6), Modifier.weight(1f))
+                    Box(Modifier.width(1.dp).height(26.dp).background(RaahiBorderSoft))
+                    StatTelemetryItem(statusText, "STATUS", statusColor, Modifier.weight(1f))
+                }
+            }
         }
     }
 }
@@ -756,6 +815,11 @@ private fun ProfileTab(
     onEarnWithRaahi: () -> Unit,
     onNotifications: () -> Unit,
     onPayments: () -> Unit,
+    onPostTrip: () -> Unit = {},
+    onMyTrips: () -> Unit = {},
+    onTripHistory: () -> Unit = {},
+    onDriverTrips: () -> Unit = {},
+    onExploreIntercity: () -> Unit = {},
 ) {
     val selectedTheme by ThemeManager.themeFlow.collectAsState()
 
@@ -869,23 +933,98 @@ private fun ProfileTab(
 
         Spacer(Modifier.height(18.dp))
 
-        // 3. EARNINGS & PARTNER
-        Box(Modifier.padding(horizontal = 16.dp)) { SectionLabel("EARNINGS & PARTNER") }
-        val isHelperOrMechanic = user?.role == "HELPER" || user?.role == "MECHANIC"
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .shadow(elevation = RaahiCardElevation, shape = RaahiCardShape, spotColor = Color(0x0C000000)),
-            shape = RaahiCardShape,
-            color = RaahiCardBg,
-            border = BorderStroke(1.dp, RaahiBorderSoft)
-        ) {
-            GroupedMenuItem(
-                Icons.Outlined.Handshake,
-                if (isHelperOrMechanic) "Helper Dashboard" else "Earn with Raahi",
-                onClick = if (isHelperOrMechanic) onHelper else onEarnWithRaahi,
-            )
+        // 3. ROLE-SPECIFIC TRIPS & PARTNER SECTION
+        val roleUpper = user?.role?.uppercase()
+        val isOwner = roleUpper in listOf("VEHICLE_OWNER", "OWNER")
+        val isAgent = roleUpper == "TRAVEL_AGENT"
+        val isDriver = roleUpper == "DRIVER" || (roleUpper != null && !isOwner && !isAgent)
+        val isHelperOrMechanic = roleUpper == "HELPER" || roleUpper == "MECHANIC"
+
+        when {
+            isOwner -> {
+                Box(Modifier.padding(horizontal = 16.dp)) { SectionLabel("MY TRIPS & DRIVES") }
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .shadow(elevation = RaahiCardElevation, shape = RaahiCardShape, spotColor = Color(0x0C000000)),
+                    shape = RaahiCardShape,
+                    color = RaahiCardBg,
+                    border = BorderStroke(1.dp, RaahiBorderSoft)
+                ) {
+                    Column {
+                        GroupedMenuItem(Icons.Outlined.Add, "Post a Trip", onClick = onPostTrip)
+                        HorizontalDivider(color = RaahiBorderSoft, thickness = 1.dp)
+                        GroupedMenuItem(Icons.Outlined.DirectionsCar, "My Trips", onClick = onMyTrips)
+                        HorizontalDivider(color = RaahiBorderSoft, thickness = 1.dp)
+                        GroupedMenuItem(Icons.Outlined.History, "Completed Trips", onClick = onTripHistory)
+                    }
+                }
+            }
+            isAgent -> {
+                Box(Modifier.padding(horizontal = 16.dp)) { SectionLabel("COMMERCIAL FLEET & TRIPS") }
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .shadow(elevation = RaahiCardElevation, shape = RaahiCardShape, spotColor = Color(0x0C000000)),
+                    shape = RaahiCardShape,
+                    color = RaahiCardBg,
+                    border = BorderStroke(1.dp, RaahiBorderSoft)
+                ) {
+                    Column {
+                        GroupedMenuItem(Icons.Outlined.Add, "Post Commercial Trip", onClick = onPostTrip)
+                        HorizontalDivider(color = RaahiBorderSoft, thickness = 1.dp)
+                        GroupedMenuItem(Icons.Outlined.DirectionsCar, "My Trips & Driver Interests", onClick = onMyTrips)
+                        HorizontalDivider(color = RaahiBorderSoft, thickness = 1.dp)
+                        GroupedMenuItem(Icons.Outlined.History, "Completed Trips", onClick = onTripHistory)
+                    }
+                }
+            }
+            isDriver -> {
+                Box(Modifier.padding(horizontal = 16.dp)) { SectionLabel("HIGHWAY DRIVES & RIDES") }
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .shadow(elevation = RaahiCardElevation, shape = RaahiCardShape, spotColor = Color(0x0C000000)),
+                    shape = RaahiCardShape,
+                    color = RaahiCardBg,
+                    border = BorderStroke(1.dp, RaahiBorderSoft)
+                ) {
+                    Column {
+                        GroupedMenuItem(Icons.Outlined.Search, "Available Trips", onClick = onExploreIntercity)
+                        HorizontalDivider(color = RaahiBorderSoft, thickness = 1.dp)
+                        GroupedMenuItem(Icons.Outlined.DirectionsCar, "My Rides", onClick = onDriverTrips)
+                        HorizontalDivider(color = RaahiBorderSoft, thickness = 1.dp)
+                        GroupedMenuItem(Icons.Outlined.History, "Completed Rides", onClick = onTripHistory)
+                        HorizontalDivider(color = RaahiBorderSoft, thickness = 1.dp)
+                        GroupedMenuItem(
+                            Icons.Outlined.Handshake,
+                            if (isHelperOrMechanic) "Helper Dashboard" else "Earn with Raahi",
+                            onClick = if (isHelperOrMechanic) onHelper else onEarnWithRaahi,
+                        )
+                    }
+                }
+            }
+            else -> {
+                Box(Modifier.padding(horizontal = 16.dp)) { SectionLabel("PARTNER SERVICES") }
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .shadow(elevation = RaahiCardElevation, shape = RaahiCardShape, spotColor = Color(0x0C000000)),
+                    shape = RaahiCardShape,
+                    color = RaahiCardBg,
+                    border = BorderStroke(1.dp, RaahiBorderSoft)
+                ) {
+                    GroupedMenuItem(
+                        Icons.Outlined.Handshake,
+                        if (isHelperOrMechanic) "Helper Dashboard" else "Earn with Raahi",
+                        onClick = if (isHelperOrMechanic) onHelper else onEarnWithRaahi,
+                    )
+                }
+            }
         }
 
         Spacer(Modifier.height(18.dp))
@@ -1025,7 +1164,7 @@ private fun ProfileTab(
 
         Spacer(Modifier.height(14.dp))
         Text(
-            text = "Raahi Driver v2.1.0 • Build 24",
+            text = "Raahi v2.1.0 • Build 24",
             color = RaahiTextFaint,
             fontSize = 11.sp,
             modifier = Modifier.align(Alignment.CenterHorizontally)
