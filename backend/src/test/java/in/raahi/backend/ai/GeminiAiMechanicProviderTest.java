@@ -220,4 +220,15 @@ class GeminiAiMechanicProviderTest {
 
         assertEquals(AiMechanicProvider.ErrorCategory.TIMEOUT, ex.getCategory());
     }
+
+    @Test
+    void testSpringContextBeanInstantiationSuccess() {
+        try (org.springframework.context.annotation.AnnotationConfigApplicationContext context =
+                     new org.springframework.context.annotation.AnnotationConfigApplicationContext()) {
+            context.register(GeminiAiMechanicProvider.class);
+            context.refresh();
+            GeminiAiMechanicProvider bean = context.getBean(GeminiAiMechanicProvider.class);
+            assertNotNull(bean, "GeminiAiMechanicProvider must be cleanly instantiated by Spring container");
+        }
+    }
 }
