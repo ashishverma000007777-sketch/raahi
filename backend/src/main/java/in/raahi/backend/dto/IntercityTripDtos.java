@@ -65,6 +65,13 @@ public class IntercityTripDtos {
 
         public String specialInstructions;
 
+        public String rideType; // OWNER or AGENT
+        public BigDecimal customerFare;
+        public BigDecimal driverPayout;
+        public BigDecimal agentCommission;
+        public String paymentRecipient = "DRIVER"; // DRIVER or AGENT
+        public String settlementResponsibility = "NONE"; // NONE, DRIVER_TO_AGENT, AGENT_TO_DRIVER
+
         public Boolean saveAsDraft = false;
     }
 
@@ -85,8 +92,36 @@ public class IntercityTripDtos {
         public String reason;
     }
 
+    public static class SubmitSettlementRequest {
+        @NotBlank(message = "settlementRef is required")
+        @Size(max = 100, message = "settlementRef exceeds 100 characters")
+        public String settlementRef;
+
+        @Size(max = 500, message = "settlementNotes exceeds 500 characters")
+        public String settlementNotes;
+    }
+
+    public static class RaiseDisputeRequest {
+        @NotBlank(message = "reason is required")
+        @Size(max = 255, message = "reason exceeds 255 characters")
+        public String reason;
+
+        @Size(max = 2000, message = "evidence exceeds 2000 characters")
+        public String evidence;
+    }
+
+    public static class ResolveDisputeRequest {
+        @NotBlank(message = "resolution is required")
+        @Size(max = 2000, message = "resolution exceeds 2000 characters")
+        public String resolution;
+
+        @NotBlank(message = "action is required")
+        public String action; // RESOLVE_AND_COMPLETE, RESOLVE_AND_CANCEL, WARN_USER, SUSPEND_USER
+    }
+
     public static class IntercityTripDto {
         public String id;
+        public String rideType; // "OWNER" or "AGENT"
         public String agentId;
         public String agentName;
         public String agentPhone;
@@ -116,6 +151,16 @@ public class IntercityTripDtos {
         public Integer estimatedDurationMin;
 
         public BigDecimal fare;
+        public BigDecimal customerFare;
+        public BigDecimal driverPayout;
+        public BigDecimal agentCommission;
+        public String paymentRecipient;
+        public String settlementResponsibility;
+        public String settlementRef;
+        public String settlementNotes;
+        public Instant settlementSubmittedAt;
+        public Instant settlementConfirmedAt;
+
         public String paymentMode;
         public String paymentStatus;
         public String cancellationTerms;
@@ -137,6 +182,14 @@ public class IntercityTripDtos {
         public Instant completedAt;
         public Instant cancelledAt;
         public String cancelReason;
+
+        public Instant disputedAt;
+        public String disputedById;
+        public String disputeReason;
+        public String disputeEvidence;
+        public String disputeResolution;
+        public Instant resolvedAt;
+
         public Instant createdAt;
     }
 

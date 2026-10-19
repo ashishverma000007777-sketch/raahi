@@ -1,5 +1,6 @@
 package in.raahi.backend.notification;
 
+import com.google.firebase.messaging.AndroidConfig;
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.google.firebase.messaging.FirebaseMessagingException;
 import com.google.firebase.messaging.MessagingErrorCode;
@@ -82,6 +83,66 @@ public class NotificationService {
                 }
             } catch (Exception e) {
                 log.warn("Unexpected error sending FCM to user {}: {}", user.getId(), e.getMessage());
+            }
+        });
+    }
+
+    /**
+     * Dispatches a high-priority FCM data message for urgent incoming Help Requests.
+     * Delivered without a top-level Notification block so Google Play Services hands the
+     * payload directly to RaahiFirebaseMessagingService.onMessageReceived() in the background,
+     * allowing custom full-screen call-style alerts, looping ringtones and vibration to execute.
+     */
+    public void sendHighPriorityJobAlert(User user, String title, String body, Map<String, String> data) {
+        try {
+            UserNotification n = new UserNotification();
+            n.setUser(user);
+            n.setTitle(title);
+            n.setBody(body);
+            inboxRepository.save(n);
+        } catch (Exception e) {
+            log.warn("Could not persist notification for user {}: {}", user.getId(), e.getMessage());
+        }
+        String token = user.getFcmToken();
+        if (token == null || token.isBlank()) {
+            log.debug("No FCM token on file for user {}, skipping push", user.getId());
+            return;
+        }
+
+        if (com.google.firebase.FirebaseApp.getApps().isEmpty()) {
+            log.debug("FirebaseApp not initialized, skipping push for user {}", user.getId());
+            return;
+        }
+
+        CompletableFuture.runAsync(() -> {
+            try {
+                AndroidConfig androidConfig = AndroidConfig.builder()
+                        .setPriority(AndroidConfig.Priority.HIGH)
+                        .setTtl(java.time.Duration.ofMinutes(15).toMillis())
+                        .build();
+
+                Message.Builder builder = Message.builder()
+                        .setToken(token)
+                        .setAndroidConfig(androidConfig);
+
+                if (data != null) builder.putAllData(data);
+                builder.putData("title", title);
+                builder.putData("body", body);
+
+                FirebaseMessaging.getInstance().send(builder.build());
+                log.info("Dispatched high-priority job FCM alert to user {}", user.getId());
+            } catch (FirebaseMessagingException e) {
+                MessagingErrorCode errorCode = e.getMessagingErrorCode();
+                if (errorCode == MessagingErrorCode.UNREGISTERED
+                        || errorCode == MessagingErrorCode.INVALID_ARGUMENT
+                        || (e.getErrorCode() != null && "NOT_FOUND".equalsIgnoreCase(e.getErrorCode().name()))) {
+                    log.info("Cleaning up permanently invalid FCM token for user {}: {}", user.getId(), errorCode);
+                    cleanupInvalidToken(user.getId(), token);
+                } else {
+                    log.warn("High-priority FCM alert send failed for user {}: {}", user.getId(), e.getMessage());
+                }
+            } catch (Exception e) {
+                log.warn("Unexpected error sending high-priority FCM alert to user {}: {}", user.getId(), e.getMessage());
             }
         });
     }

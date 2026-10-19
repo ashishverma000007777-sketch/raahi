@@ -160,4 +160,55 @@ public class IntercityTripController {
     ) {
         return ApiResponse.ok(tripService.settlePayment(principal.userId(), id));
     }
+
+    @PostMapping({ "/{id}/arrive-dest", "/{id}/arrive-destination" })
+    public ApiResponse<IntercityTripDto> arriveAtDestination(
+            @AuthenticationPrincipal AuthenticatedUser principal,
+            @PathVariable UUID id
+    ) {
+        return ApiResponse.ok(tripService.arriveAtDestination(principal.userId(), id));
+    }
+
+    @PostMapping("/{id}/complete-owner")
+    public ApiResponse<IntercityTripDto> completeOwnerTrip(
+            @AuthenticationPrincipal AuthenticatedUser principal,
+            @PathVariable UUID id
+    ) {
+        return ApiResponse.ok(tripService.completeOwnerTrip(principal.userId(), id));
+    }
+
+    @PostMapping("/{id}/settlement/submit")
+    public ApiResponse<IntercityTripDto> submitSettlement(
+            @AuthenticationPrincipal AuthenticatedUser principal,
+            @PathVariable UUID id,
+            @Valid @RequestBody SubmitSettlementRequest req
+    ) {
+        return ApiResponse.ok(tripService.submitSettlement(principal.userId(), id, req));
+    }
+
+    @PostMapping("/{id}/settlement/confirm")
+    public ApiResponse<IntercityTripDto> confirmSettlement(
+            @AuthenticationPrincipal AuthenticatedUser principal,
+            @PathVariable UUID id
+    ) {
+        return ApiResponse.ok(tripService.confirmSettlement(principal.userId(), id));
+    }
+
+    @PostMapping("/{id}/dispute")
+    public ApiResponse<IntercityTripDto> raiseDispute(
+            @AuthenticationPrincipal AuthenticatedUser principal,
+            @PathVariable UUID id,
+            @Valid @RequestBody RaiseDisputeRequest req
+    ) {
+        return ApiResponse.ok(tripService.raiseDispute(principal.userId(), id, req));
+    }
+
+    @PostMapping("/{id}/dispute/resolve")
+    public ApiResponse<IntercityTripDto> resolveDispute(
+            @AuthenticationPrincipal AuthenticatedUser principal,
+            @PathVariable UUID id,
+            @Valid @RequestBody ResolveDisputeRequest req
+    ) {
+        return ApiResponse.ok(tripService.resolveDispute(principal.userId(), id, req));
+    }
 }

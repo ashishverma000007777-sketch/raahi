@@ -216,7 +216,7 @@ class IntercityTripServiceTest {
     }
 
     @Test
-    void verifyPickupOtp_Success_GeneratesCompletionOtp() {
+    void verifyPickupOtp_Success_StartsTripWithoutCompletionOtp() {
         IntercityTrip trip = createSampleTrip();
         trip.setStatus(IntercityTrip.Status.ARRIVED);
         trip.setDriver(driver);
@@ -228,8 +228,7 @@ class IntercityTripServiceTest {
 
         assertEquals("IN_PROGRESS", result.status);
         assertNotNull(result.startedAt);
-        assertNotNull(trip.getCompletionOtp());
-        assertEquals(6, trip.getCompletionOtp().length());
+        assertNull(trip.getCompletionOtp(), "Completion OTP must not be generated at pickup - only after settlement");
         verify(notificationService).send(eq(agent), eq("Trip Started"), anyString(), isNull());
     }
 
@@ -267,7 +266,7 @@ class IntercityTripServiceTest {
     @Test
     void verifyCompletionOtp_Success_CompletesTripAndIncrementsHelps() {
         IntercityTrip trip = createSampleTrip();
-        trip.setStatus(IntercityTrip.Status.IN_PROGRESS);
+        trip.setStatus(IntercityTrip.Status.SETTLEMENT_CONFIRMED);
         trip.setDriver(driver);
         trip.setCompletionOtp("654321");
         trip.setCompletionOtpAttempts(0);
@@ -278,6 +277,7 @@ class IntercityTripServiceTest {
         assertEquals("COMPLETED", result.status);
         assertEquals("PAID", result.paymentStatus);
         assertNotNull(result.completedAt);
+        assertNull(trip.getCompletionOtp(), "Completion OTP must be cleared upon completion to prevent replay attacks");
         assertEquals(11, driver.getTotalHelps(), "Driver total helps must be incremented upon completion");
         verify(userRepository).save(driver);
         verify(notificationService).send(eq(agent), eq("Trip Completed"), anyString(), isNull());
@@ -302,14 +302,19 @@ class IntercityTripServiceTest {
         assertNull(driverView.pickupOtp, "Driver must NOT see pickup OTP in API payload");
         assertNull(driverView.completionOtp, "Driver must NOT see completion OTP in API payload");
 
-        // When trip moves to IN_PROGRESS, Agent sees completionOtp
+        // When trip moves to IN_PROGRESS, Agent still DOES NOT see completionOtp (must confirm settlement first)
         trip.setStatus(IntercityTrip.Status.IN_PROGRESS);
         IntercityTripDto agentInProgressView = service.getTripDetails(agent.getId(), trip.getId());
-        assertEquals("456789", agentInProgressView.completionOtp);
+        assertNull(agentInProgressView.completionOtp, "Agent must NOT see completion OTP before settlement is confirmed");
+
+        // When settlement is confirmed, Agent sees completionOtp to hand over to driver
+        trip.setStatus(IntercityTrip.Status.SETTLEMENT_CONFIRMED);
+        IntercityTripDto agentSettledView = service.getTripDetails(agent.getId(), trip.getId());
+        assertEquals("456789", agentSettledView.completionOtp);
 
         // Driver STILL cannot see completion OTP
-        IntercityTripDto driverInProgressView = service.getTripDetails(driver.getId(), trip.getId());
-        assertNull(driverInProgressView.completionOtp, "Driver must NOT see completion OTP in API payload even when in progress");
+        IntercityTripDto driverSettledView = service.getTripDetails(driver.getId(), trip.getId());
+        assertNull(driverSettledView.completionOtp, "Driver must NOT see completion OTP in API payload even when settlement is confirmed");
 
         // Public viewer CANNOT see OTPs
         IntercityTripDto publicView = service.getTripDetails(otherDriver.getId(), trip.getId());
@@ -449,7 +454,7 @@ class IntercityTripServiceTest {
     @Test
     void verifyCompletionOtp_InvalidOtp_IncrementsAttempts() {
         IntercityTrip trip = createSampleTrip();
-        trip.setStatus(IntercityTrip.Status.IN_PROGRESS);
+        trip.setStatus(IntercityTrip.Status.SETTLEMENT_CONFIRMED);
         trip.setDriver(driver);
         trip.setCompletionOtp("654321");
         trip.setCompletionOtpAttempts(1);
@@ -465,7 +470,7 @@ class IntercityTripServiceTest {
     @Test
     void verifyCompletionOtp_MaxAttemptsExceeded_Throws() {
         IntercityTrip trip = createSampleTrip();
-        trip.setStatus(IntercityTrip.Status.IN_PROGRESS);
+        trip.setStatus(IntercityTrip.Status.SETTLEMENT_CONFIRMED);
         trip.setDriver(driver);
         trip.setCompletionOtp("654321");
         trip.setCompletionOtpAttempts(5);
@@ -556,6 +561,21 @@ class IntercityTripServiceTest {
     }
 
     @Test
+    void updateMarketplaceStatus_RejectsVehicleOwnerGoingOnline() {
+        User owner = new User();
+        owner.setId(UUID.randomUUID());
+        owner.setRole(User.Role.VEHICLE_OWNER);
+        when(userRepository.findById(owner.getId())).thenReturn(Optional.of(owner));
+
+        UpdateMarketplaceStatusRequest req = new UpdateMarketplaceStatusRequest();
+        req.online = true;
+        req.pickupCity = "Delhi";
+
+        ApiException ex = assertThrows(ApiException.class, () -> service.updateMarketplaceStatus(owner.getId(), req));
+        assertEquals("NOT_A_DRIVER", ex.code);
+    }
+
+    @Test
     void createTrip_PublishedTrip_NotifiesMatchingOnlineDrivers() {
         when(userRepository.findById(agent.getId())).thenReturn(Optional.of(agent));
         when(tripRepository.save(any(IntercityTrip.class))).thenAnswer(inv -> {
@@ -593,10 +613,581 @@ class IntercityTripServiceTest {
         verify(notificationService, times(1)).send(eq(onlineDriver), contains("Delhi"), contains("4500"), any());
     }
 
+    @Test
+    void ownerPricing_CalculationsMatchFormulas() {
+        // 20 km: Suggested ₹300, min ₹300
+        assertEquals(new BigDecimal("300"), IntercityTripService.calculateOwnerSuggestedFare(new BigDecimal("20")));
+        assertEquals(new BigDecimal("300"), IntercityTripService.calculateOwnerMinimumFare(new BigDecimal("20")));
+
+        // 30 km: Suggested ₹450, min ₹450
+        assertEquals(new BigDecimal("450"), IntercityTripService.calculateOwnerSuggestedFare(new BigDecimal("30")));
+        assertEquals(new BigDecimal("450"), IntercityTripService.calculateOwnerMinimumFare(new BigDecimal("30")));
+
+        // 40 km: Suggested ₹600, min ₹600
+        assertEquals(new BigDecimal("600"), IntercityTripService.calculateOwnerSuggestedFare(new BigDecimal("40")));
+        assertEquals(new BigDecimal("600"), IntercityTripService.calculateOwnerMinimumFare(new BigDecimal("40")));
+
+        // 50 km: Suggested ₹750, min ₹750
+        assertEquals(new BigDecimal("750"), IntercityTripService.calculateOwnerSuggestedFare(new BigDecimal("50")));
+        assertEquals(new BigDecimal("750"), IntercityTripService.calculateOwnerMinimumFare(new BigDecimal("50")));
+
+        // 60 km: Suggested ₹900, min ₹720
+        assertEquals(new BigDecimal("900"), IntercityTripService.calculateOwnerSuggestedFare(new BigDecimal("60")));
+        assertEquals(new BigDecimal("720"), IntercityTripService.calculateOwnerMinimumFare(new BigDecimal("60")));
+
+        // 100 km: Suggested ₹1500, min ₹1200
+        assertEquals(new BigDecimal("1500"), IntercityTripService.calculateOwnerSuggestedFare(new BigDecimal("100")));
+        assertEquals(new BigDecimal("1200"), IntercityTripService.calculateOwnerMinimumFare(new BigDecimal("100")));
+    }
+
+    @Test
+    void createTrip_OwnerRideBelowMinimumFare_ThrowsBadRequest() {
+        CreateIntercityTripRequest req = new CreateIntercityTripRequest();
+        req.pickupCity = "Delhi";
+        req.destCity = "Sonipat";
+        req.pickupAddress = "CP";
+        req.destAddress = "Murthal";
+        req.pickupLat = 28.6;
+        req.pickupLng = 77.2;
+        req.destLat = 28.9;
+        req.destLng = 77.1;
+        req.departureTime = Instant.now().plusSeconds(3600);
+        req.vehicleCategory = "SEDAN";
+        req.rideType = "OWNER";
+        req.estimatedDistanceKm = new BigDecimal("50"); // min fare is 750
+        req.fare = new BigDecimal("700"); // below min
+
+        ApiException ex = assertThrows(ApiException.class, () -> service.createTrip(agent.getId(), req));
+        assertEquals("FARE_BELOW_MINIMUM", ex.code);
+    }
+
+    @Test
+    void createTrip_OwnerRideByNonAgentUser_Allowed() {
+        User helperUser = new User();
+        helperUser.setId(UUID.randomUUID());
+        helperUser.setName("Helper User");
+        helperUser.setRole(User.Role.HELPER);
+        helperUser.setStatus(User.Status.ACTIVE);
+        when(userRepository.findById(helperUser.getId())).thenReturn(Optional.of(helperUser));
+
+        CreateIntercityTripRequest req = new CreateIntercityTripRequest();
+        req.pickupCity = "Delhi";
+        req.destCity = "Jaipur";
+        req.pickupAddress = "CP";
+        req.destAddress = "MI Road";
+        req.pickupLat = 28.6;
+        req.pickupLng = 77.2;
+        req.destLat = 26.9;
+        req.destLng = 75.8;
+        req.departureTime = Instant.now().plusSeconds(3600);
+        req.vehicleCategory = "SEDAN";
+        req.rideType = "OWNER";
+        req.estimatedDistanceKm = new BigDecimal("100");
+        req.fare = new BigDecimal("1200"); // >= 1200 min
+
+        IntercityTripDto dto = service.createTrip(helperUser.getId(), req);
+        assertNotNull(dto);
+        assertEquals("OWNER", dto.rideType);
+        assertEquals("1200", dto.fare.toString());
+        assertEquals("1200", dto.customerFare.toString());
+        assertEquals("1200", dto.driverPayout.toString());
+        assertEquals("0", dto.agentCommission.stripTrailingZeros().toPlainString());
+    }
+
+    @Test
+    void createTrip_AgentRideByNonAgentUser_ThrowsForbidden() {
+        User regularUser = new User();
+        regularUser.setId(UUID.randomUUID());
+        regularUser.setRole(User.Role.DRIVER);
+        regularUser.setStatus(User.Status.ACTIVE);
+        when(userRepository.findById(regularUser.getId())).thenReturn(Optional.of(regularUser));
+
+        CreateIntercityTripRequest req = new CreateIntercityTripRequest();
+        req.pickupCity = "Delhi";
+        req.destCity = "Jaipur";
+        req.pickupAddress = "CP";
+        req.destAddress = "MI Road";
+        req.pickupLat = 28.6;
+        req.pickupLng = 77.2;
+        req.destLat = 26.9;
+        req.destLng = 75.8;
+        req.departureTime = Instant.now().plusSeconds(3600);
+        req.vehicleCategory = "SEDAN";
+        req.rideType = "AGENT";
+        req.fare = new BigDecimal("4000");
+
+        ApiException ex = assertThrows(ApiException.class, () -> service.createTrip(regularUser.getId(), req));
+        assertEquals("NOT_TRAVEL_AGENT", ex.code);
+    }
+
+    @Test
+    void applyForTrip_DriverWithConflictingBooking_ThrowsConflict() {
+        IntercityTrip trip = createSampleTrip();
+        when(tripRepository.findById(trip.getId())).thenReturn(Optional.of(trip));
+        when(applicationRepository.existsByTripIdAndDriverId(trip.getId(), driver.getId())).thenReturn(false);
+
+        IntercityTrip conflictingTrip = new IntercityTrip();
+        conflictingTrip.setId(UUID.randomUUID());
+        conflictingTrip.setDepartureTime(trip.getDepartureTime());
+        conflictingTrip.setEstimatedDurationMin(180);
+        when(tripRepository.findScheduledTripsForDriver(driver.getId())).thenReturn(List.of(conflictingTrip));
+
+        ApiException ex = assertThrows(ApiException.class, () -> service.applyForTrip(driver.getId(), trip.getId(), null));
+        assertEquals("SCHEDULE_CONFLICT", ex.code);
+    }
+
+    @Test
+    void applyForTrip_DriverWithFutureBookingOnDifferentDate_AllowedWithoutLockout() {
+        IntercityTrip trip = createSampleTrip(); // departure is now + 1 hour
+        when(tripRepository.findById(trip.getId())).thenReturn(Optional.of(trip));
+        when(applicationRepository.existsByTripIdAndDriverId(trip.getId(), driver.getId())).thenReturn(false);
+
+        // Future trip on another date (e.g., in 48 hours)
+        IntercityTrip futureTrip = new IntercityTrip();
+        futureTrip.setId(UUID.randomUUID());
+        futureTrip.setDepartureTime(trip.getDepartureTime().plusSeconds(172800));
+        futureTrip.setEstimatedDurationMin(180);
+        when(tripRepository.findScheduledTripsForDriver(driver.getId())).thenReturn(List.of(futureTrip));
+
+        IntercityTripApplicationDto app = service.applyForTrip(driver.getId(), trip.getId(), null);
+        assertNotNull(app);
+        assertEquals("APPLIED", app.status);
+    }
+
+    @Test
+    void selectDriver_DriverWithConflictingBooking_ThrowsConflict() {
+        IntercityTrip trip = createSampleTrip();
+        trip.setStatus(IntercityTrip.Status.PUBLISHED);
+        when(tripRepository.findByIdForUpdate(trip.getId())).thenReturn(Optional.of(trip));
+
+        IntercityTripApplication app = new IntercityTripApplication();
+        app.setTrip(trip);
+        app.setDriver(driver);
+        when(applicationRepository.findByTripIdAndDriverId(trip.getId(), driver.getId())).thenReturn(Optional.of(app));
+
+        IntercityTrip conflictingTrip = new IntercityTrip();
+        conflictingTrip.setId(UUID.randomUUID());
+        conflictingTrip.setDepartureTime(trip.getDepartureTime());
+        conflictingTrip.setEstimatedDurationMin(180);
+        when(tripRepository.findScheduledTripsForDriver(driver.getId())).thenReturn(List.of(conflictingTrip));
+
+        ApiException ex = assertThrows(ApiException.class, () -> service.selectDriver(agent.getId(), trip.getId(), driver.getId()));
+        assertEquals("DRIVER_SCHEDULE_CONFLICT", ex.code);
+    }
+
+    @Test
+    void completeOwnerTrip_Success_NoCompletionOtpRequired() {
+        IntercityTrip trip = createSampleTrip();
+        trip.setRideType(IntercityTrip.RideType.OWNER);
+        trip.setDriver(driver);
+        trip.setStatus(IntercityTrip.Status.IN_PROGRESS);
+        when(tripRepository.findById(trip.getId())).thenReturn(Optional.of(trip));
+
+        IntercityTripDto result = service.arriveAtDestination(driver.getId(), trip.getId());
+        assertEquals("COMPLETED", result.status);
+        assertEquals("PAID", result.paymentStatus);
+        assertNotNull(result.completedAt);
+    }
+
+    @Test
+    void agentSettlement_FullLifecycle_Success() {
+        IntercityTrip trip = createSampleTrip();
+        trip.setRideType(IntercityTrip.RideType.AGENT);
+        trip.setDriver(driver);
+        trip.setStatus(IntercityTrip.Status.IN_PROGRESS);
+        trip.setCompletionOtp("654321");
+        when(tripRepository.findById(trip.getId())).thenReturn(Optional.of(trip));
+
+        // 1. Arrive at destination -> AWAITING_AGENT_SETTLEMENT
+        IntercityTripDto arrivedDto = service.arriveAtDestination(driver.getId(), trip.getId());
+        assertEquals("AWAITING_AGENT_SETTLEMENT", arrivedDto.status);
+
+        // 2. Driver submits settlement
+        SubmitSettlementRequest subReq = new SubmitSettlementRequest();
+        subReq.settlementRef = "UPI123456789";
+        subReq.settlementNotes = "Paid ₹1000 commission";
+        IntercityTripDto subDto = service.submitSettlement(driver.getId(), trip.getId(), subReq);
+        assertEquals("SETTLEMENT_SUBMITTED", subDto.status);
+        assertEquals("UPI123456789", subDto.settlementRef);
+
+        // 3. Agent confirms settlement
+        IntercityTripDto confDto = service.confirmSettlement(agent.getId(), trip.getId());
+        assertEquals("SETTLEMENT_CONFIRMED", confDto.status);
+        assertNotNull(trip.getCompletionOtp());
+
+        // 4. Driver enters completion OTP
+        IntercityTripDto compDto = service.verifyCompletionOtp(driver.getId(), trip.getId(), trip.getCompletionOtp());
+        assertEquals("COMPLETED", compDto.status);
+        assertNotNull(compDto.completedAt);
+        assertNull(trip.getCompletionOtp(), "OTP must be invalidated upon use to prevent replay attacks");
+    }
+
+    @Test
+    void dispute_RaiseAndResolve_Success() {
+        IntercityTrip trip = createSampleTrip();
+        trip.setRideType(IntercityTrip.RideType.OWNER);
+        trip.setDriver(driver);
+        trip.setStatus(IntercityTrip.Status.IN_PROGRESS);
+        when(tripRepository.findById(trip.getId())).thenReturn(Optional.of(trip));
+
+        // 1. Driver raises dispute
+        RaiseDisputeRequest dReq = new RaiseDisputeRequest();
+        dReq.reason = "Vehicle breakdown on highway";
+        dReq.evidence = "Flat tyre photo";
+        IntercityTripDto dispDto = service.raiseDispute(driver.getId(), trip.getId(), dReq);
+        assertEquals("DISPUTED", dispDto.status);
+        assertEquals("Vehicle breakdown on highway", dispDto.disputeReason);
+
+        // 2. Resolve dispute
+        ResolveDisputeRequest rReq = new ResolveDisputeRequest();
+        rReq.resolution = "Driver completed journey with alternate car";
+        rReq.action = "RESOLVE_AND_COMPLETE";
+        IntercityTripDto resDto = service.resolveDispute(agent.getId(), trip.getId(), rReq);
+        assertEquals("COMPLETED", resDto.status);
+        assertEquals("Driver completed journey with alternate car", resDto.disputeResolution);
+    }
+
+    @Test
+    void vehicleBasedRates_CheckAllCategoriesAndShortTrips() {
+        // Long trips (>50km, e.g. 100km)
+        BigDecimal dist100 = new BigDecimal("100.0");
+        // Hatchback / Sedan: rec 15, min 12
+        assertEquals(new BigDecimal("1500"), IntercityTripService.calculateOwnerSuggestedFare(dist100, "SEDAN"));
+        assertEquals(new BigDecimal("1200"), IntercityTripService.calculateOwnerMinimumFare(dist100, "SEDAN"));
+        assertEquals(new BigDecimal("1500"), IntercityTripService.calculateOwnerSuggestedFare(dist100, "HATCHBACK"));
+        assertEquals(new BigDecimal("1200"), IntercityTripService.calculateOwnerMinimumFare(dist100, "HATCHBACK"));
+
+        // SUV: rec 20, min 18
+        assertEquals(new BigDecimal("2000"), IntercityTripService.calculateOwnerSuggestedFare(dist100, "SUV"));
+        assertEquals(new BigDecimal("1800"), IntercityTripService.calculateOwnerMinimumFare(dist100, "SUV"));
+
+        // Luxury: rec 30, min 25
+        assertEquals(new BigDecimal("3000"), IntercityTripService.calculateOwnerSuggestedFare(dist100, "LUXURY"));
+        assertEquals(new BigDecimal("2500"), IntercityTripService.calculateOwnerMinimumFare(dist100, "LUXURY"));
+
+        // Traveller: rec 25, min 22
+        assertEquals(new BigDecimal("2500"), IntercityTripService.calculateOwnerSuggestedFare(dist100, "TRAVELLER"));
+        assertEquals(new BigDecimal("2200"), IntercityTripService.calculateOwnerMinimumFare(dist100, "TRAVELLER"));
+
+        // Short trips (<= 50km, e.g. 40km)
+        BigDecimal dist40 = new BigDecimal("40.0");
+        assertEquals(new BigDecimal("600"), IntercityTripService.calculateOwnerMinimumFare(dist40, "SEDAN")); // 40 * 15
+        assertEquals(new BigDecimal("800"), IntercityTripService.calculateOwnerMinimumFare(dist40, "SUV")); // 40 * 20
+        assertEquals(new BigDecimal("1200"), IntercityTripService.calculateOwnerMinimumFare(dist40, "LUXURY")); // 40 * 30
+        assertEquals(new BigDecimal("1000"), IntercityTripService.calculateOwnerMinimumFare(dist40, "TRAVELLER")); // 40 * 25
+    }
+
+    @Test
+    void createTrip_OwnerRide_BelowMinimumFare_ThrowsBadRequest() {
+        CreateIntercityTripRequest req = new CreateIntercityTripRequest();
+        req.pickupCity = "Delhi";
+        req.destCity = "Jaipur";
+        req.pickupAddress = "CP, Delhi";
+        req.destAddress = "MI Road, Jaipur";
+        req.pickupLat = 28.6315;
+        req.pickupLng = 77.2167;
+        req.destLat = 26.9124;
+        req.destLng = 75.7873;
+        req.departureTime = Instant.now().plusSeconds(7200);
+        req.tripType = "ONE_WAY";
+        req.vehicleCategory = "SUV";
+        req.estimatedDistanceKm = new BigDecimal("280.0");
+        req.estimatedDurationMin = 300;
+        // Min fare for SUV 280km is 280 * 18 = 5040
+        req.fare = new BigDecimal("4000.00"); // below min
+        req.rideType = "OWNER";
+
+        ApiException ex = assertThrows(ApiException.class, () -> service.createTrip(agent.getId(), req));
+        assertEquals("FARE_BELOW_MINIMUM", ex.code);
+    }
+
+    @Test
+    void createTrip_AgentRide_CalculatesPayoutProperly() {
+        CreateIntercityTripRequest req = new CreateIntercityTripRequest();
+        req.pickupCity = "Delhi";
+        req.destCity = "Jaipur";
+        req.pickupAddress = "CP, Delhi";
+        req.destAddress = "MI Road, Jaipur";
+        req.pickupLat = 28.6315;
+        req.pickupLng = 77.2167;
+        req.destLat = 26.9124;
+        req.destLng = 75.7873;
+        req.departureTime = Instant.now().plusSeconds(7200);
+        req.tripType = "ONE_WAY";
+        req.vehicleCategory = "SUV";
+        req.estimatedDistanceKm = new BigDecimal("280.0");
+        req.estimatedDurationMin = 300;
+        req.rideType = "AGENT";
+        req.customerFare = new BigDecimal("5000.00");
+        req.agentCommission = new BigDecimal("1000.00");
+
+        IntercityTripDto dto = service.createTrip(agent.getId(), req);
+        assertNotNull(dto);
+        assertEquals("5000.00", dto.customerFare.toString());
+        assertEquals("1000.00", dto.agentCommission.toString());
+        assertEquals("4000.00", dto.driverPayout.toString());
+        assertEquals("DRIVER", dto.paymentRecipient);
+        assertEquals("DRIVER_TO_AGENT", dto.settlementResponsibility);
+    }
+
+    @Test
+    void createTrip_RoundTrip_Success_PersistsReturnTimeAndTourDetails() {
+        CreateIntercityTripRequest req = new CreateIntercityTripRequest();
+        req.pickupCity = "Chandigarh";
+        req.destCity = "Manali";
+        req.pickupAddress = "Sector 17, Chandigarh";
+        req.destAddress = "Mall Road, Manali";
+        req.pickupLat = 30.7333;
+        req.pickupLng = 76.7794;
+        req.destLat = 32.2396;
+        req.destLng = 77.1887;
+        Instant dep = Instant.now().plusSeconds(3600);
+        Instant ret = dep.plusSeconds(86400 * 4); // 4 days later
+        req.departureTime = dep;
+        req.tripType = "ROUND_TRIP";
+        req.returnTime = ret;
+        req.vehicleCategory = "SUV";
+        req.estimatedDistanceKm = new BigDecimal("310.0");
+        req.estimatedDurationMin = 480;
+        req.fare = new BigDecimal("12000.00");
+        req.rideType = "OWNER";
+        req.specialInstructions = "5-day tour, Chandigarh -> Manali -> Solang Valley -> Kasol, return to Chandigarh on 24 October.";
+
+        IntercityTripDto result = service.createTrip(agent.getId(), req);
+
+        assertNotNull(result);
+        assertEquals("ROUND_TRIP", result.tripType);
+        assertEquals(ret, result.returnTime);
+        assertEquals("5-day tour, Chandigarh -> Manali -> Solang Valley -> Kasol, return to Chandigarh on 24 October.", result.specialInstructions);
+        assertEquals("OWNER", result.rideType);
+        assertEquals("12000.00", result.fare.toString());
+        assertEquals("12000.00", result.driverPayout.toString());
+        assertEquals(BigDecimal.ZERO, result.agentCommission);
+    }
+
+    @Test
+    void createTrip_RoundTrip_ReturnBeforeDeparture_ThrowsBadRequest() {
+        CreateIntercityTripRequest req = new CreateIntercityTripRequest();
+        req.pickupCity = "Chandigarh";
+        req.destCity = "Manali";
+        req.pickupAddress = "Sector 17, Chandigarh";
+        req.destAddress = "Mall Road, Manali";
+        req.pickupLat = 30.7333;
+        req.pickupLng = 76.7794;
+        req.destLat = 32.2396;
+        req.destLng = 77.1887;
+        Instant dep = Instant.now().plusSeconds(7200);
+        Instant ret = dep.minusSeconds(3600); // BEFORE departure
+        req.departureTime = dep;
+        req.tripType = "ROUND_TRIP";
+        req.returnTime = ret;
+        req.vehicleCategory = "SUV";
+        req.estimatedDistanceKm = new BigDecimal("310.0");
+        req.fare = new BigDecimal("12000.00");
+
+        ApiException ex = assertThrows(ApiException.class, () -> service.createTrip(agent.getId(), req));
+        assertEquals("INVALID_RETURN_TIME", ex.code);
+    }
+
+    @Test
+    void createTrip_RoundTrip_NullReturnTime_ThrowsBadRequest() {
+        CreateIntercityTripRequest req = new CreateIntercityTripRequest();
+        req.pickupCity = "Chandigarh";
+        req.destCity = "Manali";
+        req.pickupAddress = "Sector 17, Chandigarh";
+        req.destAddress = "Mall Road, Manali";
+        req.pickupLat = 30.7333;
+        req.pickupLng = 76.7794;
+        req.destLat = 32.2396;
+        req.destLng = 77.1887;
+        req.departureTime = Instant.now().plusSeconds(7200);
+        req.tripType = "ROUND_TRIP";
+        req.returnTime = null; // Missing return time
+        req.vehicleCategory = "SUV";
+        req.estimatedDistanceKm = new BigDecimal("310.0");
+        req.fare = new BigDecimal("12000.00");
+
+        ApiException ex = assertThrows(ApiException.class, () -> service.createTrip(agent.getId(), req));
+        assertEquals("INVALID_RETURN_TIME", ex.code);
+    }
+
+    @Test
+    void createTrip_AgentRide_CommissionExceedsOrEqualsFare_ThrowsBadRequest() {
+        CreateIntercityTripRequest req = new CreateIntercityTripRequest();
+        req.pickupCity = "Delhi";
+        req.destCity = "Jaipur";
+        req.pickupAddress = "CP, Delhi";
+        req.destAddress = "MI Road, Jaipur";
+        req.pickupLat = 28.6315;
+        req.pickupLng = 77.2167;
+        req.destLat = 26.9124;
+        req.destLng = 75.7873;
+        req.departureTime = Instant.now().plusSeconds(7200);
+        req.tripType = "ONE_WAY";
+        req.vehicleCategory = "SEDAN";
+        req.estimatedDistanceKm = new BigDecimal("280.0");
+        req.estimatedDurationMin = 300;
+        req.rideType = "AGENT";
+        req.customerFare = new BigDecimal("4000.00");
+        req.agentCommission = new BigDecimal("4500.00"); // Commission exceeds fare
+
+        ApiException ex = assertThrows(ApiException.class, () -> service.createTrip(agent.getId(), req));
+        assertEquals("INVALID_COMMISSION", ex.code);
+    }
+
+    @Test
+    void createTrip_AgentRide_NegativeCommission_ThrowsBadRequest() {
+        CreateIntercityTripRequest req = new CreateIntercityTripRequest();
+        req.pickupCity = "Delhi";
+        req.destCity = "Jaipur";
+        req.pickupAddress = "CP, Delhi";
+        req.destAddress = "MI Road, Jaipur";
+        req.pickupLat = 28.6315;
+        req.pickupLng = 77.2167;
+        req.destLat = 26.9124;
+        req.destLng = 75.7873;
+        req.departureTime = Instant.now().plusSeconds(7200);
+        req.tripType = "ONE_WAY";
+        req.vehicleCategory = "SEDAN";
+        req.estimatedDistanceKm = new BigDecimal("280.0");
+        req.estimatedDurationMin = 300;
+        req.rideType = "AGENT";
+        req.customerFare = new BigDecimal("4000.00");
+        req.agentCommission = new BigDecimal("-100.00"); // Negative commission
+
+        ApiException ex = assertThrows(ApiException.class, () -> service.createTrip(agent.getId(), req));
+        assertEquals("INVALID_COMMISSION", ex.code);
+    }
+
+    @Test
+    void createTrip_DriverCannotCreateOwnerTrip_ThrowsForbidden() {
+        CreateIntercityTripRequest req = new CreateIntercityTripRequest();
+        req.pickupCity = "Delhi";
+        req.destCity = "Jaipur";
+        req.pickupAddress = "CP";
+        req.destAddress = "MI Road";
+        req.pickupLat = 28.6;
+        req.pickupLng = 77.2;
+        req.destLat = 26.9;
+        req.destLng = 75.8;
+        req.departureTime = Instant.now().plusSeconds(3600);
+        req.vehicleCategory = "SEDAN";
+        req.rideType = "OWNER";
+        req.estimatedDistanceKm = new BigDecimal("100");
+        req.fare = new BigDecimal("1500");
+
+        ApiException ex = assertThrows(ApiException.class, () -> service.createTrip(driver.getId(), req));
+        assertEquals("DRIVER_CANNOT_CREATE_TRIP", ex.code);
+    }
+
+    @Test
+    void createTrip_VehicleOwnerRole_CreatesOwnerTrip_Success() {
+        User vehicleOwner = new User();
+        vehicleOwner.setId(UUID.randomUUID());
+        vehicleOwner.setName("Vehicle Owner");
+        vehicleOwner.setRole(User.Role.VEHICLE_OWNER);
+        vehicleOwner.setStatus(User.Status.ACTIVE);
+        when(userRepository.findById(vehicleOwner.getId())).thenReturn(Optional.of(vehicleOwner));
+
+        CreateIntercityTripRequest req = new CreateIntercityTripRequest();
+        req.pickupCity = "Delhi";
+        req.destCity = "Chandigarh";
+        req.pickupAddress = "Connaught Place";
+        req.destAddress = "Sector 17";
+        req.pickupLat = 28.6139;
+        req.pickupLng = 77.2090;
+        req.destLat = 30.7333;
+        req.destLng = 76.7794;
+        req.departureTime = Instant.now().plusSeconds(7200);
+        req.vehicleCategory = "SEDAN";
+        req.rideType = "OWNER";
+        req.estimatedDistanceKm = new BigDecimal("250");
+        req.fare = new BigDecimal("3500");
+
+        IntercityTripDto result = service.createTrip(vehicleOwner.getId(), req);
+        assertNotNull(result);
+        assertEquals("OWNER", result.rideType);
+        assertEquals(new BigDecimal("3500"), result.fare);
+        assertEquals(new BigDecimal("3500"), result.driverPayout);
+        assertEquals(BigDecimal.ZERO, result.agentCommission);
+    }
+
+    @Test
+    void createTrip_VehicleOwnerCannotCreateAgentTrip_ThrowsForbidden() {
+        User vehicleOwner = new User();
+        vehicleOwner.setId(UUID.randomUUID());
+        vehicleOwner.setName("Vehicle Owner");
+        vehicleOwner.setRole(User.Role.VEHICLE_OWNER);
+        vehicleOwner.setStatus(User.Status.ACTIVE);
+        when(userRepository.findById(vehicleOwner.getId())).thenReturn(Optional.of(vehicleOwner));
+
+        CreateIntercityTripRequest req = new CreateIntercityTripRequest();
+        req.pickupCity = "Delhi";
+        req.destCity = "Chandigarh";
+        req.pickupAddress = "Connaught Place";
+        req.destAddress = "Sector 17";
+        req.pickupLat = 28.6139;
+        req.pickupLng = 77.2090;
+        req.destLat = 30.7333;
+        req.destLng = 76.7794;
+        req.departureTime = Instant.now().plusSeconds(7200);
+        req.vehicleCategory = "SEDAN";
+        req.rideType = "AGENT";
+        req.fare = new BigDecimal("4500");
+
+        ApiException ex = assertThrows(ApiException.class, () -> service.createTrip(vehicleOwner.getId(), req));
+        assertEquals("NOT_TRAVEL_AGENT", ex.code);
+    }
+
+    @Test
+    void applyForTrip_VehicleOwnerRole_ThrowsForbiddenNotADriver() {
+        User vehicleOwner = new User();
+        vehicleOwner.setId(UUID.randomUUID());
+        vehicleOwner.setName("Vehicle Owner");
+        vehicleOwner.setRole(User.Role.VEHICLE_OWNER);
+        vehicleOwner.setStatus(User.Status.ACTIVE);
+        when(userRepository.findById(vehicleOwner.getId())).thenReturn(Optional.of(vehicleOwner));
+
+        IntercityTrip trip = createSampleTrip();
+        when(tripRepository.findById(trip.getId())).thenReturn(Optional.of(trip));
+
+        ApiException ex = assertThrows(ApiException.class, () -> service.applyForTrip(vehicleOwner.getId(), trip.getId(), null));
+        assertEquals("NOT_A_DRIVER", ex.code);
+    }
+
+    @Test
+    void applyForTrip_TravelAgentRole_ThrowsForbiddenNotADriver() {
+        IntercityTrip trip = createSampleTrip();
+        User anotherAgent = new User();
+        anotherAgent.setId(UUID.randomUUID());
+        anotherAgent.setRole(User.Role.TRAVEL_AGENT);
+        anotherAgent.setStatus(User.Status.ACTIVE);
+        when(userRepository.findById(anotherAgent.getId())).thenReturn(Optional.of(anotherAgent));
+        when(tripRepository.findById(trip.getId())).thenReturn(Optional.of(trip));
+
+        ApiException ex = assertThrows(ApiException.class, () -> service.applyForTrip(anotherAgent.getId(), trip.getId(), null));
+        assertEquals("NOT_A_DRIVER", ex.code);
+    }
+
+    @Test
+    void applyForTrip_DriverRole_CreatesApplicationWithStatusApplied_NotAssigned() {
+        IntercityTrip trip = createSampleTrip();
+        when(tripRepository.findById(trip.getId())).thenReturn(Optional.of(trip));
+        when(applicationRepository.existsByTripIdAndDriverId(trip.getId(), driver.getId())).thenReturn(false);
+
+        IntercityTripApplicationDto app = service.applyForTrip(driver.getId(), trip.getId(), null);
+        assertNotNull(app);
+        assertEquals("APPLIED", app.status);
+        // Verify trip itself is STILL PUBLISHED, NOT ASSIGNED!
+        assertEquals(IntercityTrip.Status.PUBLISHED, trip.getStatus());
+        assertNull(trip.getDriver());
+    }
+
     private IntercityTrip createSampleTrip() {
         IntercityTrip trip = new IntercityTrip();
         trip.setId(UUID.randomUUID());
         trip.setAgent(agent);
+        trip.setRideType(IntercityTrip.RideType.AGENT);
         trip.setPickupCity("Delhi");
         trip.setDestCity("Agra");
         trip.setPickupAddress("Taj Palace, New Delhi");
@@ -606,9 +1197,16 @@ class IntercityTripServiceTest {
         trip.setDestLat(27.1751);
         trip.setDestLng(78.0421);
         trip.setDepartureTime(Instant.now().plusSeconds(3600));
+        trip.setEstimatedDistanceKm(new BigDecimal("210.0"));
+        trip.setEstimatedDurationMin(180);
         trip.setTripType(IntercityTrip.TripType.ONE_WAY);
         trip.setVehicleCategory("SUV");
         trip.setFare(new BigDecimal("3500.00"));
+        trip.setCustomerFare(new BigDecimal("3500.00"));
+        trip.setDriverPayout(new BigDecimal("2800.00"));
+        trip.setAgentCommission(new BigDecimal("700.00"));
+        trip.setPaymentRecipient("DRIVER");
+        trip.setSettlementResponsibility("DRIVER_TO_AGENT");
         trip.setPaymentMode("DIRECT_CASH");
         trip.setPaymentStatus(IntercityTrip.PaymentStatus.PENDING);
         trip.setStatus(IntercityTrip.Status.PUBLISHED);

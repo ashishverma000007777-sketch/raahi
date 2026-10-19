@@ -47,6 +47,10 @@ public class IntercityTrip {
     @Column(name = "dest_lng", nullable = false)
     private Double destLng;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "ride_type", nullable = false)
+    private RideType rideType;
+
     @Column(name = "departure_time", nullable = false)
     private Instant departureTime;
 
@@ -68,6 +72,33 @@ public class IntercityTrip {
 
     @Column(name = "fare", nullable = false)
     private BigDecimal fare;
+
+    @Column(name = "customer_fare")
+    private BigDecimal customerFare;
+
+    @Column(name = "driver_payout")
+    private BigDecimal driverPayout;
+
+    @Column(name = "agent_commission")
+    private BigDecimal agentCommission = BigDecimal.ZERO;
+
+    @Column(name = "payment_recipient")
+    private String paymentRecipient = "DRIVER";
+
+    @Column(name = "settlement_responsibility")
+    private String settlementResponsibility = "NONE";
+
+    @Column(name = "settlement_ref")
+    private String settlementRef;
+
+    @Column(name = "settlement_notes")
+    private String settlementNotes;
+
+    @Column(name = "settlement_submitted_at")
+    private Instant settlementSubmittedAt;
+
+    @Column(name = "settlement_confirmed_at")
+    private Instant settlementConfirmedAt;
 
     @Column(name = "payment_mode", nullable = false)
     private String paymentMode = "DIRECT_CASH";
@@ -120,6 +151,29 @@ public class IntercityTrip {
     @Column(name = "cancel_reason")
     private String cancelReason;
 
+    @Column(name = "disputed_at")
+    private Instant disputedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "disputed_by")
+    private User disputedBy;
+
+    @Column(name = "dispute_reason")
+    private String disputeReason;
+
+    @Column(name = "dispute_evidence")
+    private String disputeEvidence;
+
+    @Column(name = "dispute_resolution")
+    private String disputeResolution;
+
+    @Column(name = "resolved_at")
+    private Instant resolvedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "resolved_by")
+    private User resolvedBy;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt = Instant.now();
 
@@ -129,6 +183,11 @@ public class IntercityTrip {
     @OneToMany(mappedBy = "trip", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<IntercityTripApplication> applications = new ArrayList<>();
 
+    public enum RideType {
+        OWNER,
+        AGENT
+    }
+
     public enum Status {
         DRAFT,
         PUBLISHED,
@@ -136,8 +195,12 @@ public class IntercityTrip {
         EN_ROUTE,
         ARRIVED,
         IN_PROGRESS,
+        AWAITING_AGENT_SETTLEMENT,
+        SETTLEMENT_SUBMITTED,
+        SETTLEMENT_CONFIRMED,
         COMPLETED,
-        CANCELLED
+        CANCELLED,
+        DISPUTED
     }
 
     public enum TripType {
@@ -227,4 +290,63 @@ public class IntercityTrip {
     public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
     public List<IntercityTripApplication> getApplications() { return applications; }
     public void setApplications(List<IntercityTripApplication> applications) { this.applications = applications; }
+
+    public RideType getRideType() {
+        if (rideType != null) {
+            return rideType;
+        }
+        if (agent != null && agent.getRole() == User.Role.TRAVEL_AGENT) {
+            return RideType.AGENT;
+        }
+        return RideType.OWNER;
+    }
+    public void setRideType(RideType rideType) { this.rideType = rideType; }
+
+    public BigDecimal getCustomerFare() { return customerFare; }
+    public void setCustomerFare(BigDecimal customerFare) { this.customerFare = customerFare; }
+
+    public BigDecimal getDriverPayout() { return driverPayout; }
+    public void setDriverPayout(BigDecimal driverPayout) { this.driverPayout = driverPayout; }
+
+    public BigDecimal getAgentCommission() { return agentCommission; }
+    public void setAgentCommission(BigDecimal agentCommission) { this.agentCommission = agentCommission; }
+
+    public String getPaymentRecipient() { return paymentRecipient; }
+    public void setPaymentRecipient(String paymentRecipient) { this.paymentRecipient = paymentRecipient; }
+
+    public String getSettlementResponsibility() { return settlementResponsibility; }
+    public void setSettlementResponsibility(String settlementResponsibility) { this.settlementResponsibility = settlementResponsibility; }
+
+    public String getSettlementRef() { return settlementRef; }
+    public void setSettlementRef(String settlementRef) { this.settlementRef = settlementRef; }
+
+    public String getSettlementNotes() { return settlementNotes; }
+    public void setSettlementNotes(String settlementNotes) { this.settlementNotes = settlementNotes; }
+
+    public Instant getSettlementSubmittedAt() { return settlementSubmittedAt; }
+    public void setSettlementSubmittedAt(Instant settlementSubmittedAt) { this.settlementSubmittedAt = settlementSubmittedAt; }
+
+    public Instant getSettlementConfirmedAt() { return settlementConfirmedAt; }
+    public void setSettlementConfirmedAt(Instant settlementConfirmedAt) { this.settlementConfirmedAt = settlementConfirmedAt; }
+
+    public Instant getDisputedAt() { return disputedAt; }
+    public void setDisputedAt(Instant disputedAt) { this.disputedAt = disputedAt; }
+
+    public User getDisputedBy() { return disputedBy; }
+    public void setDisputedBy(User disputedBy) { this.disputedBy = disputedBy; }
+
+    public String getDisputeReason() { return disputeReason; }
+    public void setDisputeReason(String disputeReason) { this.disputeReason = disputeReason; }
+
+    public String getDisputeEvidence() { return disputeEvidence; }
+    public void setDisputeEvidence(String disputeEvidence) { this.disputeEvidence = disputeEvidence; }
+
+    public String getDisputeResolution() { return disputeResolution; }
+    public void setDisputeResolution(String disputeResolution) { this.disputeResolution = disputeResolution; }
+
+    public Instant getResolvedAt() { return resolvedAt; }
+    public void setResolvedAt(Instant resolvedAt) { this.resolvedAt = resolvedAt; }
+
+    public User getResolvedBy() { return resolvedBy; }
+    public void setResolvedBy(User resolvedBy) { this.resolvedBy = resolvedBy; }
 }

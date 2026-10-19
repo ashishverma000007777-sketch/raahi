@@ -27,7 +27,8 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     @Query("UPDATE User u SET u.fcmToken = null WHERE u.id = :userId AND u.fcmToken = :token")
     int clearFcmToken(@Param("userId") UUID userId, @Param("token") String token);
 
-    @Query("SELECT u FROM User u WHERE u.marketplaceOnline = true " +
+    @Query("SELECT u FROM User u WHERE u.role = in.raahi.backend.entity.User.Role.DRIVER " +
+           "AND u.marketplaceOnline = true " +
            "AND u.id != :excludeUserId " +
            "AND (u.preferredPickupCity IS NULL OR TRIM(u.preferredPickupCity) = '' OR LOWER(u.preferredPickupCity) = LOWER(:pickupCity))")
     java.util.List<User> findOnlineMarketplaceDriversMatchingCity(@Param("pickupCity") String pickupCity, @Param("excludeUserId") UUID excludeUserId);
