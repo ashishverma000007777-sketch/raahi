@@ -7,8 +7,12 @@ import android.content.Context
 import android.content.Intent
 import android.media.AudioAttributes
 import android.media.MediaPlayer
+import android.media.Ringtone
 import android.media.RingtoneManager
 import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -24,6 +28,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -37,11 +42,20 @@ class IncomingJobAlertManager @Inject constructor(
     private val _incomingJob = MutableStateFlow<JobDto?>(null)
     val incomingJob: StateFlow<JobDto?> = _incomingJob.asStateFlow()
 
+    private val suppressionCache = AlertSuppressionCache()
+
+    fun isDismissed(jobId: String): Boolean = suppressionCache.isDismissed(jobId)
+    fun markDismissed(jobId: String) = suppressionCache.markDismissed(jobId)
+    fun clearDismissedCache() = suppressionCache.clear()
+
+    private var ringtone: Ringtone? = null
     private var mediaPlayer: MediaPlayer? = null
+    private var vibrator: Vibrator? = null
     private val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
     companion object {
-        const val CHANNEL_ID = "raahi_incoming_requests"
+        const val TAG = "RAAHI_INCOMING_ALERT"
+        const val CHANNEL_ID = "raahi_incoming_requests_v2"
         const val CHANNEL_NAME = "Incoming Roadside Requests"
         const val NOTIFICATION_ID = 9001
     }
@@ -60,9 +74,12 @@ class IncomingJobAlertManager @Inject constructor(
             ).apply {
                 description = "High priority full-screen alerts for roadside assistance requests"
                 enableVibration(true)
-                vibrationPattern = longArrayOf(0, 500, 200, 500, 200, 500)
+                vibrationPattern = longArrayOf(0, 800, 400, 800, 400)
+                setBypassDnd(true)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
             }
             notificationManager.createNotificationChannel(channel)
+            Log.d(TAG, "Notification channel created: id=$CHANNEL_ID, importance=${channel.importance}")
         }
     }
 
@@ -71,11 +88,14 @@ class IncomingJobAlertManager @Inject constructor(
             webSocketClient.events.collect { event ->
                 when (event) {
                     is WsEvent.JobNewRequest -> {
+                        Log.d(TAG, "WebSocket JobNewRequest received: jobId=${event.job.id}, status=${event.job.status}")
                         triggerAlert(event.job)
                     }
                     is WsEvent.JobStatusChange -> {
+                        Log.d(TAG, "WebSocket JobStatusChange received: jobId=${event.jobId}, status=${event.status}")
                         if (_incomingJob.value?.id == event.jobId && event.status != "PENDING") {
-                            dismissAlert()
+                            Log.d(TAG, "Dismissing alert because active job ${event.jobId} is no longer PENDING (status=${event.status})")
+                            dismissAlert(event.jobId)
                         }
                     }
                     else -> {}
@@ -84,22 +104,76 @@ class IncomingJobAlertManager @Inject constructor(
         }
     }
 
+    fun fetchAndTrigger(jobId: String, fallbackJob: JobDto? = null) {
+        if (isDismissed(jobId)) {
+            Log.d(TAG, "fetchAndTrigger: jobId=$jobId was recently dismissed or handled, skipping duplicate")
+            return
+        }
+        if (_incomingJob.value?.id == jobId && fallbackJob == null) {
+            Log.d(TAG, "fetchAndTrigger: already alerting for jobId=$jobId, skipping duplicate fetch")
+            return
+        }
+        if (fallbackJob != null && _incomingJob.value?.id != jobId) {
+            Log.d(TAG, "fetchAndTrigger: displaying immediate alert from FCM payload for jobId=$jobId")
+            triggerAlert(fallbackJob)
+        }
+        scope.launch(Dispatchers.IO) {
+            Log.d(TAG, "fetchAndTrigger: fetching fresh authoritative job details for jobId=$jobId")
+            val job = runCatching { jobsRepository.getJob(jobId) }.getOrNull()
+            withContext(Dispatchers.Main) {
+                if (job != null) {
+                    if (job.status == "PENDING") {
+                        triggerAlert(job)
+                    } else {
+                        Log.d(TAG, "Job $jobId is no longer PENDING (status=${job.status}), dismissing stale alert")
+                        if (_incomingJob.value?.id == jobId) {
+                            dismissAlert(jobId)
+                        }
+                    }
+                } else if (fallbackJob == null && _incomingJob.value?.id == jobId) {
+                    Log.w(TAG, "fetchAndTrigger: unable to fetch job $jobId and no fallback job available")
+                }
+            }
+        }
+    }
+
     fun triggerAlert(job: JobDto) {
-        if (_incomingJob.value?.id == job.id) return // already alerting for this job
+        Log.d(TAG, "triggerAlert invoked for jobId=${job.id}, status=${job.status}")
+        if (job.status != "PENDING") {
+            Log.d(TAG, "Ignoring alert for job ${job.id}: status is ${job.status}, expected PENDING")
+            return
+        }
+        if (isDismissed(job.id)) {
+            Log.d(TAG, "Duplicate alert suppressed: job ${job.id} was recently dismissed/declined")
+            return
+        }
+        if (_incomingJob.value?.id == job.id) {
+            Log.d(TAG, "Job ${job.id} is already active: updating details without restarting ringtone/vibration")
+            _incomingJob.value = job
+            postNotification(job)
+            return
+        }
         _incomingJob.value = job
-        startRingtone()
+        startRingtoneAndVibration()
         postNotification(job)
     }
 
-    fun dismissAlert() {
+    fun dismissAlert(jobId: String? = null) {
+        val currentId = jobId ?: _incomingJob.value?.id
+        Log.d(TAG, "dismissAlert called (target job: $currentId)")
+        if (currentId != null) {
+            markDismissed(currentId)
+        }
         _incomingJob.value = null
-        stopRingtone()
+        stopRingtoneAndVibration()
         notificationManager.cancel(NOTIFICATION_ID)
     }
 
     suspend fun declineJob(): Boolean {
         val job = _incomingJob.value ?: return false
-        dismissAlert()
+        Log.d(TAG, "declineJob invoked by helper for jobId=${job.id}")
+        markDismissed(job.id)
+        dismissAlert(job.id)
         return runCatching {
             jobsRepository.declineJob(job.id)
             true
@@ -108,24 +182,59 @@ class IncomingJobAlertManager @Inject constructor(
 
     suspend fun acceptJob(): JobDto? {
         val job = _incomingJob.value ?: return null
-        dismissAlert()
+        Log.d(TAG, "acceptJob invoked by helper for jobId=${job.id}")
+        markDismissed(job.id)
+        dismissAlert(job.id)
         return runCatching {
             jobsRepository.acceptJob(job.id)
         }.getOrNull()
     }
 
+    private fun startRingtoneAndVibration() {
+        stopRingtoneAndVibration()
+        startRingtone()
+        startVibration()
+    }
+
     private fun startRingtone() {
+        // 1. Try RingtoneManager first: accurately resolves system alarm/ringtone URIs
         try {
-            stopRingtone()
-            val ringtoneUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+            val ringtoneUri = RingtoneManager.getActualDefaultRingtoneUri(context, RingtoneManager.TYPE_RINGTONE)
+                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+
+            if (ringtoneUri != null) {
+                val r = RingtoneManager.getRingtone(context, ringtoneUri)
+                if (r != null) {
+                    r.audioAttributes = AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build()
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        r.isLooping = true
+                    }
+                    r.play()
+                    ringtone = r
+                    Log.d(TAG, "Ringtone started via RingtoneManager ($ringtoneUri)")
+                    return
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "RingtoneManager start exception: ${e.message}, falling back to MediaPlayer", e)
+        }
+
+        // 2. Fallback to MediaPlayer
+        try {
+            val fallbackUri = RingtoneManager.getActualDefaultRingtoneUri(context, RingtoneManager.TYPE_RINGTONE)
                 ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
                 ?: return
 
             mediaPlayer = MediaPlayer().apply {
-                setDataSource(context, ringtoneUri)
+                setDataSource(context, fallbackUri)
                 setAudioAttributes(
                     AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                        .setUsage(AudioAttributes.USAGE_ALARM)
                         .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                         .build()
                 )
@@ -133,29 +242,77 @@ class IncomingJobAlertManager @Inject constructor(
                 prepare()
                 start()
             }
+            Log.d(TAG, "Ringtone started via MediaPlayer ($fallbackUri)")
         } catch (e: Exception) {
-            Log.w("IncomingJobAlert", "Could not start ringtone: ${e.message}")
+            Log.e(TAG, "MediaPlayer start exception: ${e.message}", e)
         }
     }
 
-    private fun stopRingtone() {
+    private fun startVibration() {
+        try {
+            val vib = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vm = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+                vm?.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+            }
+            vibrator = vib
+            val pattern = longArrayOf(0, 800, 400, 800, 400)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vib?.vibrate(VibrationEffect.createWaveform(pattern, 0))
+            } else {
+                @Suppress("DEPRECATION")
+                vib?.vibrate(pattern, 0)
+            }
+            Log.d(TAG, "Continuous vibration started")
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not start vibration: ${e.message}")
+        }
+    }
+
+    private fun stopRingtoneAndVibration() {
+        try {
+            ringtone?.let {
+                if (it.isPlaying) it.stop()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Exception stopping Ringtone: ${e.message}")
+        } finally {
+            ringtone = null
+        }
+
         try {
             mediaPlayer?.let { player ->
-                if (player.isPlaying) {
-                    player.stop()
-                }
+                if (player.isPlaying) player.stop()
                 player.release()
             }
         } catch (e: Exception) {
-            Log.w("IncomingJobAlert", "Could not stop ringtone: ${e.message}")
+            Log.w(TAG, "Exception stopping MediaPlayer: ${e.message}")
         } finally {
             mediaPlayer = null
         }
+
+        try {
+            vibrator?.cancel()
+        } catch (e: Exception) {
+            Log.w(TAG, "Exception stopping vibrator: ${e.message}")
+        } finally {
+            vibrator = null
+        }
+        Log.d(TAG, "Ringtone and vibration stopped")
     }
 
     private fun postNotification(job: JobDto) {
+        val canUseFullScreen = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            notificationManager.canUseFullScreenIntent()
+        } else {
+            true
+        }
+        Log.d(TAG, "postNotification: CHANNEL_ID=$CHANNEL_ID, canUseFullScreenIntent=$canUseFullScreen")
+
         val intent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra("jobId", job.id)
             putExtra("type", "incoming_request")
         }
@@ -181,6 +338,47 @@ class IncomingJobAlertManager @Inject constructor(
             .setFullScreenIntent(pendingIntent, true)
             .build()
 
-        notificationManager.notify(NOTIFICATION_ID, notification)
+        try {
+            notificationManager.notify(NOTIFICATION_ID, notification)
+            Log.d(TAG, "Notification $NOTIFICATION_ID posted successfully for job ${job.id}")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to post notification for job ${job.id}: ${e.message}", e)
+        }
     }
+}
+
+/**
+ * Thread-safe LRU cache and TTL-based suppressor for duplicate incoming job alerts.
+ */
+class AlertSuppressionCache(
+    private val maxSize: Int = 100,
+    private val ttlMs: Long = 10 * 60 * 1000L // 10 minutes
+) {
+    private val dismissed = java.util.Collections.synchronizedMap(
+        object : LinkedHashMap<String, Long>(maxSize / 2, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Long>?): Boolean {
+                return size > maxSize
+            }
+        }
+    )
+
+    fun markDismissed(jobId: String, timestamp: Long = System.currentTimeMillis()) {
+        dismissed[jobId] = timestamp
+    }
+
+    fun isDismissed(jobId: String, now: Long = System.currentTimeMillis()): Boolean {
+        val ts = dismissed[jobId] ?: return false
+        return if (now - ts < ttlMs) {
+            true
+        } else {
+            dismissed.remove(jobId)
+            false
+        }
+    }
+
+    fun clear() {
+        dismissed.clear()
+    }
+
+    fun size(): Int = dismissed.size
 }

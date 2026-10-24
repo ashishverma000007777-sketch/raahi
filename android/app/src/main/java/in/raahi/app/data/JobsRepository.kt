@@ -31,6 +31,9 @@ class JobsRepository @Inject constructor(private val api: RaahiApi) {
 
     suspend fun acceptJob(id: String): JobDto = apiCall { api.acceptJob(id) }
 
+    suspend fun startEnRoute(id: String, lat: Double? = null, lng: Double? = null): JobDto =
+        apiCall { api.startEnRoute(id, if (lat != null && lng != null) `in`.raahi.app.network.JobLocationUpdateRequest(lat, lng) else null) }
+
     /** Arrival proof: GPS fix and/or the arrival OTP the customer shows. */
     suspend fun arrive(id: String, lat: Double?, lng: Double?, otp: String?): JobDto =
         apiCall { api.arriveJob(id, ArriveRequest(lat, lng, otp?.takeIf { it.isNotBlank() })) }
@@ -47,8 +50,14 @@ class JobsRepository @Inject constructor(private val api: RaahiApi) {
         apiCall { api.rateJob(id, RateRequest(stars, comment?.takeIf { it.isNotBlank() })) }
     }
 
-    suspend fun cancelJob(id: String, reason: String? = null) {
-        apiCall { api.cancelJob(id, CancelRequest(reason)) }
+    suspend fun cancelJob(
+        id: String,
+        reason: String? = null,
+        reasonCode: String? = null,
+        lat: Double? = null,
+        lng: Double? = null,
+    ) {
+        apiCall { api.cancelJob(id, CancelRequest(reason, reasonCode, lat, lng)) }
     }
 
     suspend fun declineJob(id: String) {

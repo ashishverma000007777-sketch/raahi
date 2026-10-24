@@ -1,14 +1,18 @@
 package `in`.raahi.app.ui.screens.vehicle
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
@@ -18,12 +22,17 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -31,155 +40,345 @@ import `in`.raahi.app.network.VehicleDto
 import `in`.raahi.app.ui.components.*
 import `in`.raahi.app.ui.theme.*
 
+// ---------------------------------------------------------------------------------------
+// Reference-Derived OEM Automotive Design Palette
+// ---------------------------------------------------------------------------------------
+private val CharcoalHeader = Color(0xFF16181D)
+private val HeaderPill = Color(0xFF24272E)
+private val HeaderPillBorder = Color(0xFF32363E)
+private val ScreenCanvasBg = Color(0xFFF5F6FA)
+private val CardSurface = Color(0xFFFFFFFF)
+private val CardBorder = Color(0xFFE4E7EB)
+private val TextPrimary = Color(0xFF16181D)
+private val TextSecondary = Color(0xFF707780)
+private val TextMuted = Color(0xFF8A929A)
+private val TelemetryBg = Color(0xFFF6F7F9)
+private val TelemetryBorder = Color(0xFFEBECEF)
+private val BrandOrange = Color(0xFFF57C00)
+private val DangerRed = Color(0xFFD94343)
+private val SuccessGreen = Color(0xFF238765)
+
 @Composable
 fun MyGarageScreen(
     onBack: () -> Unit,
     onAddVehicle: () -> Unit,
     onEditVehicle: (String) -> Unit,
     onViewCarHealth: (String) -> Unit,
+    onNavigateTab: ((RaahiTab) -> Unit)? = null,
+    onSosClick: (() -> Unit)? = null,
     viewModel: MyGarageViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
     var vehicleToRemove by remember { mutableStateOf<VehicleDto?>(null) }
+    var selectedVehicleId by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.load()
     }
 
-    Surface(modifier = Modifier.fillMaxSize(), color = RaahiBg) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            // Header
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+    val vehicleCount = (state as? MyGarageState.Success)?.vehicles?.size ?: 0
+
+    // Synchronize selected vehicle
+    val successState = state as? MyGarageState.Success
+    val currentVehicle = remember(successState, selectedVehicleId) {
+        successState?.let { s ->
+            s.vehicles.firstOrNull { it.id == selectedVehicleId }
+                ?: s.vehicles.firstOrNull { it.id == s.activeVehicleId }
+                ?: s.vehicles.firstOrNull()
+        }
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = CharcoalHeader
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(modifier = Modifier.fillMaxSize()) {
+
+                // ---------------------------------------------------------------------------
+                // 1. Unified Charcoal Automotive Header
+                // ---------------------------------------------------------------------------
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    // Left: Back button + Title & Vehicle Count
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        IconButton(
+                            onClick = onBack,
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(Color(0x22FFFFFF))
+                                .border(1.dp, Color(0x33FFFFFF), CircleShape),
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                                contentDescription = "Back",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        Column {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "My Garage",
+                                    fontSize = 19.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    letterSpacing = 0.2.sp
+                                )
+                                if (vehicleCount > 0) {
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = Color(0x25FFFFFF),
+                                        border = BorderStroke(1.dp, Color(0x30FFFFFF))
+                                    ) {
+                                        Text(
+                                            text = "$vehicleCount",
+                                            color = Color.White,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                            }
+                            Text(
+                                text = if (vehicleCount == 1) "1 vehicle saved" else "$vehicleCount vehicles saved",
+                                fontSize = 11.5.sp,
+                                color = Color(0xFF9EA3AE),
+                                fontWeight = FontWeight.Normal
+                            )
+                        }
+                    }
+
+                    // Right: Sleek dark squircle "+ Add" action button
                     IconButton(
-                        onClick = onBack,
+                        onClick = onAddVehicle,
                         modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(RaahiGlass)
-                            .border(1.dp, RaahiBorderSoft, CircleShape),
+                            .size(38.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(HeaderPill)
+                            .border(1.dp, HeaderPillBorder, RoundedCornerShape(12.dp))
                     ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                            contentDescription = "Back",
-                            tint = RaahiText,
-                        )
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    Column {
-                        Text(
-                            text = "My Garage",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = RaahiDisplayFont,
-                            color = RaahiText,
-                        )
-                        Text(
-                            text = "Manage your vehicles & records",
-                            fontSize = 11.5.sp,
-                            color = RaahiTextDim,
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Add vehicle",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 }
 
-                // Add Vehicle button in header
-                Row(
+                // ---------------------------------------------------------------------------
+                // 2. Cohesive Automotive Sheet Surface
+                // ---------------------------------------------------------------------------
+                Surface(
                     modifier = Modifier
-                        .clip(RaahiShapePill)
-                        .background(RaahiOrange.copy(alpha = 0.12f))
-                        .border(1.dp, RaahiOrange.copy(alpha = 0.35f), RaahiShapePill)
-                        .clickable(onClick = onAddVehicle)
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                        .fillMaxWidth()
+                        .weight(1f),
+                    shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                    color = ScreenCanvasBg,
+                    shadowElevation = 4.dp
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "Add",
-                        tint = RaahiOrange,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Text(
-                        text = "Add",
-                        fontSize = 12.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = RaahiOrange,
-                    )
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        when (val s = state) {
+                            is MyGarageState.Loading -> {
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    CircularProgressIndicator(color = BrandOrange)
+                                }
+                            }
+                            is MyGarageState.Error -> {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(24.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.ErrorOutline,
+                                            contentDescription = null,
+                                            tint = DangerRed,
+                                            modifier = Modifier.size(44.dp),
+                                        )
+                                        Spacer(Modifier.height(12.dp))
+                                        Text(
+                                            text = s.message,
+                                            color = TextSecondary,
+                                            textAlign = TextAlign.Center,
+                                            fontSize = 13.5.sp,
+                                        )
+                                        Spacer(Modifier.height(16.dp))
+                                        Button(
+                                            onClick = { viewModel.load() },
+                                            colors = ButtonDefaults.buttonColors(containerColor = BrandOrange),
+                                            shape = RoundedCornerShape(10.dp),
+                                            modifier = Modifier.height(44.dp)
+                                        ) {
+                                            Text("Try Again", color = Color.White, fontWeight = FontWeight.SemiBold)
+                                        }
+                                    }
+                                }
+                            }
+                            is MyGarageState.Success -> {
+                                if (s.vehicles.isEmpty()) {
+                                    EmptyGarageView(onAddVehicle = onAddVehicle)
+                                } else if (currentVehicle != null) {
+                                    val isDefault = currentVehicle.id == s.activeVehicleId
+
+                                    LazyColumn(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentPadding = PaddingValues(
+                                            top = 6.dp,
+                                            bottom = if (onNavigateTab != null) 136.dp else 36.dp
+                                        ),
+                                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                                    ) {
+                                        // A. Subtle Top Accent Drag Bar
+                                        item {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(top = 6.dp, bottom = 2.dp),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(width = 36.dp, height = 4.dp)
+                                                        .clip(RoundedCornerShape(2.dp))
+                                                        .background(Color(0xFFD4D8DE))
+                                                )
+                                            }
+                                        }
+
+                                        // B. Multi-Vehicle Horizontal Selector (When > 1 vehicle)
+                                        if (s.vehicles.size > 1) {
+                                            item {
+                                                Column(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .padding(horizontal = 16.dp),
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.SpaceBetween
+                                                    ) {
+                                                        Text(
+                                                            text = "SAVED VEHICLES",
+                                                            fontSize = 10.5.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = TextMuted,
+                                                            letterSpacing = 0.8.sp
+                                                        )
+                                                        Text(
+                                                            text = "${s.vehicles.size} vehicles",
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            color = TextSecondary
+                                                        )
+                                                    }
+
+                                                    LazyRow(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        contentPadding = PaddingValues(horizontal = 16.dp),
+                                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                                    ) {
+                                                        itemsIndexed(s.vehicles, key = { _, v -> v.id }) { _, v ->
+                                                            val isSelected = v.id == currentVehicle.id
+                                                            VehicleSelectorCard(
+                                                                vehicle = v,
+                                                                isSelected = isSelected,
+                                                                isDefault = v.id == s.activeVehicleId,
+                                                                onClick = { selectedVehicleId = v.id }
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        // C. Primary Elevated Vehicle Showcase Card
+                                        item {
+                                            VehicleShowcaseCard(
+                                                vehicle = currentVehicle,
+                                                isDefault = isDefault,
+                                                onEdit = { onEditVehicle(currentVehicle.id) },
+                                                onRemove = { vehicleToRemove = currentVehicle },
+                                                onHealthAndHistory = { onViewCarHealth(currentVehicle.id) },
+                                                onSetDefault = { viewModel.setDefault(currentVehicle.id) },
+                                                modifier = Modifier.padding(horizontal = 16.dp)
+                                            )
+                                        }
+
+                                        // D. Add Another Vehicle Action
+                                        item {
+                                            OutlinedButton(
+                                                onClick = onAddVehicle,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 16.dp, vertical = 2.dp)
+                                                    .height(44.dp),
+                                                shape = RoundedCornerShape(12.dp),
+                                                border = BorderStroke(1.dp, Color(0xFFD6DAE0)),
+                                                colors = ButtonDefaults.outlinedButtonColors(
+                                                    containerColor = Color.White.copy(alpha = 0.8f),
+                                                    contentColor = TextPrimary
+                                                )
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Add,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(16.dp),
+                                                    tint = BrandOrange
+                                                )
+                                                Spacer(Modifier.width(6.dp))
+                                                Text(
+                                                    text = "Add Another Vehicle",
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    fontSize = 13.sp,
+                                                    color = TextPrimary
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Bottom Navigation Bar
+                if (onNavigateTab != null) {
+                    RaahiBottomNavBar(current = RaahiTab.GARAGE, onSelect = onNavigateTab)
                 }
             }
 
-            when (val s = state) {
-                is MyGarageState.Loading -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = RaahiOrange)
-                    }
-                }
-                is MyGarageState.Error -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(24.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                imageVector = Icons.Outlined.ErrorOutline,
-                                contentDescription = null,
-                                tint = RaahiRed,
-                                modifier = Modifier.size(48.dp),
-                            )
-                            Spacer(Modifier.height(12.dp))
-                            Text(
-                                text = s.message,
-                                color = RaahiTextDim,
-                                textAlign = TextAlign.Center,
-                                fontSize = 14.sp,
-                            )
-                            Spacer(Modifier.height(16.dp))
-                            RaahiOutlineButton(text = "Try Again", onClick = { viewModel.load() })
-                        }
-                    }
-                }
-                is MyGarageState.Success -> {
-                    if (s.vehicles.isEmpty()) {
-                        EmptyGarageView(onAddVehicle = onAddVehicle)
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = 16.dp),
-                            verticalArrangement = Arrangement.spacedBy(16.dp),
-                            contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp),
-                        ) {
-                            items(s.vehicles, key = { it.id }) { vehicle ->
-                                val isDefault = vehicle.id == s.activeVehicleId
-                                VehicleCard(
-                                    vehicle = vehicle,
-                                    isDefault = isDefault,
-                                    onSetDefault = { viewModel.setDefault(vehicle.id) },
-                                    onEdit = { onEditVehicle(vehicle.id) },
-                                    onRemove = { vehicleToRemove = vehicle },
-                                    onViewHealth = { onViewCarHealth(vehicle.id) },
-                                )
-                            }
-
-                            item {
-                                Spacer(Modifier.height(4.dp))
-                                RaahiOutlineButton(
-                                    text = "+ Add Another Vehicle",
-                                    onClick = onAddVehicle,
-                                    tint = RaahiOrange,
-                                )
-                            }
-                        }
-                    }
-                }
+            // Floating SOS Button
+            if (onSosClick != null) {
+                RaahiFloatingSosButton(
+                    onSos = onSosClick,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 18.dp, bottom = if (onNavigateTab != null) 86.dp else 24.dp)
+                )
             }
         }
     }
@@ -188,11 +387,12 @@ fun MyGarageScreen(
     vehicleToRemove?.let { vehicle ->
         AlertDialog(
             onDismissRequest = { vehicleToRemove = null },
-            containerColor = RaahiBg2,
+            containerColor = CardSurface,
+            shape = RoundedCornerShape(16.dp),
             title = {
                 Text(
-                    text = "Remove vehicle?",
-                    color = RaahiText,
+                    text = "Remove Vehicle?",
+                    color = TextPrimary,
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp,
                 )
@@ -200,423 +400,104 @@ fun MyGarageScreen(
             text = {
                 Text(
                     text = "Are you sure you want to remove ${vehicle.brand} ${vehicle.model} (${vehicle.registrationNumber}) from your garage?",
-                    color = RaahiTextDim,
-                    fontSize = 14.sp,
+                    color = TextSecondary,
+                    fontSize = 13.5.sp,
                 )
             },
             confirmButton = {
-                TextButton(
+                Button(
                     onClick = {
                         val id = vehicle.id
                         vehicleToRemove = null
                         viewModel.removeVehicle(id)
-                    }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = DangerRed),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.height(40.dp)
                 ) {
-                    Text("Remove", color = RaahiRed, fontWeight = FontWeight.Bold)
+                    Text("Remove", color = Color.White, fontWeight = FontWeight.SemiBold)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { vehicleToRemove = null }) {
-                    Text("Cancel", color = RaahiTextDim)
+                TextButton(
+                    onClick = { vehicleToRemove = null },
+                    modifier = Modifier.height(40.dp)
+                ) {
+                    Text("Cancel", color = TextSecondary, fontWeight = FontWeight.Medium)
                 }
             },
         )
     }
 }
 
-@Composable
-private fun VehicleCard(
-    vehicle: VehicleDto,
-    isDefault: Boolean,
-    onSetDefault: () -> Unit,
-    onEdit: () -> Unit,
-    onRemove: () -> Unit,
-    onViewHealth: () -> Unit,
-) {
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            // Top Row: Brand & Model, Default badge
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(RaahiOrange.copy(alpha = 0.12f)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.DirectionsCar,
-                            contentDescription = null,
-                            tint = RaahiOrange,
-                            modifier = Modifier.size(24.dp),
-                        )
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    Column {
-                        Text(
-                            text = "${vehicle.brand} ${vehicle.model}",
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = RaahiText,
-                            fontFamily = RaahiDisplayFont,
-                        )
-                        val variantText = buildString {
-                            if (!vehicle.variant.isNullOrBlank()) append(vehicle.variant)
-                            if (vehicle.modelYear > 0) {
-                                if (isNotEmpty()) append(" · ")
-                                append(vehicle.modelYear)
-                            }
-                        }
-                        if (variantText.isNotBlank()) {
-                            Text(
-                                text = variantText,
-                                fontSize = 12.sp,
-                                color = RaahiTextDim,
-                            )
-                        }
-                    }
-                }
 
-                if (isDefault) {
-                    Row(
-                        modifier = Modifier
-                            .clip(RaahiShapePill)
-                            .background(RaahiGreen.copy(alpha = 0.14f))
-                            .border(1.dp, RaahiGreen.copy(alpha = 0.35f), RaahiShapePill)
-                            .padding(horizontal = 10.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = null,
-                            tint = RaahiGreen,
-                            modifier = Modifier.size(12.dp),
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text(
-                            text = "DEFAULT",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = RaahiGreen,
-                            letterSpacing = 0.5.sp,
-                        )
-                    }
-                } else {
-                    Row(
-                        modifier = Modifier
-                            .clip(RaahiShapePill)
-                            .background(RaahiGlass)
-                            .border(1.dp, RaahiBorderSoft, RaahiShapePill)
-                            .clickable(onClick = onSetDefault)
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = "Set Default",
-                            fontSize = 10.5.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = RaahiOrange,
-                        )
-                    }
-                }
-            }
 
-            Spacer(Modifier.height(14.dp))
-
-            // Indian License Plate Badge
-            IndianLicensePlate(registrationNumber = vehicle.registrationNumber)
-
-            Spacer(Modifier.height(14.dp))
-
-            // 2x2 Specs Grid
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                SpecBox(
-                    icon = Icons.Outlined.Speed,
-                    label = "Odometer",
-                    value = "${"%,d".format(vehicle.odometerKm)} km",
-                    modifier = Modifier.weight(1f),
-                )
-                SpecBox(
-                    icon = Icons.Outlined.LocalGasStation,
-                    label = "Fuel Type",
-                    value = vehicle.fuelType.replaceFirstChar { it.uppercase() },
-                    modifier = Modifier.weight(1f),
-                )
-            }
-
-            Spacer(Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                SpecBox(
-                    icon = Icons.Outlined.Build,
-                    label = "Last Service",
-                    value = vehicle.lastServiceDate ?: "Not recorded",
-                    modifier = Modifier.weight(1f),
-                )
-                SpecBox(
-                    icon = Icons.Outlined.VerifiedUser,
-                    label = "Insurance",
-                    value = vehicle.insuranceExpiry?.let { "Valid: $it" } ?: "Not recorded",
-                    modifier = Modifier.weight(1f),
-                )
-            }
-
-            Spacer(Modifier.height(14.dp))
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(RaahiBorderSoft)
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            // Actions: Edit Details, Remove
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .clickable(onClick = onEdit)
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Edit,
-                        contentDescription = "Edit",
-                        tint = RaahiTextDim,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = "Edit Details",
-                        fontSize = 12.5.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = RaahiText,
-                    )
-                }
-
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .clickable(onClick = onRemove)
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.DeleteOutline,
-                        contentDescription = "Remove",
-                        tint = RaahiRed,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Text(
-                        text = "Remove",
-                        fontSize = 12.5.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = RaahiRed,
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(10.dp))
-
-            // Full width: View Car Health & Service History
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(RaahiOrange.copy(alpha = 0.10f))
-                    .border(1.dp, RaahiOrange.copy(alpha = 0.30f), RoundedCornerShape(14.dp))
-                    .clickable(onClick = onViewHealth)
-                    .padding(vertical = 12.dp, horizontal = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center,
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.HealthAndSafety,
-                    contentDescription = null,
-                    tint = RaahiOrange,
-                    modifier = Modifier.size(18.dp),
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = "View Car Health & Service History",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = RaahiOrange,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun IndianLicensePlate(
-    registrationNumber: String,
-    modifier: Modifier = Modifier,
-) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(Color(0xFFF8FAFC))
-            .border(1.5.dp, Color(0xFFCBD5E1), RoundedCornerShape(8.dp))
-            .padding(vertical = 4.dp),
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            // Blue left strip for "IND"
-            Box(
-                modifier = Modifier
-                    .width(34.dp)
-                    .fillMaxHeight()
-                    .padding(vertical = 2.dp)
-                    .background(Color(0xFF003399), RoundedCornerShape(topStart = 6.dp, bottomStart = 6.dp)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(vertical = 2.dp),
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(7.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF00BFFF)),
-                    )
-                    Text(
-                        text = "IND",
-                        color = Color.White,
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 0.5.sp,
-                    )
-                }
-            }
-
-            Spacer(Modifier.width(14.dp))
-
-            Text(
-                text = registrationNumber.uppercase().ifBlank { "NOT REGISTERED" },
-                fontSize = 18.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = Color(0xFF0F172A),
-                letterSpacing = 2.5.sp,
-                fontFamily = FontFamily.Monospace,
-            )
-        }
-    }
-}
-
-@Composable
-private fun SpecBox(
-    icon: ImageVector,
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier,
-) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(RaahiBg2)
-            .border(1.dp, RaahiBorderSoft, RoundedCornerShape(12.dp))
-            .padding(horizontal = 12.dp, vertical = 9.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = RaahiOrange,
-                modifier = Modifier.size(16.dp),
-            )
-            Spacer(Modifier.width(8.dp))
-            Column {
-                Text(
-                    text = label,
-                    fontSize = 10.5.sp,
-                    color = RaahiTextDim,
-                )
-                Text(
-                    text = value,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = RaahiText,
-                    maxLines = 1,
-                )
-            }
-        }
-    }
-}
-
+// ---------------------------------------------------------------------------------------
+// Empty Garage View
+// ---------------------------------------------------------------------------------------
 @Composable
 private fun EmptyGarageView(onAddVehicle: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(28.dp),
+            .padding(24.dp),
         contentAlignment = Alignment.Center,
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.Center,
         ) {
             Box(
                 modifier = Modifier
-                    .size(80.dp)
+                    .size(64.dp)
                     .clip(CircleShape)
-                    .background(RaahiOrange.copy(alpha = 0.12f)),
+                    .background(Color(0xFFFFF3E0))
+                    .border(1.dp, Color(0xFFFFE0B2), CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = Icons.Outlined.DirectionsCar,
                     contentDescription = null,
-                    tint = RaahiOrange,
-                    modifier = Modifier.size(42.dp),
+                    tint = BrandOrange,
+                    modifier = Modifier.size(32.dp),
                 )
             }
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(18.dp))
             Text(
-                text = "No vehicles saved yet",
-                fontSize = 18.sp,
+                text = "Your Garage is Empty",
+                fontSize = 19.sp,
                 fontWeight = FontWeight.Bold,
-                color = RaahiText,
-                fontFamily = RaahiDisplayFont,
+                color = TextPrimary,
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(6.dp))
             Text(
-                text = "Add your car to track service history, car health, and get faster roadside assistance.",
+                text = "Add your car or motorcycle to track odometer, car health, and service history.",
                 fontSize = 13.sp,
-                color = RaahiTextDim,
+                color = TextSecondary,
                 textAlign = TextAlign.Center,
                 lineHeight = 18.sp,
+                modifier = Modifier.padding(horizontal = 16.dp)
             )
-            Spacer(Modifier.height(24.dp))
-            RaahiPrimaryButton(
-                text = "+ Add Your Vehicle",
+            Spacer(Modifier.height(22.dp))
+            Button(
                 onClick = onAddVehicle,
-                modifier = Modifier.fillMaxWidth(0.8f),
-            )
+                colors = ButtonDefaults.buttonColors(containerColor = CharcoalHeader),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.height(46.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = Color.White
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = "Add Your First Vehicle",
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            }
         }
     }
 }

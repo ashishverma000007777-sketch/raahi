@@ -163,8 +163,24 @@ class AuthRepository @Inject constructor(
     suspend fun currentUser(): UserDto = apiCall { api.me() }
 
     /** PUT /auth/profile — used by the new-user profile-setup step and any later profile edits. */
-    suspend fun updateProfile(name: String?, vehicleType: String?, vehicleReg: String?): UserDto =
-        apiCall { api.updateProfile(UpdateProfileRequest(name = name, vehicleType = vehicleType, vehicleReg = vehicleReg)) }
+    suspend fun updateProfile(
+        name: String?,
+        vehicleType: String?,
+        vehicleReg: String?,
+        role: String? = null,
+        agencyName: String? = null
+    ): UserDto =
+        apiCall {
+            api.updateProfile(
+                UpdateProfileRequest(
+                    name = name,
+                    vehicleType = vehicleType,
+                    vehicleReg = vehicleReg,
+                    role = role,
+                    agencyName = agencyName
+                )
+            )
+        }
 
     suspend fun signOut() {
         runCatching { api.logout() }

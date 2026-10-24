@@ -51,7 +51,8 @@ import androidx.core.view.WindowCompat
 import `in`.raahi.app.R
 import `in`.raahi.app.ui.theme.RaahiBg
 import `in`.raahi.app.ui.theme.RaahiDisplayFont
-import `in`.raahi.app.ui.theme.RaahiOrange
+import `in`.raahi.app.ui.theme.RaahiPrimaryTeal
+import `in`.raahi.app.ui.theme.RaahiLightTeal
 import `in`.raahi.app.ui.theme.RaahiPink
 import `in`.raahi.app.ui.theme.RaahiText
 import `in`.raahi.app.ui.theme.RaahiTextDim
@@ -144,7 +145,7 @@ fun RaahiSplashScreen(onFinished: () -> Unit) {
                         drawCircle(
                             brush = Brush.radialGradient(
                                 colors = listOf(
-                                    RaahiOrange.copy(alpha = 0.25f * logoAlpha),
+                                    RaahiPrimaryTeal.copy(alpha = 0.25f * logoAlpha),
                                     Color.Transparent
                                 ),
                                 center = center,
@@ -258,13 +259,13 @@ private fun SplashPillarItem(icon: ImageVector, title: String) {
         Box(
             modifier = Modifier
                 .size(44.dp)
-                .background(RaahiOrange.copy(alpha = 0.12f), CircleShape),
+                .background(RaahiLightTeal, CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = RaahiOrange,
+                tint = RaahiPrimaryTeal,
                 modifier = Modifier.size(22.dp)
             )
         }
@@ -305,7 +306,7 @@ private fun SplashSignalLine(
             drawRoundRect(
                 brush = Brush.horizontalGradient(
                     colors = listOf(
-                        RaahiOrange,
+                        RaahiPrimaryTeal,
                         RaahiPink
                     ),
                     startX = 0f,

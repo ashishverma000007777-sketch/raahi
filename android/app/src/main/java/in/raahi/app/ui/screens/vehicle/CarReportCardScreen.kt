@@ -286,19 +286,26 @@ private fun VehicleIdentityCard(
     onUpdateOdometer: () -> Unit,
 ) {
     GlassCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Column(Modifier.weight(1f)) {
                     Text(
                         text = listOfNotNull(vehicle.brand, vehicle.model, vehicle.variant).joinToString(" "),
                         color = RaahiText,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Bold,
                         fontSize = 17.sp,
                         fontFamily = RaahiDisplayFont
                     )
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(3.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("${vehicle.modelYear}", color = RaahiTextDim, fontSize = 12.sp)
+                        Text("${vehicle.modelYear}", color = RaahiTextDim, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                         Spacer(Modifier.width(8.dp))
                         Box(
                             Modifier.background(RaahiSelectionBg, RaahiShapeSmall)
@@ -311,27 +318,32 @@ private fun VehicleIdentityCard(
                                 fontWeight = FontWeight.Bold
                             )
                         }
-                        Spacer(Modifier.width(8.dp))
-                        Text(vehicle.registrationNumber, color = RaahiTextDim, fontSize = 12.sp)
                     }
                 }
-                Box(
-                    modifier = Modifier.size(48.dp).background(RaahiOrange.copy(alpha = 0.12f), RaahiShapeMedium),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Outlined.DirectionsCar, contentDescription = null, tint = RaahiOrange, modifier = Modifier.size(26.dp))
-                }
+
+                // HSRP License Plate Badge
+                VehicleNumberPlate(
+                    registrationNumber = vehicle.registrationNumber,
+                    style = LicensePlateStyle.Compact
+                )
             }
 
-            Spacer(Modifier.height(14.dp))
+            // Automotive Front Vehicle Illustration
+            VehicleIllustration(
+                size = VehicleIllustrationSize.Compact,
+                vehicleBrand = vehicle.brand,
+                vehicleModel = vehicle.model,
+                contentDescription = "${vehicle.brand} ${vehicle.model} Front View",
+                modifier = Modifier.fillMaxWidth()
+            )
+
             HorizontalDivider(color = RaahiBorderSoft)
-            Spacer(Modifier.height(12.dp))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Outlined.Speed, contentDescription = null, tint = RaahiTextDim, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    text = "${vehicle.odometerKm} km",
+                    text = if (vehicle.odometerKm > 0) "%,d km".format(vehicle.odometerKm) else "0 km",
                     color = RaahiText,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 13.sp,
@@ -346,7 +358,7 @@ private fun VehicleIdentityCard(
                     modifier = Modifier.clickable(onClick = onUpdateOdometer)
                 )
             }
-            Spacer(Modifier.height(8.dp))
+
             Text(
                 text = "Edit vehicle details",
                 color = RaahiCyan,

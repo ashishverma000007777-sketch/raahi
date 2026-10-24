@@ -61,7 +61,8 @@ Error:   `{ "success": false, "error": { "code": "STRING_CODE", "message": "..."
 - `GET /jobs/{id}`
 - `POST /jobs/{id}/complete` — now requires status IN_PROGRESS (i.e. verify-otp must have run
   first); previously callable from any status, which is what let the OTP step be skipped
-- `POST /jobs/{id}/cancel` — new; spec requires cancellation support, didn't exist before
+- `POST /jobs/{id}/en-route` — optional body: `{ lat?, lng? }`. Moves job status from `MATCHED` to `EN_ROUTE`. Only the assigned helper may call this. Records departure GPS and timestamp, activates en-route cancellation protection, and sends a push notification to the requester.
+- `POST /jobs/{id}/cancel` — body: `{ reason?, reasonCode?, lat?, lng? }`. Reason code can be `CUSTOMER_CANCELLED`, `HELPER_CANCELLED`, `CUSTOMER_UNREACHABLE`, `INCORRECT_LOCATION`, `VEHICLE_EMERGENCY`, `UNSAFE_CONDITIONS`, or `OTHER`. Allowed from `PENDING`, `MATCHED`, and `EN_ROUTE` stages (returns `409 CANCEL_NOT_ALLOWED` after helper has `ARRIVED`). When cancelled while `EN_ROUTE` or when helper reports `CUSTOMER_UNREACHABLE`/`INCORRECT_LOCATION`, an audit-backed travel loss compensation claim is automatically evaluated and queued for admin review. Customer cancellation fee is strictly ₹0.
 
 JobDto (all endpoints): `id, status, problemType, problemDesc, lat, lng, rewardAmount,
 requesterName, helperName, viewerRole` always present. `viewerRole` is `"REQUESTER"` or
@@ -72,7 +73,10 @@ requester. `helperPhone`/`helperRatingAvg`/`helperTotalHelps`/`helperVerified` o
 once a helper is assigned. `requesterPhone` only present for the assigned helper (mirrors
 helperPhone) — added this session; the old Node `GET /jobs/:id` returned *both* parties'
 phone numbers to any authenticated caller with no participant check at all, which is not
-reproduced here.
+reproduced here. Additional fields for cancellation protection: `enRouteAt`, `cancellationReasonCode`,
+`cancellationStage`, `travelLossStatus` (`ELIGIBLE_PENDING_REVIEW`, `ADMIN_APPROVED`, `REJECTED`, `NOT_ELIGIBLE`),
+`payoutStatus` (`UNPAID`, `PENDING_PAYOUT`, `PAID`, `FAILED`), and helper-private details (`travelLossEstimate`,
+`travelLossApproved`, `travelDistanceKm`, `travelEvidenceType`, `travelLossNotes`).
 
 **Mechanics**
 - `GET /mechanics/nearby?lat&lng&radius` — filtered to `verification_status = APPROVED` with
@@ -186,20 +190,48 @@ All are authenticated; identity comes from the JWT, never from the request.
 
 `weeklyKm.km` is `null` unless the vehicle has at least two real odometer readings. If the vehicle is newer than 7 days, `fullWindow=false` and `since` is the first reading's time.
 
-## Job lifecycle (wire names: PENDING = requested, MATCHED = accepted; COMPLETED + `rated` = rated)
-PENDING -> MATCHED -> ARRIVED -> IN_PROGRESS -> WORK_DONE -> COMPLETED (-> rated). Terminal: CANCELLED, EXPIRED.
+## Job lifecycle (wire names: PENDING = requested, MATCHED = accepted, EN_ROUTE = helper on the way; COMPLETED + `rated` = rated)
+PENDING -> MATCHED -> EN_ROUTE -> ARRIVED -> IN_PROGRESS -> WORK_DONE -> COMPLETED (-> rated). Terminal: CANCELLED, EXPIRED.
 - `POST /jobs/{id}/accept` approved+ACTIVE+unblocked helper with no commission due (403 otherwise; 409 if taken)
-- `POST /jobs/{id}/arrive` body `{lat,lng,otp}`: GPS within `raahi.job.arrival-radius-m` and/or arrival OTP
+- `POST /jobs/{id}/en-route` helper signals departure; starts route tracking and en-route cancellation protection
+- `POST /jobs/{id}/arrive` body `{lat,lng,otp}`: GPS within `raahi.job.arrival-radius-m` and/or arrival OTP (also allows direct arrival from MATCHED for backward compatibility)
 - `POST /jobs/{id}/start` helper; `POST /jobs/{id}/work-done` helper `{finalAmount,paymentMode: CASH|UPI}`
 - `POST /jobs/{id}/confirm-completion` customer `{otp}`; creates the commission ledger row
-- `POST /jobs/{id}/rate` customer `{stars,comment}`; `POST /jobs/{id}/cancel` only PENDING/MATCHED (409 CANCEL_NOT_ALLOWED after ARRIVED)
+- `POST /jobs/{id}/rate` customer `{stars,comment}`; `POST /jobs/{id}/cancel` allowed in PENDING, MATCHED, or EN_ROUTE (409 CANCEL_NOT_ALLOWED after ARRIVED)
 - `POST /jobs/{id}/report` participants (Report Issue / Contact Support); `GET /jobs/{id}/history` immutable status history
 ## Helper portal
 `GET /helper/status`, `PUT /helper/availability`, `GET /helper/commission`, `GET /helper/earnings`, `GET /helper/ratings`, `GET /helper/jobs/history`, `POST /helper/apply` (multipart, full onboarding)
 ## Admin (`/admin/**`, ROLE_ADMIN + DB re-check, all mutations audited)
-overview, users (+block/unblock), helpers (+suspend/reinstate), helper-applications approve/reject, jobs, jobs/{id}/history, reports (+resolve), cancellations (+excuse), ratings, commission/balances|ledger|settle, audit-logs
+overview, users (+block/unblock), helpers (+suspend/reinstate), helper-applications approve/reject, jobs, jobs/{id}/history, reports (+resolve), cancellations (+excuse), cancellation-compensations (review/approve/reject), ratings, commission/balances|ledger|settle, audit-logs
 ## Commission
 Ledger (not a wallet). `raahi.commission.rate` (default 10%). COMMISSION rows negative, SETTLEMENT rows positive; balance < 0 blocks accepting jobs.
+
+## En-Route Cancellation Protection (`/api/v1/jobs/{id}/cancel`, `/api/v1/admin/cancellation-compensations/**`)
+
+Protects roadside helpers from unrecoverable travel loss when a customer cancels after the helper is en route, or when the customer is unreachable at the destination.
+
+### Core Policies
+- **Customer Cancellation Fee**: Always **₹0**. Raahi absorbs verified helper travel expenses from a dedicated protection fund; customers are never charged late cancellation penalties.
+- **Mandatory Admin Review**: Automatic claim approvals are strictly disabled. All eligible claims are queued with status `ELIGIBLE_PENDING_REVIEW` and `approvedAmount = null`.
+- **Payout Separation**: Administrative approval transitions the claim status to `ADMIN_APPROVED`. The payout settlement status remains `UNPAID` (`payout_status IN ('UNPAID', 'PENDING_PAYOUT', 'PAID', 'FAILED')`), preventing automatic or premature wallet balance movements.
+- **Duplicate Protection**: Enforced both at application layer and via a database-level `UNIQUE(job_id)` constraint on `job_cancellation_compensations`.
+- **Concurrency Guard**: Atomic state transition query guards approval/rejection against concurrent reviews (`409 CONCURRENT_DECISION`).
+
+### Compensation Calculation Formula
+`estimatedLossAmount = min(baseCalloutFee + (actualTravelKm + returnDistanceKm) * baseRatePerKm, maxCompensationCap)`
+- `baseCalloutFee`: ₹50.0 (baseline dispatch allowance)
+- `baseRatePerKm`: ₹12.0 / km
+- `returnDistanceFactor`: 0.5 (50% return coverage)
+- `minDispatchDistanceKm`: 0.5 km (travel below this distance is marked `NOT_ELIGIBLE`)
+- `maxCompensationCap`: ₹500.0 (maximum compensation ceiling per cancellation)
+- `evidenceType`: `GPS_VERIFIED` (movement $\ge 50\text{ m}$ between start and cancel coords) or `UNVERIFIED` (ineligible).
+- `maxDailyClaimsPerHelper`: 3 claims in 24 hours (exceeding flags the claim note for audit).
+
+### Admin Endpoints
+- `GET /api/v1/admin/cancellation-compensations?status=...`: List compensation claims (newest first).
+- `GET /api/v1/admin/cancellation-compensations/{id}`: Detailed claim breakdown with coordinates, distances, audit inputs, and party information.
+- `POST /api/v1/admin/cancellation-compensations/{id}/approve`: Body `{ approvedAmount?, note? }`. Validates amount ($0 \le \text{amount} \le 50,000$), atomically sets status to `ADMIN_APPROVED`, records audit log. Idempotent. Payout status remains `UNPAID`.
+- `POST /api/v1/admin/cancellation-compensations/{id}/reject`: Body `{ note }`. Atomically sets status to `REJECTED`, records audit log. Idempotent.
 
 ## Intercity Trips Marketplace (`/api/v1/intercity/**`)
 
@@ -223,4 +255,3 @@ Primary commercial marketplace connecting Travel Agents and Verified Drivers for
 
 ### Status Progression
 `DRAFT` -> `PUBLISHED` -> `ASSIGNED` -> `ARRIVED` -> `IN_PROGRESS` -> `COMPLETED`. Terminal: `CANCELLED`.
-

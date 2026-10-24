@@ -101,7 +101,7 @@ fun Modifier.raahiPressScale(
 fun RaahiTypingIndicator(
     modifier: Modifier = Modifier,
     dotSize: Dp = 7.dp,
-    activeColor: Color = RaahiOrange,
+    activeColor: Color = RaahiPrimaryTeal,
     inactiveColor: Color = Color(0xFFCBD5E1)
 ) {
     val transition = rememberInfiniteTransition(label = "typingCycle")
@@ -155,7 +155,7 @@ private fun TypingDot(active: Boolean, size: Dp, activeColor: Color, inactiveCol
 @Composable
 fun RaahiLoadingDots(
     modifier: Modifier = Modifier,
-    color: Color = RaahiOrange
+    color: Color = RaahiPrimaryTeal
 ) {
     val transition = rememberInfiniteTransition(label = "pulse")
     val alpha by transition.animateFloat(

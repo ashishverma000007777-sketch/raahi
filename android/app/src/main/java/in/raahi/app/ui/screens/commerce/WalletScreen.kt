@@ -1,5 +1,6 @@
 package `in`.raahi.app.ui.screens.commerce
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -9,16 +10,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.AccountBalanceWallet
-import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.outlined.Refresh
-import androidx.compose.material.icons.outlined.ReceiptLong
-import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -32,25 +29,38 @@ import `in`.raahi.app.network.HelperCommissionDto
 import `in`.raahi.app.network.HelperEarningsDto
 import `in`.raahi.app.network.HelperStatusDto
 import `in`.raahi.app.network.LedgerEntryDto
+import `in`.raahi.app.ui.components.RaahiCard
+import `in`.raahi.app.ui.theme.*
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-import java.text.NumberFormat
 import java.util.Locale
-import `in`.raahi.app.ui.theme.*
 
-private val WalletInk: Color
-    @Composable get() = RaahiText
-private val WalletMuted: Color
-    @Composable get() = RaahiTextDim
-private val WalletCanvas: Color
-    @Composable get() = RaahiBg
-private val WalletGreen = Color(0xFF16845B)
-private val WalletRed = Color(0xFFCB4A4A)
-private val WalletOrange = RaahiOrange
+/**
+ * Standardized currency formatting adhering to automotive product standards:
+ * - Negative amounts: -₹250
+ * - Zero amounts: ₹0
+ * - Positive delta: +₹500
+ * - Positive balance: ₹500
+ */
+fun formatWalletCurrency(value: Double?, isDelta: Boolean = false): String {
+    val amount = value ?: 0.0
+    val isZero = kotlin.math.abs(amount) < 0.0001
+    val isInt = kotlin.math.abs(amount % 1.0) < 0.0001
+    val numStr = if (isInt) {
+        "%,d".format(Locale("en", "IN"), kotlin.math.abs(amount).toLong())
+    } else {
+        String.format(Locale("en", "IN"), "%,.2f", kotlin.math.abs(amount))
+    }
 
-private fun walletMoney(value: Double?): String =
-    NumberFormat.getCurrencyInstance(Locale("en", "IN")).format(value ?: 0.0)
+    if (isZero) return "₹0"
+
+    return if (isDelta) {
+        if (amount > 0) "+₹$numStr" else "-₹$numStr"
+    } else {
+        if (amount < 0) "-₹$numStr" else "₹$numStr"
+    }
+}
 
 data class WalletUiState(
     val loading: Boolean = true,
@@ -71,15 +81,25 @@ class WalletViewModel @Inject constructor(
         viewModelScope.launch {
             state = state.copy(loading = true, error = null)
             try {
-                val statusCall = async { repository.status() }
-                val commissionCall = async { repository.commission() }
-                val earningsCall = async { repository.earnings() }
-                state = WalletUiState(
-                    loading = false,
-                    status = statusCall.await(),
-                    commission = commissionCall.await(),
-                    earnings = earningsCall.await()
-                )
+                val status = repository.status()
+                val approved = status.applicationStatus.equals("APPROVED", ignoreCase = true)
+                if (approved) {
+                    val commissionCall = async { repository.commission() }
+                    val earningsCall = async { repository.earnings() }
+                    state = WalletUiState(
+                        loading = false,
+                        status = status,
+                        commission = commissionCall.await(),
+                        earnings = earningsCall.await()
+                    )
+                } else {
+                    state = WalletUiState(
+                        loading = false,
+                        status = status,
+                        commission = null,
+                        earnings = null
+                    )
+                }
             } catch (e: Exception) {
                 state = state.copy(
                     loading = false,
@@ -103,72 +123,144 @@ fun WalletScreen(
     LaunchedEffect(Unit) { viewModel.refresh() }
 
     Scaffold(
-        containerColor = WalletCanvas,
+        containerColor = RaahiBg,
         topBar = {
             TopAppBar(
                 title = {
                     Column {
-                        Text("Payments & Wallet", fontWeight = FontWeight.Bold, color = WalletInk)
-                        Text("Your earnings, transparently", fontSize = 12.sp, color = WalletMuted)
+                        Text(
+                            text = "Payments & Wallet",
+                            fontWeight = FontWeight.Bold,
+                            color = RaahiText,
+                            fontSize = 18.sp,
+                            fontFamily = RaahiDisplayFont,
+                        )
+                        Text(
+                            text = "Commission settlement & earnings history",
+                            fontSize = 11.5.sp,
+                            color = RaahiTextDim,
+                        )
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back", tint = WalletInk)
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                            contentDescription = "Back",
+                            tint = RaahiText,
+                        )
                     }
                 },
                 actions = {
                     IconButton(onClick = { viewModel.refresh() }) {
-                        Icon(Icons.Outlined.Refresh, contentDescription = "Refresh wallet", tint = WalletInk)
+                        Icon(
+                            imageVector = Icons.Outlined.Refresh,
+                            contentDescription = "Refresh",
+                            tint = RaahiText,
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = WalletCanvas,
-                    titleContentColor = WalletInk,
-                    navigationIconContentColor = WalletInk,
-                    actionIconContentColor = WalletInk
+                    containerColor = RaahiBg,
+                    titleContentColor = RaahiText,
                 )
             )
         }
     ) { padding ->
         when {
             state.loading -> Box(
-                Modifier.fillMaxSize().padding(padding),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
                 contentAlignment = Alignment.Center
-            ) { CircularProgressIndicator(color = WalletOrange) }
+            ) {
+                CircularProgressIndicator(color = RaahiOrange)
+            }
 
             state.error != null && state.commission == null -> Column(
-                Modifier.fillMaxSize().padding(padding).padding(24.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(24.dp),
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Icon(Icons.Outlined.Refresh, null, tint = WalletOrange, modifier = Modifier.size(42.dp))
+                Icon(
+                    imageVector = Icons.Outlined.Refresh,
+                    contentDescription = null,
+                    tint = RaahiOrange,
+                    modifier = Modifier.size(42.dp),
+                )
                 Spacer(Modifier.height(12.dp))
-                Text("Wallet unavailable", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = WalletInk)
-                Text(state.error, color = WalletMuted)
+                Text(
+                    text = "Wallet unavailable",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = RaahiText,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = state.error,
+                    color = RaahiTextDim,
+                    fontSize = 13.sp,
+                )
                 Spacer(Modifier.height(16.dp))
-                Button(onClick = { viewModel.refresh() }) { Text("Try again") }
+                Button(
+                    onClick = { viewModel.refresh() },
+                    colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange),
+                    shape = RoundedCornerShape(10.dp),
+                ) {
+                    Text("Try Again")
+                }
             }
 
             else -> {
                 val status = state.status
-                val approved = status?.applicationStatus.equals("APPROVED", true)
+                val approved = status?.applicationStatus.equals("APPROVED", ignoreCase = true)
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize().padding(padding),
-                    contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 8.dp, bottom = 28.dp),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 32.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     if (!approved) {
                         item {
-                            WalletCard {
-                                Icon(Icons.Outlined.Lock, null, tint = WalletOrange, modifier = Modifier.size(32.dp))
-                                Spacer(Modifier.height(12.dp))
-                                Text("Wallet unlocks after approval", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = WalletInk)
-                                Spacer(Modifier.height(6.dp))
-                                Text(
-                                    "Your helper application status: ${status?.applicationStatus ?: "Unavailable"}. Earnings and commission details appear here once your helper account is approved.",
-                                    color = WalletMuted
-                                )
+                            RaahiCard(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(20.dp),
+                                color = RaahiBg2,
+                            ) {
+                                Column(modifier = Modifier.padding(20.dp)) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(44.dp)
+                                            .clip(CircleShape)
+                                            .background(RaahiOrange.copy(alpha = 0.12f)),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.Lock,
+                                            contentDescription = null,
+                                            tint = RaahiOrange,
+                                            modifier = Modifier.size(22.dp),
+                                        )
+                                    }
+                                    Spacer(Modifier.height(14.dp))
+                                    Text(
+                                        text = "Wallet unlocks after verification",
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = RaahiText,
+                                    )
+                                    Spacer(Modifier.height(6.dp))
+                                    Text(
+                                        text = "Your helper application status: ${status?.applicationStatus ?: "Pending"}. Full commission and ledger tracking will activate once verified by Raahi dispatch.",
+                                        color = RaahiTextDim,
+                                        fontSize = 13.sp,
+                                        lineHeight = 18.sp,
+                                    )
+                                }
                             }
                         }
                     } else {
@@ -177,137 +269,248 @@ fun WalletScreen(
                         val balance = commission?.balance ?: status?.commissionBalance ?: 0.0
                         val canAccept = status?.canAcceptJobs ?: true
 
+                        // HERO: Balance Card
                         item {
-                            WalletCard(
+                            Surface(
                                 modifier = Modifier.fillMaxWidth(),
-                                color = if (RaahiIsDark) RaahiBg2 else Color(0xFF202A35)
+                                shape = RoundedCornerShape(20.dp),
+                                color = RaahiDarkSurface,
+                                border = BorderStroke(1.dp, Color(0xFF1E2D44)),
+                                shadowElevation = 2.dp,
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Outlined.AccountBalanceWallet, null, tint = Color.White)
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("OUTSTANDING BALANCE", color = Color.White.copy(alpha = 0.76f), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                                }
-                                Spacer(Modifier.height(12.dp))
-                                Text(walletMoney(balance), color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.Bold)
-                                Spacer(Modifier.height(8.dp))
-                                Text(
-                                    if (balance < 0) "Commission to settle" else "No outstanding commission",
-                                    color = Color.White.copy(alpha = 0.78f)
-                                )
-                                Spacer(Modifier.height(18.dp))
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Surface(
-                                        color = if (canAccept) Color(0xFF285B4A) else Color(0xFF713E3E),
-                                        shape = RoundedCornerShape(50)
+                                Column(
+                                    modifier = Modifier.padding(20.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.AccountBalanceWallet,
+                                                contentDescription = null,
+                                                tint = Color.White.copy(alpha = 0.85f),
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                            Text(
+                                                text = "OUTSTANDING BALANCE",
+                                                color = Color.White.copy(alpha = 0.75f),
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                letterSpacing = 0.6.sp,
+                                            )
+                                        }
+
+                                        Surface(
+                                            color = if (canAccept) Color(0xFF14532D) else Color(0xFF5A2A2A),
+                                            shape = RoundedCornerShape(50),
+                                            border = BorderStroke(1.dp, if (canAccept) RaahiSuccess else RaahiError),
+                                        ) {
+                                            Text(
+                                                text = if (canAccept) "● Eligible for jobs" else "● Dues restricted",
+                                                color = Color.White,
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                            )
+                                        }
+                                    }
+
+                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                         Text(
-                                            if (canAccept) "● Eligible for jobs" else "● Job acceptance restricted",
+                                            text = formatWalletCurrency(balance, isDelta = false),
                                             color = Color.White,
-                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                                            fontSize = 12.sp
+                                            fontSize = 32.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontFamily = RaahiDisplayFont,
                                         )
-                                    }
-                                    Spacer(Modifier.weight(1f))
-                                    TextButton(onClick = { showPaymentInfo = true }) {
-                                        Text("Pay now", color = Color.White, fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                            }
-                        }
-
-                        item {
-                            WalletCard {
-                                Text("Commission limit", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WalletInk)
-                                Spacer(Modifier.height(10.dp))
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Column(Modifier.weight(1f)) {
-                                        Text("Allowed outstanding", color = WalletMuted, fontSize = 12.sp)
-                                        Text("₹50", fontSize = 21.sp, fontWeight = FontWeight.Bold, color = WalletInk)
-                                    }
-                                    Column(horizontalAlignment = Alignment.End) {
-                                        Text("Commission rate", color = WalletMuted, fontSize = 12.sp)
-                                        Text("${((commission?.rate ?: status?.commissionRate ?: 0.10) * 100).toInt()}%", fontSize = 21.sp, fontWeight = FontWeight.Bold, color = WalletInk)
-                                    }
-                                }
-                                Spacer(Modifier.height(10.dp))
-                                val due = (commission?.due ?: kotlin.math.max(0.0, -balance)).coerceAtLeast(0.0)
-                                val warning = when {
-                                    due >= 50.0 -> "Limit reached: settle your dues before accepting more jobs."
-                                    due >= 40.0 -> "High outstanding: you are close to the ₹50 limit."
-                                    due >= 30.0 -> "Keep an eye on your outstanding commission."
-                                    else -> null
-                                }
-                                if (warning != null) {
-                                    Spacer(Modifier.height(10.dp))
-                                    Surface(
-                                        color = when {
-                                            due >= 50.0 -> if (RaahiIsDark) Color(0xFF3A1C1C) else Color(0xFFFFE8E8)
-                                            due >= 40.0 -> if (RaahiIsDark) Color(0xFF3A2B18) else Color(0xFFFFF0E0)
-                                            else -> if (RaahiIsDark) Color(0xFF38321B) else Color(0xFFFFF7DF)
-                                        },
-                                        shape = RoundedCornerShape(12.dp)
-                                    ) {
                                         Text(
-                                            warning,
-                                            color = when {
-                                                due >= 50.0 -> WalletRed
-                                                due >= 40.0 -> if (RaahiIsDark) Color(0xFFFFB74D) else Color(0xFF9A5419)
-                                                else -> if (RaahiIsDark) Color(0xFFFFD54F) else Color(0xFF856515)
+                                            text = when {
+                                                balance < 0 -> "Commission due for completed services"
+                                                balance == 0.0 -> "All dues clear (₹0 outstanding)"
+                                                else -> "Available balance in your favor"
                                             },
-                                            modifier = Modifier.padding(12.dp),
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.SemiBold
+                                            color = Color.White.copy(alpha = 0.70f),
+                                            fontSize = 12.5.sp,
                                         )
                                     }
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.End,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Button(
+                                            onClick = { showPaymentInfo = true },
+                                            colors = ButtonDefaults.buttonColors(containerColor = RaahiDeepTeal),
+                                            shape = RoundedCornerShape(10.dp),
+                                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                                        ) {
+                                            Text("Settle Dues", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                        }
+                                    }
                                 }
-                                Spacer(Modifier.height(8.dp))
-                                Text(
-                                    "Only verified payments can clear your outstanding balance. Job eligibility is controlled by the server.",
-                                    color = WalletMuted,
-                                    fontSize = 12.sp
-                                )
+                            }
+                        }
+
+                        // Commission Rules & Outstanding Limit
+                        item {
+                            RaahiCard(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(18.dp),
+                                color = RaahiBg2,
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Text(
+                                        text = "Commission Terms",
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = RaahiText,
+                                        fontFamily = RaahiDisplayFont,
+                                    )
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column {
+                                            Text("Allowed Outstanding", color = RaahiTextDim, fontSize = 11.5.sp)
+                                            Text("₹50", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = RaahiText)
+                                        }
+                                        Column(horizontalAlignment = Alignment.End) {
+                                            Text("Commission Rate", color = RaahiTextDim, fontSize = 11.5.sp)
+                                            val ratePct = ((commission?.rate ?: status?.commissionRate ?: 0.10) * 100).toInt()
+                                            Text("$ratePct%", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = RaahiText)
+                                        }
+                                    }
+
+                                    val due = (commission?.due ?: kotlin.math.max(0.0, -balance)).coerceAtLeast(0.0)
+                                    val warning = when {
+                                        due >= 50.0 -> "Limit reached: Settle your outstanding ₹${due.toInt()} dues to continue accepting jobs."
+                                        due >= 40.0 -> "Close to limit: You have ₹${due.toInt()} outstanding against ₹50 limit."
+                                        else -> null
+                                    }
+                                    if (warning != null) {
+                                        Surface(
+                                            color = if (due >= 50.0) Color(0xFFFFECEC) else Color(0xFFFFF7ED),
+                                            shape = RoundedCornerShape(10.dp),
+                                            border = BorderStroke(1.dp, if (due >= 50.0) Color(0xFFFCA5A5) else Color(0xFFFDBA74)),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text(
+                                                text = warning,
+                                                color = if (due >= 50.0) Color(0xFFDC2626) else Color(0xFFC2410C),
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                modifier = Modifier.padding(10.dp),
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Earnings Overview Section
+                        item {
+                            Text(
+                                text = "Earnings Overview",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = RaahiText,
+                                fontFamily = RaahiDisplayFont,
+                            )
+                        }
+
+                        item {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                MetricCard("Gross Earnings", formatWalletCurrency(earnings?.grossEarnings), Modifier.weight(1f))
+                                MetricCard("Total Commission", formatWalletCurrency(earnings?.totalCommission), Modifier.weight(1f))
                             }
                         }
 
                         item {
-                            Text("Earnings overview", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = WalletInk)
-                        }
-                        item {
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                WalletMetric("Gross earnings", walletMoney(earnings?.grossEarnings), Modifier.weight(1f))
-                                WalletMetric("Commission", walletMoney(earnings?.totalCommission), Modifier.weight(1f))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                MetricCard("Net Earnings", formatWalletCurrency(earnings?.netEarnings), Modifier.weight(1f), isNet = true)
+                                MetricCard("Completed Helps", "${earnings?.completedJobs ?: 0}", Modifier.weight(1f))
                             }
                         }
+
+                        // Recent Activity Header
                         item {
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                WalletMetric("Net earnings", walletMoney(earnings?.netEarnings), Modifier.weight(1f))
-                                WalletMetric("Completed helps", (earnings?.completedJobs ?: 0L).toString(), Modifier.weight(1f))
-                            }
-                        }
-                        item {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Recent activity", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = WalletInk, modifier = Modifier.weight(1f))
-                                Text("${commission?.entries?.size ?: 0} entries", fontSize = 12.sp, color = WalletMuted)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Recent Transactions",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = RaahiText,
+                                    fontFamily = RaahiDisplayFont,
+                                )
+                                Text(
+                                    text = "${commission?.entries?.size ?: 0} entries",
+                                    fontSize = 12.sp,
+                                    color = RaahiTextDim,
+                                )
                             }
                         }
 
                         val entries = commission?.entries.orEmpty()
                         if (entries.isEmpty()) {
                             item {
-                                WalletCard {
-                                    Icon(Icons.Outlined.ReceiptLong, null, tint = WalletMuted, modifier = Modifier.size(30.dp))
-                                    Spacer(Modifier.height(8.dp))
-                                    Text("No transactions yet", fontWeight = FontWeight.SemiBold, color = WalletInk)
-                                    Text("Your commission and payment entries will appear here.", color = WalletMuted, fontSize = 13.sp)
+                                RaahiCard(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = RaahiBg2,
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(24.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.ReceiptLong,
+                                            contentDescription = null,
+                                            tint = RaahiTextDim,
+                                            modifier = Modifier.size(36.dp),
+                                        )
+                                        Spacer(Modifier.height(8.dp))
+                                        Text(
+                                            text = "No transactions yet",
+                                            fontWeight = FontWeight.Bold,
+                                            color = RaahiText,
+                                            fontSize = 14.sp
+                                        )
+                                        Spacer(Modifier.height(2.dp))
+                                        Text(
+                                            text = "Your commission debits and payment credits will appear here.",
+                                            color = RaahiTextDim,
+                                            fontSize = 12.sp
+                                        )
+                                    }
                                 }
                             }
                         } else {
                             items(entries, key = { it.id ?: "${it.created_at}-${it.entry_type}-${it.amount}" }) { entry ->
                                 WalletLedgerRow(entry)
                             }
-                        }
-                        if (state.error != null) {
-                            item { Text("Some wallet details may be unavailable: ${state.error}", color = WalletRed, fontSize = 12.sp) }
                         }
                     }
                 }
@@ -319,121 +522,197 @@ fun WalletScreen(
         AlertDialog(
             onDismissRequest = { showPaymentInfo = false },
             containerColor = RaahiBg2,
-            title = { Text("Online payment coming soon", color = RaahiText, fontWeight = FontWeight.Bold) },
+            title = {
+                Text(
+                    text = "Online Settlement",
+                    color = RaahiText,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            },
             text = {
                 Text(
-                    "Secure payment settlement will be enabled after the payment gateway is configured. No payment has been taken and your outstanding balance has not changed.",
-                    color = RaahiTextDim
+                    text = "Instant UPI and net-banking settlement gateway will be active in the next release. Currently, cash and manual settlement with Raahi dispatch are recorded in your ledger.",
+                    color = RaahiTextDim,
+                    fontSize = 13.5.sp,
+                    lineHeight = 19.sp,
                 )
             },
             confirmButton = {
-                TextButton(onClick = { showPaymentInfo = false }) { Text("Got it", color = RaahiOrange, fontWeight = FontWeight.Bold) }
+                Button(
+                    onClick = { showPaymentInfo = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange),
+                    shape = RoundedCornerShape(8.dp),
+                ) {
+                    Text("Got It")
+                }
             }
         )
     }
 }
 
 @Composable
-private fun WalletCard(
+private fun MetricCard(
+    label: String,
+    value: String,
     modifier: Modifier = Modifier,
-    color: Color = RaahiGlass,
-    content: @Composable ColumnScope.() -> Unit
+    isNet: Boolean = false,
 ) {
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(22.dp),
-        color = color,
-        border = androidx.compose.foundation.BorderStroke(1.dp, RaahiBorderSoft),
-        shadowElevation = 1.dp
+        color = RaahiBg2,
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, RaahiBorderSoft),
+        shadowElevation = 1.dp,
     ) {
-        Column(Modifier.padding(18.dp), content = content)
-    }
-}
-
-@Composable
-private fun WalletMetric(label: String, value: String, modifier: Modifier = Modifier) {
-    Surface(
-        modifier = modifier,
-        color = RaahiGlass,
-        shape = RoundedCornerShape(18.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, RaahiBorderSoft),
-        shadowElevation = 1.dp
-    ) {
-        Column(Modifier.padding(15.dp)) {
-            Text(label, color = WalletMuted, fontSize = 12.sp)
-            Spacer(Modifier.height(8.dp))
-            Text(value, color = WalletInk, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Column(modifier = Modifier.padding(14.dp)) {
+            Text(
+                text = label,
+                color = RaahiTextDim,
+                fontSize = 11.5.sp,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = value,
+                color = if (isNet) Color(0xFF22B573) else RaahiText,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+            )
         }
     }
 }
 
 @Composable
 private fun WalletLedgerRow(entry: LedgerEntryDto) {
-    val type = entry.entry_type.replace('_', ' ').lowercase()
-        .replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
     val isCommission = entry.entry_type.contains("COMMISSION", true)
-    val isPayment = entry.entry_type.contains("PAYMENT", true) ||
-        entry.entry_type.contains("SETTLEMENT", true)
-    val isSettlement = entry.entry_type.contains("SETTLEMENT", true)
-    val amountColor = when {
-        isPayment || isSettlement -> WalletGreen
-        isCommission -> WalletRed
-        else -> WalletInk
+    val isPayment = entry.entry_type.contains("PAYMENT", true) || entry.entry_type.contains("SETTLEMENT", true)
+
+    val isDebit = entry.amount < 0 || (isCommission && entry.amount != 0.0)
+    val isCredit = entry.amount > 0 || (isPayment && entry.amount != 0.0)
+    val isZero = kotlin.math.abs(entry.amount) < 0.0001
+
+    val badgeText = when {
+        isDebit -> "DEBIT"
+        isCredit -> "CREDIT"
+        else -> "SETTLED"
     }
+
+    val badgeColor = when {
+        isDebit -> Color(0xFFE5484D)
+        isCredit -> Color(0xFF22B573)
+        else -> RaahiTextDim
+    }
+
+    val amountColor = when {
+        isDebit -> Color(0xFFE5484D)
+        isCredit -> Color(0xFF22B573)
+        else -> RaahiText
+    }
+
+    val title = when {
+        isCommission -> "Commission Fee"
+        isPayment -> "Settlement Payment"
+        else -> entry.entry_type.replace('_', ' ').lowercase()
+            .replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
+    }
+
+    val formattedAmount = when {
+        isZero -> "₹0"
+        isDebit -> "-₹${"%,d".format(Locale("en", "IN"), kotlin.math.abs(entry.amount).toLong())}"
+        else -> "+₹${"%,d".format(Locale("en", "IN"), kotlin.math.abs(entry.amount).toLong())}"
+    }
+
     Surface(
-        color = RaahiGlass,
-        shape = RoundedCornerShape(18.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, RaahiBorderSoft),
-        shadowElevation = 1.dp
+        modifier = Modifier.fillMaxWidth(),
+        color = RaahiBg2,
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, RaahiBorderSoft),
+        shadowElevation = 1.dp,
     ) {
         Row(
-            Modifier.fillMaxWidth().padding(14.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Icon
             Surface(
                 shape = CircleShape,
-                color = amountColor.copy(alpha = 0.10f),
-                modifier = Modifier.size(42.dp)
+                color = badgeColor.copy(alpha = 0.12f),
+                modifier = Modifier.size(38.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
-                        if (isPayment) Icons.Outlined.CheckCircle else if (isCommission) Icons.Outlined.Schedule else Icons.Outlined.ReceiptLong,
-                        null,
-                        tint = amountColor
+                        imageVector = if (isCredit) Icons.Outlined.CheckCircle else if (isCommission) Icons.Outlined.Schedule else Icons.Outlined.ReceiptLong,
+                        contentDescription = null,
+                        tint = badgeColor,
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
+
             Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(type, fontWeight = FontWeight.SemiBold, color = WalletInk)
-                entry.job_id?.let { Text("Help #${it.takeLast(8)}", color = WalletMuted, fontSize = 11.sp) }
-                entry.created_at?.let { Text(it.replace('T', ' '), color = WalletMuted, fontSize = 11.sp) }
-                if (entry.job_amount != null) {
-                    Text("Help amount ${walletMoney(entry.job_amount)}", color = WalletMuted, fontSize = 11.sp)
-                    val rate = entry.commission_rate
-                    if (isCommission && rate != null) {
-                        val ratePercent = if (rate <= 1.0) rate * 100.0 else rate
+
+            // Transaction Details
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = title,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.5.sp,
+                        color = RaahiText
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = badgeColor.copy(alpha = 0.12f),
+                    ) {
                         Text(
-                            "Commission (${ratePercent.toInt()}%): ${walletMoney(kotlin.math.abs(entry.amount))}",
-                            color = WalletRed,
-                            fontSize = 11.sp
+                            text = badgeText,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = badgeColor,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
                         )
                     }
                 }
-                entry.payment_mode?.takeIf { it.isNotBlank() }?.let {
-                    Text("Payment: $it", color = WalletMuted, fontSize = 11.sp)
+
+                Spacer(Modifier.height(2.dp))
+
+                val subDetails = buildList {
+                    entry.job_id?.takeIf { it.isNotBlank() }?.let { add("Job #${it.takeLast(6)}") }
+                    entry.created_at?.takeIf { it.isNotBlank() }?.let { add(it.take(16).replace('T', ' ')) }
+                }.joinToString(" · ")
+
+                if (subDetails.isNotBlank()) {
+                    Text(
+                        text = subDetails,
+                        color = RaahiTextDim,
+                        fontSize = 11.5.sp
+                    )
                 }
-                entry.reference?.takeIf { it.isNotBlank() }?.let {
-                    Text("Ref: $it", color = WalletMuted, fontSize = 11.sp)
+
+                if (entry.job_amount != null) {
+                    val rate = entry.commission_rate
+                    val rateStr = if (rate != null) " (${((if (rate <= 1.0) rate * 100.0 else rate)).toInt()}%)" else ""
+                    Text(
+                        text = "Job ₹${entry.job_amount.toInt()}$rateStr",
+                        color = RaahiTextDim,
+                        fontSize = 11.sp
+                    )
                 }
             }
+
             Spacer(Modifier.width(8.dp))
+
+            // Amount with explicit +/- sign
             Text(
-                (if (entry.amount > 0) "+" else if (entry.amount < 0) "−" else "") +
-                    walletMoney(kotlin.math.abs(entry.amount)),
+                text = formattedAmount,
                 color = amountColor,
                 fontWeight = FontWeight.Bold,
-                fontSize = 13.sp
+                fontSize = 15.sp,
             )
         }
     }

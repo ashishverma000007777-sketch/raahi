@@ -722,3 +722,36 @@ new component library. Notable ports from the mockup:
 in Jobs/SOS/Daily/Helper/Auth/FuelRates/Subscription. They'll look correctly dark/on-brand
 (same background/text/accent colors) but don't yet have the glass-card/gradient treatment the
 five main screens got. Worth a follow-up pass if the new look is confirmed working.
+
+---
+
+## Intercity Trips Marketplace (Primary Product Upgrade — Completed & Compiler Verified)
+
+### Overview
+Upgraded the existing Raahi platform to establish **Intercity Trips (Travel Agents ↔ Verified Drivers)** as its primary product while rigorously preserving all existing features: Roadside Assistance, Mechanics Map, SOS, AI Mechanic, Vehicle Garage, Paisa Bachao, and Personal Trip Planner.
+
+### Backend
+1. **Migration & Entities**:
+   - `V19__intercity_trips_marketplace.sql`: Created `intercity_trips` and `intercity_trip_applications` tables with indexes and check constraints. Added `agency_name` and `agency_gst` to `users`.
+   - `IntercityTrip.java` & `IntercityTripApplication.java`: Full lifecycle states (`DRAFT`, `PUBLISHED`, `ASSIGNED`, `ARRIVED`, `IN_PROGRESS`, `COMPLETED`, `CANCELLED`).
+   - `User.java`: Added `TRAVEL_AGENT` role and agency details.
+2. **Service & Logic**:
+   - `IntercityTripService.java`: Transactional trip creation, application, driver selection, 6-digit OTP generation (pickup & completion), role-gated OTP visibility (strict masking for drivers/public, revealed only to agent).
+   - `IntercityTripController.java`: Complete REST API endpoints under `/api/v1/intercity/**`.
+3. **Automated Tests**:
+   - Added `IntercityTripServiceTest.java` (14 unit tests, all 14 passed).
+   - Full Maven test suite: 106 tests run, 0 failures, 0 errors (`mvn test`).
+
+### Android Client
+1. **API & Data**:
+   - `RaahiApi.kt`: Added all Intercity DTOs and Retrofit endpoints.
+   - `IntercityTripRepository.kt`: Safe coroutine repository layer using `apiCall` and `apiCallOrNullOn404`.
+2. **Screens & UI**:
+   - `HomeScreen.kt`: Promoted Intercity Trips to the primary hero action with From/To city inputs, "Find Intercity Trips" CTA, active trip tracking banner, and agent shortcuts, while preserving all existing actions below.
+   - `IntercitySearchScreen.kt`: Filtered trip search by city and vehicle category with trip cards.
+   - `IntercityTripDetailScreen.kt`: Comprehensive trip view, driver application submission, and applicant management for travel agents.
+   - `IntercityCreateTripScreen.kt`: Travel agent posting flow with route, category, and commercial terms.
+   - `IntercityAgentDashboardScreen.kt`: Agent dashboard for published trips, active assignments, and history.
+   - `IntercityActiveTripScreen.kt`: Live tracking powered by Google Maps Platform (`com.google.android.gms.maps.*`), with live route polyline, pickup/drop markers, and verbal OTP verification flows.
+3. **Compiler Verification**:
+   - Android Kotlin Gradle compilation (`./gradlew compileDebugKotlin`) built with **BUILD SUCCESSFUL**.

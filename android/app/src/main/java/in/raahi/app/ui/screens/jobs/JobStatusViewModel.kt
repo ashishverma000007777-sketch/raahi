@@ -29,7 +29,7 @@ sealed class JobStatusUiState {
 }
 
 private val TERMINAL_STATUSES = setOf("COMPLETED", "CANCELLED", "EXPIRED")
-private val LOCATION_SHARING_STATUSES = setOf("MATCHED", "ARRIVED", "IN_PROGRESS")
+private val LOCATION_SHARING_STATUSES = setOf("MATCHED", "EN_ROUTE", "ARRIVED", "IN_PROGRESS")
 // The WebSocket (see RaahiWebSocketClient) delivers job:status_change/job:helper_location
 // in real time now, so this is a slow safety-net poll for when the socket is down or still
 // reconnecting, not the primary update mechanism 6B originally used.
@@ -133,7 +133,11 @@ class JobStatusViewModel @Inject constructor(
     }
 
     // ---- customer actions
-    fun cancel(reason: String?) = act { jobsRepository.cancelJob(jobId, reason); jobsRepository.getJob(jobId) }
+    fun cancel(reason: String?, reasonCode: String? = null) = act {
+        val fix = runCatching { locationProvider.getCurrentLocation() }.getOrNull()
+        jobsRepository.cancelJob(jobId, reason, reasonCode, fix?.lat, fix?.lng)
+        jobsRepository.getJob(jobId)
+    }
 
     fun confirmCompletion(otp: String) = act { jobsRepository.confirmCompletion(jobId, otp) }
 
@@ -142,6 +146,11 @@ class JobStatusViewModel @Inject constructor(
     fun report(message: String) = act { jobsRepository.report(jobId, message); jobsRepository.getJob(jobId) }
 
     // ---- helper actions
+    fun startEnRoute() = act {
+        val fix = runCatching { locationProvider.getCurrentLocation() }.getOrNull()
+        jobsRepository.startEnRoute(jobId, fix?.lat, fix?.lng)
+    }
+
     /** Arrival proof = fresh GPS fix and/or the arrival OTP the customer shows. */
     fun arrive(otp: String?) = act {
         val fix = runCatching { locationProvider.getCurrentLocation() }.getOrNull()

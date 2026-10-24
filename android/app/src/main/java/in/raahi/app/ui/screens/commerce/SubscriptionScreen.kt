@@ -79,11 +79,11 @@ fun SubscriptionScreen(onBack: () -> Unit, viewModel: SubscriptionViewModel = hi
             }
 
             if (state.loading) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = RaahiOrange) }
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = RaahiPrimaryTeal) }
             } else {
                 Column(Modifier.fillMaxSize().padding(16.dp)) {
                     if (state.message != null) {
-                        Box(Modifier.fillMaxWidth().background(RaahiOrange.copy(alpha = 0.10f), RoundedCornerShape(12.dp)).padding(12.dp)) {
+                        Box(Modifier.fillMaxWidth().background(RaahiLightTeal, RoundedCornerShape(12.dp)).padding(12.dp)) {
                             Text(state.message!!, color = RaahiTextDim, fontSize = 12.sp)
                         }
                         Spacer(Modifier.height(12.dp))
@@ -116,7 +116,7 @@ private fun PlanCard(plan: SubscriptionPlanDto, isCurrent: Boolean, isSubscribin
             }
         }
         Spacer(Modifier.height(4.dp))
-        Text("₹${plan.priceMonthly.toInt()}/mo  ·  ₹${plan.priceYearly.toInt()}/yr", color = RaahiOrange, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Text("₹${plan.priceMonthly.toInt()}/mo  ·  ₹${plan.priceYearly.toInt()}/yr", color = RaahiPriceText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(10.dp))
         plan.features.forEach { feature ->
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
@@ -131,7 +131,7 @@ private fun PlanCard(plan: SubscriptionPlanDto, isCurrent: Boolean, isSubscribin
             enabled = !isCurrent && !isSubscribing,
             modifier = Modifier.fillMaxWidth().height(46.dp),
             shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = RaahiOrange, disabledContainerColor = RaahiBorderSoft),
+            colors = ButtonDefaults.buttonColors(containerColor = RaahiPrimaryTeal, disabledContainerColor = RaahiBorderSoft),
         ) {
             if (isSubscribing) CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
             else Text(if (isCurrent) "Current Plan" else "${plan.name} Plan Lo", fontWeight = FontWeight.Bold)

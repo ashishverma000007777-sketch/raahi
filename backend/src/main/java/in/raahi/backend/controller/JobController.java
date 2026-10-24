@@ -37,6 +37,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -54,7 +55,7 @@ import java.util.stream.Collectors;
 public class JobController {
 
     private static final EnumSet<Job.Status> ACTIVE_HELPER_STATES =
-            EnumSet.of(Job.Status.MATCHED, Job.Status.ARRIVED, Job.Status.IN_PROGRESS, Job.Status.WORK_DONE);
+            EnumSet.of(Job.Status.MATCHED, Job.Status.EN_ROUTE, Job.Status.ARRIVED, Job.Status.IN_PROGRESS, Job.Status.WORK_DONE);
 
     private final JobRepository jobRepository;
     private final UserRepository userRepository;
@@ -69,6 +70,9 @@ public class JobController {
     private final NotificationService notificationService;
     private final RateLimiter rateLimiter;
     private final MechanicProfileRepository mechanicProfileRepository;
+    private final in.raahi.backend.repository.JobCancellationCompensationRepository compensationRepository;
+    private final in.raahi.backend.service.CancellationProtectionPolicyService protectionPolicyService;
+    private final in.raahi.backend.service.AuditService audit;
     private final double arrivalRadiusM;
 
     @Autowired
@@ -79,6 +83,9 @@ public class JobController {
                          JdbcTemplate jdbc, WebSocketSessionRegistry sessionRegistry,
                          NotificationService notificationService, RateLimiter rateLimiter,
                          MechanicProfileRepository mechanicProfileRepository,
+                         in.raahi.backend.repository.JobCancellationCompensationRepository compensationRepository,
+                         in.raahi.backend.service.CancellationProtectionPolicyService protectionPolicyService,
+                         in.raahi.backend.service.AuditService audit,
                          @Value("${raahi.job.arrival-radius-m:200}") double arrivalRadiusM) {
         this.jobRepository = jobRepository;
         this.userRepository = userRepository;
@@ -93,7 +100,22 @@ public class JobController {
         this.notificationService = notificationService;
         this.rateLimiter = rateLimiter;
         this.mechanicProfileRepository = mechanicProfileRepository;
+        this.compensationRepository = compensationRepository;
+        this.protectionPolicyService = protectionPolicyService;
+        this.audit = audit;
         this.arrivalRadiusM = arrivalRadiusM;
+    }
+
+    public JobController(JobRepository jobRepository, UserRepository userRepository,
+                         SubscriptionPolicy subscriptionPolicy, HelperEligibilityService eligibility,
+                         CommissionService commissionService, CancellationPolicyService cancellationPolicy,
+                         JobHistoryService history, HelperApplicationRepository applicationRepository,
+                         JdbcTemplate jdbc, WebSocketSessionRegistry sessionRegistry,
+                         NotificationService notificationService, RateLimiter rateLimiter,
+                         MechanicProfileRepository mechanicProfileRepository,
+                         double arrivalRadiusM) {
+        this(jobRepository, userRepository, subscriptionPolicy, eligibility, commissionService, cancellationPolicy,
+             history, applicationRepository, jdbc, sessionRegistry, notificationService, rateLimiter, mechanicProfileRepository, null, null, null, arrivalRadiusM);
     }
 
     public JobController(JobRepository jobRepository, UserRepository userRepository,
@@ -104,7 +126,7 @@ public class JobController {
                          NotificationService notificationService, RateLimiter rateLimiter,
                          double arrivalRadiusM) {
         this(jobRepository, userRepository, subscriptionPolicy, eligibility, commissionService, cancellationPolicy,
-             history, applicationRepository, jdbc, sessionRegistry, notificationService, rateLimiter, null, arrivalRadiusM);
+             history, applicationRepository, jdbc, sessionRegistry, notificationService, rateLimiter, null, null, null, null, arrivalRadiusM);
     }
 
     // ------------------------------------------------------------------ create / read
@@ -300,6 +322,35 @@ public class JobController {
         return ApiResponse.ok(Map.of("success", true));
     }
 
+    @PostMapping("/{id}/en-route")
+    @Transactional
+    public ApiResponse<JobDto> startEnRoute(@AuthenticationPrincipal AuthenticatedUser principal,
+                                            @PathVariable UUID id,
+                                            @RequestBody(required = false) LocationUpdateRequest req) {
+        limit("jobs:en-route:" + principal.userId(), 10, Duration.ofMinutes(1), "Too many requests. Please wait.");
+        Job job = lock(id);
+        requireAssignedHelper(job, principal);
+        JobStateMachine.require(job.getStatus(), Job.Status.EN_ROUTE);
+
+        User helper = job.getHelper();
+        Double lat = req != null && req.lat != null ? req.lat : helper.getLastLat();
+        Double lng = req != null && req.lng != null ? req.lng : helper.getLastLng();
+        if (lat != null && lng != null) {
+            helper.setLastLat(lat);
+            helper.setLastLng(lng);
+            helper.setLastLocationAt(Instant.now());
+            userRepository.save(helper);
+            job.setEnRouteLat(lat);
+            job.setEnRouteLng(lng);
+        }
+        job.setEnRouteAt(Instant.now());
+        job = transition(job, Job.Status.EN_ROUTE, principal.userId(), "HELPER", "GPS", lat, lng, "helper started travelling to customer");
+
+        push(job, job.getRequester(), "Helper on the way!",
+                (helper.getName() != null ? helper.getName() : "Your helper") + " has started travelling to your location.");
+        return ApiResponse.ok(toDto(job, principal.userId(), null, null));
+    }
+
     /**
      * Arrival = GPS proximity to the request location and/or the arrival OTP the customer shows.
      * Either proof is enough; the method used is stored with the history row.
@@ -472,35 +523,134 @@ public class JobController {
         }
 
         String reason = req == null || req.reason == null ? null : req.reason.trim();
+        String reasonCode = resolveReasonCode(req, isRequester);
+        boolean isEmergency = "VEHICLE_EMERGENCY".equals(reasonCode) || "UNSAFE_CONDITIONS".equals(reasonCode);
         User actor = load(principal.userId());
         String actorRole = isRequester ? "REQUESTER" : "HELPER";
         String outcome = "NONE";
-        if (stage == Job.Status.MATCHED) {
-            outcome = cancellationPolicy.record(actor, job, actorRole, stage);
+        if (stage == Job.Status.MATCHED || stage == Job.Status.EN_ROUTE) {
+            outcome = cancellationPolicy.record(actor, job, actorRole, stage, reasonCode, isEmergency);
+        }
+
+        // Helper travel-loss protection when customer cancels after en-route, or customer is unreachable / wrong location
+        in.raahi.backend.entity.JobCancellationCompensation comp = null;
+        boolean customerUnreachableOrWrongAddress = "CUSTOMER_UNREACHABLE".equals(reasonCode) || "INCORRECT_LOCATION".equals(reasonCode);
+        if (stage == Job.Status.EN_ROUTE && (isRequester || customerUnreachableOrWrongAddress) && job.getHelper() != null && compensationRepository != null && protectionPolicyService != null) {
+            if (compensationRepository.findByJobId(job.getId()).isEmpty()) {
+                Instant since24h = Instant.now().minus(24, ChronoUnit.HOURS);
+                long recentClaims = compensationRepository.countRecentClaimsByHelper(job.getHelper().getId(), since24h);
+                Double cancelLat = req != null ? req.lat : null;
+                Double cancelLng = req != null ? req.lng : null;
+
+                var calc = protectionPolicyService.calculate(job, cancelLat, cancelLng, recentClaims);
+                comp = new in.raahi.backend.entity.JobCancellationCompensation();
+                comp.setJob(job);
+                comp.setHelper(job.getHelper());
+                comp.setRequester(job.getRequester());
+                comp.setCancellationStage(stage.name());
+                comp.setReasonCode(reasonCode);
+                comp.setReasonText(reason);
+                comp.setEnRouteAt(job.getEnRouteAt());
+                comp.setCancelledAt(Instant.now());
+                comp.setStartLat(calc.startLat);
+                comp.setStartLng(calc.startLng);
+                comp.setCancelLat(calc.cancelLat);
+                comp.setCancelLng(calc.cancelLng);
+                comp.setDestLat(calc.destLat);
+                comp.setDestLng(calc.destLng);
+                comp.setOneWayDistanceKm(calc.oneWayDistanceKm);
+                comp.setActualTravelKm(calc.actualTravelKm);
+                comp.setReturnDistanceKm(calc.returnDistanceKm);
+                comp.setEvidenceType(calc.evidenceType);
+                comp.setEstimatedLossAmount(calc.estimatedLossAmount);
+                comp.setEligibilityNotes(calc.eligibilityReason);
+                comp.setPolicyVersion(calc.policyVersion);
+                comp.setBaseCalloutFee(calc.baseCalloutFee);
+                comp.setBaseRatePerKm(calc.baseRatePerKm);
+                comp.setReturnFactor(calc.returnDistanceFactor);
+                comp.setPayoutStatus(in.raahi.backend.entity.JobCancellationCompensation.PayoutStatus.UNPAID);
+
+                if (calc.eligible) {
+                    comp.setStatus(in.raahi.backend.entity.JobCancellationCompensation.CompensationStatus.ELIGIBLE_PENDING_REVIEW);
+                    comp.setApprovedAmount(null);
+                    comp = compensationRepository.saveAndFlush(comp);
+                    if (audit != null) {
+                        String targetId = comp.getId() != null ? comp.getId().toString() : job.getId().toString();
+                        audit.log((UUID) null, "SYSTEM", "COMPENSATION_PENDING_REVIEW", "CANCELLATION_COMPENSATION",
+                                targetId, "Claim queued for admin review under policy " + calc.policyVersion + ": " + calc.eligibilityReason);
+                    }
+                } else {
+                    comp.setStatus(in.raahi.backend.entity.JobCancellationCompensation.CompensationStatus.NOT_ELIGIBLE);
+                    comp.setApprovedAmount(0.0);
+                    comp = compensationRepository.saveAndFlush(comp);
+                    if (audit != null) {
+                        String targetId = comp.getId() != null ? comp.getId().toString() : job.getId().toString();
+                        audit.log((UUID) null, "SYSTEM", "COMPENSATION_NOT_ELIGIBLE", "CANCELLATION_COMPENSATION",
+                                targetId, "Claim ineligible under policy " + calc.policyVersion + ": " + calc.eligibilityReason);
+                    }
+                }
+            }
         }
 
         if (isAssignedHelper) {
-            // The helper backed out before arriving: re-open the request for other helpers.
-            User dropped = job.getHelper();
-            job.setHelper(null);
-            job.setOtpAttempts(0);
-            Instant minExpiry = Instant.now().plus(10, ChronoUnit.MINUTES);
-            if (job.getExpiresAt() == null || job.getExpiresAt().isBefore(minExpiry)) job.setExpiresAt(minExpiry);
-            transition(job, Job.Status.PENDING, principal.userId(), "HELPER", null, null, null,
-                    "helper cancelled before arrival; request re-opened" + (reason == null ? "" : ": " + reason));
-            push(job, job.getRequester(), "Helper cancelled", "Your helper cancelled. We are looking for another helper.");
+            if (customerUnreachableOrWrongAddress) {
+                // Customer unreachable or incorrect location: request cannot proceed, close as CANCELLED
+                job.setCancelledBy(principal.userId());
+                job.setCancelledAt(Instant.now());
+                job.setCancelReason(reason);
+                job.setCancellationReasonCode(reasonCode);
+                job.setCancellationStage(stage.name());
+                transition(job, Job.Status.CANCELLED, principal.userId(), "HELPER", null, null, null,
+                        "helper reported customer issue: " + reasonCode + (reason == null ? "" : " - " + reason));
+                push(job, job.getRequester(), "Help request closed", "Helper reported: " + reasonCode);
+            } else {
+                // The helper backed out: re-open the request for other helpers so customer is not stranded
+                User dropped = job.getHelper();
+                job.setHelper(null);
+                job.setEnRouteAt(null);
+                job.setOtpAttempts(0);
+                job.setCancellationReasonCode(reasonCode);
+                job.setCancellationStage(stage.name());
+                Instant minExpiry = Instant.now().plus(10, ChronoUnit.MINUTES);
+                if (job.getExpiresAt() == null || job.getExpiresAt().isBefore(minExpiry)) job.setExpiresAt(minExpiry);
+                transition(job, Job.Status.PENDING, principal.userId(), "HELPER", null, null, null,
+                        "helper cancelled (" + reasonCode + "); request re-opened" + (reason == null ? "" : ": " + reason));
+                push(job, job.getRequester(), "Helper cancelled", "Your helper cancelled. We are looking for another helper.");
+            }
         } else {
             User helper = job.getHelper();
             job.setCancelledBy(principal.userId());
             job.setCancelledAt(Instant.now());
             job.setCancelReason(reason);
+            job.setCancellationReasonCode(reasonCode);
+            job.setCancellationStage(stage.name());
             transition(job, Job.Status.CANCELLED, principal.userId(), "REQUESTER", null, null, null,
-                    "customer cancelled" + (reason == null ? "" : ": " + reason));
+                    "customer cancelled: " + reasonCode + (reason == null ? "" : ": " + reason));
             if (helper != null) {
-                push(job, helper, "Job cancelled", "The customer cancelled this roadside help job.");
+                String msg = stage == Job.Status.EN_ROUTE
+                        ? "The customer cancelled while you were en route. Raahi travel-loss protection applied."
+                        : "The customer cancelled this roadside help job.";
+                push(job, helper, "Job cancelled", msg);
             }
         }
-        return ApiResponse.ok(Map.of("success", true, "penalty", outcome));
+        Map<String, Object> resp = new LinkedHashMap<>();
+        resp.put("success", true);
+        resp.put("penalty", outcome);
+        resp.put("reasonCode", reasonCode);
+        if (comp != null) {
+            resp.put("compensationStatus", comp.getStatus().name());
+            resp.put("estimatedLossAmount", comp.getEstimatedLossAmount());
+            resp.put("approvedAmount", comp.getApprovedAmount());
+            resp.put("evidenceType", comp.getEvidenceType());
+        }
+        return ApiResponse.ok(resp);
+    }
+
+    private String resolveReasonCode(CancelRequest req, boolean isRequester) {
+        if (req != null && req.reasonCode != null && !req.reasonCode.isBlank()) {
+            return req.reasonCode.trim().toUpperCase();
+        }
+        return isRequester ? "CUSTOMER_CANCELLED" : "HELPER_CANCELLED";
     }
 
     /** Available at every stage for participants; this is what replaces cancellation after ARRIVED. */
@@ -605,12 +755,17 @@ public class JobController {
             dto.helperTotalHelps = j.getHelper().getTotalHelps() == null ? 0 : j.getHelper().getTotalHelps();
             dto.helperVerified = j.getHelper().isVerified();
             dto.helperPhone = (viewerIsRequester || viewerIsHelper) ? j.getHelper().getPhone() : null;
-            dto.helperLat = j.getHelper().getLastLat();
-            dto.helperLng = j.getHelper().getLastLng();
+            if (j.getStatus() == Job.Status.CANCELLED || j.getStatus() == Job.Status.COMPLETED) {
+                dto.helperLat = null;
+                dto.helperLng = null;
+            } else {
+                dto.helperLat = j.getHelper().getLastLat();
+                dto.helperLng = j.getHelper().getLastLng();
+            }
         }
         dto.requesterPhone = viewerIsHelper ? j.getRequester().getPhone() : null;
         // Arrival OTP: only the requester, and only while the helper is still on the way.
-        dto.helperOtp = (viewerIsRequester && j.getStatus() == Job.Status.MATCHED) ? j.getHelperOtp() : null;
+        dto.helperOtp = (viewerIsRequester && (j.getStatus() == Job.Status.MATCHED || j.getStatus() == Job.Status.EN_ROUTE)) ? j.getHelperOtp() : null;
         // Completion OTP: only the requester, only while waiting for their confirmation.
         dto.completionOtp = (viewerIsRequester && j.getStatus() == Job.Status.WORK_DONE) ? j.getCompletionOtp() : null;
         dto.cancelAllowed = JobStateMachine.cancellable(j.getStatus());
@@ -620,6 +775,27 @@ public class JobController {
         dto.paymentMode = j.getPaymentMode();
         dto.rated = j.isRated();
         dto.distanceKm = distanceKm == null ? null : CommissionMath.round2(distanceKm);
+        dto.enRouteAt = j.getEnRouteAt() == null ? null : j.getEnRouteAt().toString();
+        dto.cancellationReasonCode = j.getCancellationReasonCode();
+        dto.cancellationStage = j.getCancellationStage();
+
+        if (compensationRepository != null && j.getStatus() == Job.Status.CANCELLED) {
+            try {
+                compensationRepository.findByJobId(j.getId()).ifPresent(c -> {
+                    dto.travelLossStatus = c.getStatus().name();
+                    dto.payoutStatus = c.getPayoutStatus() != null ? c.getPayoutStatus().name() : "UNPAID";
+                    if (viewerIsHelper) {
+                        dto.travelLossEstimate = c.getEstimatedLossAmount();
+                        dto.travelLossApproved = c.getApprovedAmount();
+                        dto.travelDistanceKm = c.getActualTravelKm();
+                        dto.travelEvidenceType = c.getEvidenceType();
+                        dto.travelLossNotes = (c.getStatus() == in.raahi.backend.entity.JobCancellationCompensation.CompensationStatus.REJECTED
+                                || c.getStatus() == in.raahi.backend.entity.JobCancellationCompensation.CompensationStatus.ADMIN_APPROVED)
+                                ? c.getReviewNotes() : c.getEligibilityNotes();
+                    }
+                });
+            } catch (Exception ignored) {}
+        }
         if (j.getReqLat() != null && j.getReqLng() != null && mechanicProfileRepository != null) {
             try {
                 dto.nearbyHelperCount = mechanicProfileRepository.findNearby(j.getReqLat(), j.getReqLng(), 25.0).size();

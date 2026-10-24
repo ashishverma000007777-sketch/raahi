@@ -46,9 +46,27 @@ public class CancellationPolicyService {
 
     /** Records the cancellation and returns a short outcome string (NONE / BLOCKED_1D / BLOCKED_7D / SUSPENDED). */
     public String record(User user, Job job, String actorRole, Job.Status stage) {
-        boolean abusive = stage == Job.Status.MATCHED;
-        jdbc.update("INSERT INTO cancellation_events(user_id, job_id, actor_role, stage, abusive) VALUES (?,?,?,?,?)",
-                user.getId(), job.getId(), actorRole, stage.name(), abusive);
+        return record(user, job, actorRole, stage, null, false);
+    }
+
+    /**
+     * Records the cancellation with reason code and emergency exception handling.
+     * Genuine emergencies (VEHICLE_EMERGENCY, UNSAFE_CONDITIONS) and helper reporting unreachable/incorrect location
+     * are never marked abusive.
+     */
+    public String record(User user, Job job, String actorRole, Job.Status stage, String reasonCode, boolean isEmergency) {
+        boolean postAcceptance = stage == Job.Status.MATCHED || stage == Job.Status.EN_ROUTE;
+        boolean helperLegitimateReason = "HELPER".equals(actorRole) &&
+                ("CUSTOMER_UNREACHABLE".equals(reasonCode) || "INCORRECT_LOCATION".equals(reasonCode));
+        boolean abusive = postAcceptance && !isEmergency && !helperLegitimateReason;
+
+        if (isEmergency) {
+            jdbc.update("INSERT INTO cancellation_events(user_id, job_id, actor_role, stage, abusive, excused, excuse_note, reason_code) VALUES (?,?,?,?,?,?,?,?)",
+                    user.getId(), job.getId(), actorRole, stage.name(), false, true, "Emergency exception: " + reasonCode, reasonCode);
+        } else {
+            jdbc.update("INSERT INTO cancellation_events(user_id, job_id, actor_role, stage, abusive, reason_code) VALUES (?,?,?,?,?,?)",
+                    user.getId(), job.getId(), actorRole, stage.name(), abusive, reasonCode);
+        }
         if (!abusive) return "NONE";
 
         Instant since = Instant.now().minus(windowDays, ChronoUnit.DAYS);

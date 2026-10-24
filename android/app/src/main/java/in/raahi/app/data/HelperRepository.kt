@@ -26,6 +26,7 @@ import javax.inject.Singleton
 
 /** Everything the user typed/picked in the helper onboarding wizard. */
 data class HelperApplicationForm(
+    val email: String = "",
     val experienceYears: String = "",
     val serviceArea: String = "",
     val services: Set<String> = emptySet(),
@@ -56,7 +57,8 @@ class HelperRepository @Inject constructor(
         fun text(name: String, value: String?) {
             if (!value.isNullOrBlank()) parts += MultipartBody.Part.createFormData(name, value.trim())
         }
-        text("email", email)
+        val effectiveEmail = if (form.email.isNotBlank()) form.email else email
+        text("email", effectiveEmail)
         text("experienceYears", form.experienceYears)
         text("serviceArea", form.serviceArea)
         text("services", form.services.joinToString(","))
@@ -65,7 +67,7 @@ class HelperRepository @Inject constructor(
         text("vehicleBrand", form.vehicleBrand)
         text("vehicleModel", form.vehicleModel)
         text("vehicleVariant", form.vehicleVariant)
-        text("vehicleReg", form.vehicleReg)
+        text("vehicleReg", form.vehicleReg.replace(" ", "").uppercase())
         text("serviceRadiusKm", form.radiusKm)
         text("payoutUpi", form.payoutUpi)
         text("payoutHolder", form.payoutHolder)

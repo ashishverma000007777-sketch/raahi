@@ -32,7 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import `in`.raahi.app.R
 import `in`.raahi.app.ui.theme.RaahiDisplayFont
-import `in`.raahi.app.ui.theme.RaahiOrange
+import `in`.raahi.app.ui.theme.RaahiPrimaryTeal
 import `in`.raahi.app.ui.theme.RaahiPink
 import `in`.raahi.app.ui.theme.RaahiText
 
@@ -78,7 +78,7 @@ fun RaahiEmblem(
                 drawCircle(
                     brush = Brush.radialGradient(
                         colors = listOf(
-                            RaahiOrange.copy(alpha = 0.32f * pulseGlow),
+                            RaahiPrimaryTeal.copy(alpha = 0.32f * pulseGlow),
                             RaahiPink.copy(alpha = 0.12f * pulseGlow),
                             Color.Transparent
                         ),

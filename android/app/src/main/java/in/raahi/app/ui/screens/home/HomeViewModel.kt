@@ -48,6 +48,7 @@ sealed class HomeUiState {
         val user: UserDto?,
         val activeJob: JobDto?,
         val activeTrip: `in`.raahi.app.network.TripDto? = null,
+        val activeIntercityTrip: `in`.raahi.app.network.IntercityTripDto? = null,
         // Real vehicle + computed Car Health, or null if "Set up your car" hasn't been done
         // yet (or the calls simply failed) — either way, never fabricated, and never allowed
         // to block the rest of Home from loading (see the two independent runCatching below).
@@ -86,7 +87,7 @@ data class HomeMetrics(
     val fuelPrice: FuelPrice? = null,
 )
 
-private val ACTIVE_JOB_STATUSES = setOf("PENDING", "MATCHED", "ARRIVED", "IN_PROGRESS", "WORK_DONE")
+private val ACTIVE_JOB_STATUSES = setOf("PENDING", "MATCHED", "EN_ROUTE", "ARRIVED", "IN_PROGRESS", "WORK_DONE")
 
 // Geocoder admin-area names that differ from the backend's fuel_rates.state keys.
 // This is a name-matching table, not data: prices always come from /fuel-rates.
@@ -107,6 +108,7 @@ class HomeViewModel @Inject constructor(
     private val webSocketClient: RaahiWebSocketClient,
     private val tripRepository: `in`.raahi.app.data.TripRepository,
     private val incomingJobAlertManager: `in`.raahi.app.data.IncomingJobAlertManager,
+    private val intercityTripRepository: `in`.raahi.app.data.IntercityTripRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<HomeUiState>(HomeUiState.Loading)
@@ -158,6 +160,7 @@ class HomeViewModel @Inject constructor(
                             val newRequest = requests.firstOrNull { it.id !in seenIncomingRequestIds }
                             seenIncomingRequestIds.addAll(ids)
                             if (newRequest != null) {
+                                android.util.Log.d("RAAHI_INCOMING_ALERT", "HomeViewModel polling detected new pending request: ${newRequest.id}")
                                 incomingJobAlertManager.triggerAlert(newRequest)
                             }
                             if (seenIncomingRequestIds.size > 500) {
@@ -307,6 +310,7 @@ class HomeViewModel @Inject constructor(
             val userDeferred = async { runCatching { authRepository.currentUser() } }
             val jobsDeferred = async { runCatching { jobsRepository.myJobs() } }
             val tripDeferred = async { runCatching { tripRepository.getActiveTrip() } }
+            val intercityTripDeferred = async { runCatching { intercityTripRepository.getActiveTrip() } }
             val vehicleDeferred = async { runCatching { vehicleRepository.myVehicle() } }
 
             val userResult = userDeferred.await()
@@ -315,17 +319,30 @@ class HomeViewModel @Inject constructor(
                 .getOrDefault(emptyList())
                 .firstOrNull { it.status in ACTIVE_JOB_STATUSES }
             val activeTrip = tripDeferred.await().getOrNull()
+            val activeIntercityTrip = intercityTripDeferred.await().getOrNull()
             val vehicle = vehicleDeferred.await().getOrNull()
             val carHealth = if (vehicle != null) runCatching { vehicleRepository.carHealth() }.getOrNull() else null
 
             val offlineError = if (user == null) {
-                userResult.exceptionOrNull()?.toUserFriendlyMessage("Unable to reach Raahi servers. You appear to be offline.")
+                val ex = userResult.exceptionOrNull()
+                val isAuthError = when (ex) {
+                    is `in`.raahi.app.network.NetworkError.ClientError -> ex.statusCode == 401 || ex.statusCode == 403
+                    is retrofit2.HttpException -> ex.code() == 401 || ex.code() == 403
+                    else -> false
+                }
+                if (isAuthError) {
+                    viewModelScope.launch { authRepository.signOut() }
+                    "Session expired. Please tap retry to sign in again."
+                } else {
+                    ex?.toUserFriendlyMessage("Unable to reach Raahi servers. You appear to be offline.")
+                }
             } else null
 
             _state.value = HomeUiState.Loaded(
                 user = user,
                 activeJob = activeJob,
                 activeTrip = activeTrip,
+                activeIntercityTrip = activeIntercityTrip,
                 vehicle = vehicle,
                 carHealth = carHealth,
                 offlineError = offlineError,

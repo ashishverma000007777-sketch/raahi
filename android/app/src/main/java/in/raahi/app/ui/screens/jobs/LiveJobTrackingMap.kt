@@ -298,7 +298,7 @@ fun LiveJobTrackingMap(
                                     } else {
                                         "Helper location is live · Heading to your breakdown"
                                     }
-                                } else if (jobStatus == "MATCHED") {
+                                } else if (jobStatus == "MATCHED" || jobStatus == "EN_ROUTE") {
                                     "Helper accepted · Connecting to live GPS..."
                                 } else {
                                     "Waiting for helper location..."

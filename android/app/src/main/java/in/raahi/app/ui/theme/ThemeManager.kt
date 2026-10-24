@@ -15,13 +15,13 @@ object ThemeManager {
     const val THEME_LIGHT = "Light"
 
     private var prefs: SharedPreferences? = null
-    private val _themeFlow = MutableStateFlow(THEME_SYSTEM)
+    private val _themeFlow = MutableStateFlow(THEME_LIGHT)
     val themeFlow: StateFlow<String> = _themeFlow.asStateFlow()
 
     fun init(context: Context) {
         if (prefs == null) {
             prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val savedTheme = prefs?.getString(KEY_THEME, THEME_SYSTEM) ?: THEME_SYSTEM
+            val savedTheme = prefs?.getString(KEY_THEME, THEME_LIGHT) ?: THEME_LIGHT
             _themeFlow.value = savedTheme
         }
     }

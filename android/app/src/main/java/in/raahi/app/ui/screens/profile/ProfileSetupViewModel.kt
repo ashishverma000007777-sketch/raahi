@@ -41,10 +41,16 @@ class ProfileSetupViewModel @Inject constructor(
         }
     }
 
-    fun save(name: String, vehicleType: String, vehicleReg: String) {
+    fun save(
+        name: String,
+        vehicleType: String,
+        vehicleReg: String,
+        role: String? = null,
+        agencyName: String? = null
+    ) {
         if (!authRepository.hasAuthToken()) return
         if (name.isBlank()) {
-            _state.value = ProfileSetupState.Error("Naam daalo")
+            _state.value = ProfileSetupState.Error("Please enter your name")
             return
         }
         _state.value = ProfileSetupState.Saving
@@ -54,12 +60,33 @@ class ProfileSetupViewModel @Inject constructor(
                     name = name.trim(),
                     vehicleType = vehicleType.trim().ifBlank { null },
                     vehicleReg = vehicleReg.trim().ifBlank { null },
+                    role = role?.trim()?.ifBlank { null },
+                    agencyName = agencyName?.trim()?.ifBlank { null },
                 )
             }.onSuccess {
                 _state.value = ProfileSetupState.Saved
             }.onFailure { e ->
                 _state.value = ProfileSetupState.Error(e.toUserFriendlyMessage("Could not update profile."))
             }
+        }
+    }
+
+    fun saveRoleOnly(role: String, onDone: () -> Unit) {
+        if (!authRepository.hasAuthToken()) {
+            onDone()
+            return
+        }
+        viewModelScope.launch {
+            runCatching {
+                authRepository.updateProfile(
+                    name = null,
+                    vehicleType = null,
+                    vehicleReg = null,
+                    role = role.trim().ifBlank { null },
+                    agencyName = null,
+                )
+            }
+            onDone()
         }
     }
 }

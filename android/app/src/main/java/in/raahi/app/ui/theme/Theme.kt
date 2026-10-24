@@ -38,34 +38,43 @@ data class RaahiColorPalette(
     val textDim: Color,
     val textFaint: Color,
     val selectionBg: Color,
+    val primary: Color,
+    val secondary: Color,
+    val mint: Color,
     val isDark: Boolean,
 )
 
 val RaahiLightPalette = RaahiColorPalette(
-    bg = Color(0xFFF6F8FC),
+    bg = Color(0xFFF5F6F7),
     bg2 = Color(0xFFFFFFFF),
     glass = Color(0xFFFFFFFF),
-    glassStrong = Color(0xFFF8FAFD),
-    border = Color(0xFFE2E8F0),
-    borderSoft = Color(0xFFEDF2F7),
-    text = Color(0xFF0F172A),
-    textDim = Color(0xFF475569),
-    textFaint = Color(0xFF94A3B8),
-    selectionBg = Color(0xFFFFF0E8),
+    glassStrong = Color(0xFFFFF3E0),
+    border = Color(0xFFE3E7E9),
+    borderSoft = Color(0xFFEDF0F2),
+    text = Color(0xFF25282D),
+    textDim = Color(0xFF737D84),
+    textFaint = Color(0xFF9AA2A7),
+    selectionBg = Color(0xFFFFF3E0),
+    primary = Color(0xFFF57C00),
+    secondary = Color(0xFFEF6C00),
+    mint = Color(0xFFFFF3E0),
     isDark = false,
 )
 
 val RaahiDarkPalette = RaahiColorPalette(
-    bg = Color(0xFF0B1120),
-    bg2 = Color(0xFF151F32),
-    glass = Color(0xFF182338),
-    glassStrong = Color(0xFF1E2C45),
-    border = Color(0xFF283854),
-    borderSoft = Color(0xFF202D45),
-    text = Color(0xFFF8FAFC),
-    textDim = Color(0xFF94A3B8),
-    textFaint = Color(0xFF64748B),
-    selectionBg = Color(0xFF332018),
+    bg = Color(0xFF17191B),
+    bg2 = Color(0xFF222629),
+    glass = Color(0xFF222629),
+    glassStrong = Color(0xFF2A2E32),
+    border = Color(0xFF2E3338),
+    borderSoft = Color(0xFF222629),
+    text = Color(0xFFF4F6F7),
+    textDim = Color(0xFFAAB2B8),
+    textFaint = Color(0xFF737D84),
+    selectionBg = Color(0xFF382A1C),
+    primary = Color(0xFFF57C00),
+    secondary = Color(0xFFEF6C00),
+    mint = Color(0xFFFFF3E0),
     isDark = true,
 )
 
@@ -79,27 +88,78 @@ val RaahiGlassStrong: Color @Composable @ReadOnlyComposable get() = LocalRaahiCo
 val RaahiBorder: Color @Composable @ReadOnlyComposable get() = LocalRaahiColors.current.border
 val RaahiBorderSoft: Color @Composable @ReadOnlyComposable get() = LocalRaahiColors.current.borderSoft
 
-// Text — Deep Navy in Light, Crisp Off-White in Dark
+// Text — Charcoal #25282D in Light
 val RaahiText: Color @Composable @ReadOnlyComposable get() = LocalRaahiColors.current.text
 val RaahiTextDim: Color @Composable @ReadOnlyComposable get() = LocalRaahiColors.current.textDim
 val RaahiTextFaint: Color @Composable @ReadOnlyComposable get() = LocalRaahiColors.current.textFaint
 val RaahiIsDark: Boolean @Composable @ReadOnlyComposable get() = LocalRaahiColors.current.isDark
 
+// ---------------------------------------------------------------------------------------
+// ---------------------------------------------------------------------------------------
+// Raahi Brand Tokens — Vibrant Orange Theme (#17191B, #F57C00, #EF6C00, #F5F6F7, #25282D)
+// ---------------------------------------------------------------------------------------
+val RaahiCharcoalHeader = Color(0xFF17191B)   // Dark charcoal header #17191B
+val RaahiDarkSurface = Color(0xFF222629)      // Dark surface #222629
+val RaahiLightBg = Color(0xFFF5F6F7)          // Light background #F5F6F7
+val RaahiWhiteSurface = Color(0xFFFFFFFF)     // White cards #FFFFFF
+val RaahiCardWhite = Color(0xFFFFFFFF)        // Card white alias
+val RaahiPriceText = Color(0xFF25282D)        // Dedicated black price/fare/earning token #25282D
 
-// Accents — Automotive Coral Red (consistent across themes)
-val RaahiOrange = Color(0xFFFF6B35)      // Vibrant automotive coral red
-val RaahiAmber = Color(0xFFFFB547)       // Warm Amber
-val RaahiPink = Color(0xFFF28BA8)        // Subtle pink/coral
-val RaahiGreen = Color(0xFF22B573)       // Emerald Green (completed / healthy)
-val RaahiCyan = Color(0xFF4D9EFF)        // Sky Cyan
-val RaahiVioletAccent = Color(0xFF8A72F5)
-val RaahiRed = Color(0xFFE5484D)         // Emergency Red (SOS)
+// Vibrant Orange Core Tokens
+val RaahiPrimaryBrand = Color(0xFFF57C00)     // Primary Orange #F57C00
+val RaahiPrimaryButton = Color(0xFFEF6C00)    // Button Orange #EF6C00
+val RaahiLightAccent = Color(0xFFFFF3E0)      // Light Orange Background #FFF3E0
+val RaahiLightOrange = Color(0xFFFFF3E0)      // Light Orange Background alias
+val RaahiButtonOrange = Color(0xFFEF6C00)     // Button Orange alias
+val RaahiSelectedNav = Color(0xFFF57C00)      // Selected Tab/Icon #F57C00
 
-// Coral / Selection tokens
-val RaahiCoral = Color(0xFFFF6B35)
-val RaahiCoralGlow = Color(0x26FF6B35)
+// Mapped Brand Tokens (Ensures full compatibility across existing screens)
+val RaahiPrimaryTeal = Color(0xFFF57C00)      // Primary Orange #F57C00
+val RaahiLightTeal = Color(0xFFFFF3E0)        // Light Orange Background #FFF3E0
+val RaahiPrimaryText = Color(0xFF25282D)      // Primary text #25282D
+val RaahiSecondaryText = Color(0xFF737D84)    // Secondary text #737D84
+val RaahiBorderColor = Color(0xFFE3E7E9)      // Borders #E3E7E9
+val RaahiSuccess = Color(0xFF238765)          // Success #238765 (DO NOT CHANGE)
+val RaahiSosDanger = Color(0xFFD94343)        // SOS danger #D94343 (DO NOT CHANGE)
+val RaahiSosRed = Color(0xFFD94343)           // SOS red #D94343 (DO NOT CHANGE)
+val RaahiPrimaryTealDark = Color(0xFFEF6C00)  // Button Orange #EF6C00
+
+// Backward compatibility tokens
+val RaahiCoralPrimary = Color(0xFFF57C00)
+val RaahiCoralLight = Color(0xFFFFF3E0)
+val RaahiLightCoral = Color(0xFFFFF3E0)
+val RaahiCoralDark = Color(0xFFEF6C00)
+val RaahiCoralSecondary = Color(0xFFEF6C00)
+val RaahiDarkText = Color(0xFF25282D)
+
+// Compatibility aliases for existing references across codebase
+val RaahiDeepTeal = Color(0xFFF57C00)
+val RaahiTeal = Color(0xFFF57C00)
+val RaahiSecondaryTeal = Color(0xFFEF6C00)
+val RaahiMint = Color(0xFFFFF3E0)
+val RaahiDarkNavy = Color(0xFF17191B)
+
+// Semantic State Indicators
+val RaahiGreen = Color(0xFF238765)            // Success / Online green #238765 (DO NOT CHANGE)
+val RaahiWarning = Color(0xFFD97706)
+val RaahiAmber = Color(0xFFD97706)
+val RaahiError = Color(0xFFD94343)            // Error / SOS red #D94343 (DO NOT CHANGE)
+val RaahiRed = Color(0xFFD94343)
+
+// Brand Primary mapping
+val RaahiPrimary = Color(0xFFF57C00)
+val RaahiOrange = Color(0xFFF57C00)
+val RaahiCoral = Color(0xFFF57C00)
+val RaahiCoralGlow = Color(0x26F57C00)
 val RaahiSelectionBg: Color @Composable @ReadOnlyComposable get() = LocalRaahiColors.current.selectionBg
-val RaahiSelectionBorder = Color(0xFFFF6B35)
+val RaahiSelectionBorder = Color(0xFFF57C00)
+
+// Supporting accents
+val RaahiPink = Color(0xFFF57C00)
+val RaahiCyan = Color(0xFF0EA5E9)
+val RaahiBlue = Color(0xFF0284C7)
+val RaahiVioletAccent = Color(0xFF7C3AED)
+val RaahiWarningOrange = RaahiAmber
 
 // Backward-compat aliases
 val RaahiNavyBackground: Color @Composable @ReadOnlyComposable get() = LocalRaahiColors.current.bg
@@ -107,29 +167,32 @@ val RaahiCardBg: Color @Composable @ReadOnlyComposable get() = LocalRaahiColors.
 val RaahiSurfaceHigh: Color @Composable @ReadOnlyComposable get() = LocalRaahiColors.current.glassStrong
 val RaahiSecondaryCard: Color @Composable @ReadOnlyComposable get() = LocalRaahiColors.current.bg2
 val RaahiCardBorder: Color @Composable @ReadOnlyComposable get() = LocalRaahiColors.current.border
-val RaahiOrangeAccent = RaahiOrange
-val RaahiOrangeDark = Color(0xFFDC2626)
+val RaahiOrangeAccent = Color(0xFFF57C00)
+val RaahiOrangeDark = Color(0xFFEF6C00)
 val RaahiTextPrimary: Color @Composable @ReadOnlyComposable get() = LocalRaahiColors.current.text
 val RaahiTextSecondary: Color @Composable @ReadOnlyComposable get() = LocalRaahiColors.current.textDim
 val RaahiTextMuted: Color @Composable @ReadOnlyComposable get() = LocalRaahiColors.current.textFaint
 val RaahiYellow = RaahiAmber
-val RaahiWarningOrange = RaahiAmber
 
-// Signature gradients
-val RaahiBrandGradient = Brush.horizontalGradient(listOf(Color(0xFFFF6B35), Color(0xFFFFA45B)))
-val RaahiAiGradient = Brush.linearGradient(listOf(Color(0xFF4D9EFF), Color(0xFF8A72F5)))
-fun raahiHeroGradient() = Brush.linearGradient(
-    listOf(Color(0xFFFFF6F0), Color(0xFFFFFFFF))
-)
+// Signature Brand Gradients
+val RaahiBrandGradient = Brush.horizontalGradient(listOf(Color(0xFFF57C00), Color(0xFFEF6C00)))
+val RaahiTealForestGradient = Brush.linearGradient(listOf(Color(0xFFF57C00), Color(0xFFEF6C00)))
+val RaahiAiGradient = Brush.linearGradient(listOf(Color(0xFFF57C00), Color(0xFFEF6C00), Color(0xFFFFF3E0)))
+fun raahiHeroGradient() = Brush.linearGradient(listOf(Color(0xFF222629), Color(0xFF17191B)))
 
-// Shape system: rounded corners 14–22dp, pill for chips/badges.
-val RaahiRadiusSmall = 12.dp
+// Shape system: rounded corners 10–28dp, consistent automotive hierarchy matching reference-image.jpg.
+val RaahiRadiusSmall = 10.dp
 val RaahiRadiusMedium = 16.dp
-val RaahiRadiusLarge = 22.dp
+val RaahiRadiusLarge = 20.dp
+val RaahiRadiusSheet = 28.dp
 val RaahiShapeSmall = RoundedCornerShape(RaahiRadiusSmall)
 val RaahiShapeMedium = RoundedCornerShape(RaahiRadiusMedium)
 val RaahiShapeLarge = RoundedCornerShape(RaahiRadiusLarge)
+val RaahiCardShape = RoundedCornerShape(20.dp)
+val RaahiSheetShape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
 val RaahiShapePill = RoundedCornerShape(50)
+val RaahiCardElevation = 2.dp
+
 
 // --- Typography: Unified Noto Sans with complete English + Hindi/Devanagari glyphs ---
 private val fontProvider = GoogleFont.Provider(
@@ -249,25 +312,33 @@ val RaahiTypography = Typography(
 )
 
 private val RaahiLightColors = lightColorScheme(
-    background = Color(0xFFF5F8FC),
-    surface = Color.White,
-    primary = RaahiOrange,
+    background = Color(0xFFF5F6F7),
+    surface = Color(0xFFFFFFFF),
+    primary = Color(0xFFF57C00),
     onPrimary = Color.White,
-    onBackground = Color(0xFF142039),
-    onSurface = Color(0xFF142039),
-    outline = Color(0xFFE2E9F3),
-    error = RaahiRed,
+    secondary = Color(0xFFEF6C00),
+    onSecondary = Color.White,
+    tertiary = Color(0xFFFFF3E0),
+    onTertiary = Color(0xFF25282D),
+    onBackground = Color(0xFF25282D),
+    onSurface = Color(0xFF25282D),
+    outline = Color(0xFFE3E7E9),
+    error = RaahiError,
 )
 
 private val RaahiDarkColors = darkColorScheme(
-    background = Color(0xFF0F172A),
-    surface = Color(0xFF1E293B),
-    primary = RaahiOrange,
+    background = Color(0xFF17191B),
+    surface = Color(0xFF222629),
+    primary = Color(0xFFF57C00),
     onPrimary = Color.White,
-    onBackground = Color(0xFFF8FAFC),
-    onSurface = Color(0xFFF8FAFC),
-    outline = Color(0xFF334155),
-    error = RaahiRed,
+    secondary = Color(0xFFEF6C00),
+    onSecondary = Color.White,
+    tertiary = Color(0xFFFFF3E0),
+    onTertiary = Color(0xFFF4F6F7),
+    onBackground = Color(0xFFF4F6F7),
+    onSurface = Color(0xFFF4F6F7),
+    outline = Color(0xFF2E3338),
+    error = RaahiError,
 )
 
 @Composable

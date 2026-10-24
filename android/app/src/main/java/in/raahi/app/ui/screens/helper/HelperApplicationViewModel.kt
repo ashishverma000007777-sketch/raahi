@@ -83,6 +83,7 @@ class HelperApplicationViewModel @Inject constructor(
 
     fun submit() {
         if (!authRepository.hasAuthToken()) return
+        if (_state.value.submitting) return
         val s = _state.value
         WizardStep.entries.dropLast(1).forEach { step ->
             validate(step, s.form)?.let { msg -> _state.update { it.copy(step = step, error = msg) }; return }

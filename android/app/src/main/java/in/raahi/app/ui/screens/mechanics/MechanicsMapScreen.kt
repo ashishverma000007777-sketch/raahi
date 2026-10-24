@@ -271,7 +271,7 @@ private fun MechanicsHeader(
                         Icon(
                             Icons.Outlined.Tune,
                             contentDescription = "Filter categories",
-                            tint = if (selectedCategory != "All") RaahiOrange else RaahiTextDim,
+                            tint = if (selectedCategory != "All") RaahiPrimaryTeal else RaahiTextDim,
                             modifier = Modifier.size(20.dp),
                         )
                     }
@@ -282,7 +282,7 @@ private fun MechanicsHeader(
                                 .padding(top = 6.dp, end = 6.dp)
                                 .size(7.dp)
                                 .clip(CircleShape)
-                                .background(RaahiOrange)
+                                .background(RaahiPrimaryTeal)
                         )
                     }
                 }
@@ -292,7 +292,7 @@ private fun MechanicsHeader(
                     Icon(
                         if (viewMode == MechanicsViewMode.MAP) Icons.Outlined.List else Icons.Outlined.Map,
                         contentDescription = "Toggle view",
-                        tint = RaahiOrange,
+                        tint = RaahiPrimaryTeal,
                         modifier = Modifier.size(20.dp),
                     )
                 }
@@ -300,7 +300,7 @@ private fun MechanicsHeader(
                 // Refresh Button
                 IconButton(onClick = onRefresh, modifier = Modifier.size(36.dp), enabled = !isRefreshing) {
                     if (isRefreshing) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = RaahiOrange)
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = RaahiPrimaryTeal)
                     } else {
                         Icon(Icons.Outlined.Refresh, contentDescription = "Refresh", tint = RaahiTextDim, modifier = Modifier.size(20.dp))
                     }
@@ -345,7 +345,7 @@ private fun MechanicsHeader(
                         onValueChange = onSearchChange,
                         singleLine = true,
                         textStyle = TextStyle(color = RaahiText, fontSize = 13.sp, fontWeight = FontWeight.Medium),
-                        cursorBrush = SolidColor(RaahiOrange),
+                        cursorBrush = SolidColor(RaahiPrimaryTeal),
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -403,8 +403,8 @@ private fun CategoryFilterDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(10.dp))
-                            .background(if (isSelected) RaahiSelectionBg else Color.Transparent)
-                            .border(1.dp, if (isSelected) RaahiOrange else Color.Transparent, RoundedCornerShape(10.dp))
+                            .background(if (isSelected) RaahiLightTeal else Color.Transparent)
+                            .border(1.dp, if (isSelected) RaahiPrimaryTeal else Color.Transparent, RoundedCornerShape(10.dp))
                             .clickable {
                                 onSelect(cat)
                                 onDismiss()
@@ -415,12 +415,12 @@ private fun CategoryFilterDialog(
                     ) {
                         Text(
                             text = cat,
-                            color = if (isSelected) RaahiOrange else RaahiText,
+                            color = if (isSelected) RaahiPrimaryTealDark else RaahiText,
                             fontSize = 14.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                         )
                         if (isSelected) {
-                            Icon(Icons.Outlined.Check, contentDescription = "Selected", tint = RaahiOrange, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Outlined.Check, contentDescription = "Selected", tint = RaahiPrimaryTeal, modifier = Modifier.size(16.dp))
                         }
                     }
                     Spacer(Modifier.height(4.dp))
@@ -445,10 +445,10 @@ private fun MechanicsBottomCarousel(
             modifier = Modifier
                 .padding(horizontal = 16.dp, vertical = 8.dp)
                 .fillMaxWidth(),
-            shape = RoundedCornerShape(18.dp),
+            shape = RaahiCardShape,
             color = if (RaahiIsDark) Color(0xFF131D2E) else Color.White,
             border = BorderStroke(1.dp, RaahiBorderSoft),
-            shadowElevation = 3.dp,
+            shadowElevation = RaahiCardElevation,
         ) {
             Row(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
@@ -524,14 +524,14 @@ private fun MechanicsBottomCarousel(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(RaahiOrange.copy(alpha = 0.14f))
+                                .background(RaahiLightTeal)
                                 .clickable { onClearCategory() }
                                 .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(selectedCategory, color = RaahiOrange, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
+                                Text(selectedCategory, color = RaahiPrimaryTealDark, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
                                 Spacer(Modifier.width(3.dp))
-                                Icon(Icons.Outlined.Close, contentDescription = "Clear", tint = RaahiOrange, modifier = Modifier.size(10.dp))
+                                Icon(Icons.Outlined.Close, contentDescription = "Clear", tint = RaahiPrimaryTealDark, modifier = Modifier.size(10.dp))
                             }
                         }
                     }
@@ -597,13 +597,13 @@ private fun MechanicCarouselCard(
 ) {
     Surface(
         modifier = modifier.clickable(onClick = onClick),
-        shape = RoundedCornerShape(22.dp),
-        color = if (RaahiIsDark) Color(0xFF131D2E) else Color.White,
+        shape = RaahiCardShape,
+        color = if (RaahiIsDark) Color(0xFF222629) else Color.White,
         border = BorderStroke(
             width = if (isSelected) 1.5.dp else 1.dp,
-            color = if (isSelected) RaahiOrange else RaahiBorderSoft,
+            color = if (isSelected) RaahiPrimaryTeal else if (RaahiIsDark) Color(0xFF2E3338) else Color(0xFFE3E7E9),
         ),
-        shadowElevation = if (isSelected) 6.dp else 2.5.dp,
+        shadowElevation = if (isSelected) 4.dp else RaahiCardElevation,
     ) {
         Box {
             if (isSelected) {
@@ -614,7 +614,7 @@ private fun MechanicCarouselCard(
                         .width(32.dp)
                         .height(3.dp)
                         .clip(RoundedCornerShape(bottomStart = 2.dp, bottomEnd = 2.dp))
-                        .background(RaahiOrange)
+                        .background(RaahiPrimaryTeal)
                 )
             }
 
@@ -628,8 +628,8 @@ private fun MechanicCarouselCard(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     val (badgeBg, badgeTint, badgeIcon) = when (item.source) {
-                        MechanicSource.VERIFIED -> Triple(RaahiGreen.copy(alpha = 0.12f), RaahiGreen, Icons.Outlined.VerifiedUser)
-                        MechanicSource.GOOGLE_PLACES -> Triple(RaahiOrange.copy(alpha = 0.12f), RaahiOrange, Icons.Outlined.Build)
+                        MechanicSource.VERIFIED -> Triple(RaahiLightTeal, RaahiPrimaryTealDark, Icons.Outlined.VerifiedUser)
+                        MechanicSource.GOOGLE_PLACES -> Triple(RaahiLightTeal, RaahiPrimaryTeal, Icons.Outlined.Build)
                     }
 
                     Box(
@@ -705,7 +705,7 @@ private fun MechanicCarouselCard(
 
                     Text(
                         text = "${"%.1f".format(item.distanceKm)} km away",
-                        color = RaahiOrange,
+                        color = RaahiPrimaryTeal,
                         fontSize = 11.5.sp,
                         fontWeight = FontWeight.Bold,
                     )
@@ -736,7 +736,7 @@ private fun MechanicCarouselCard(
                     SmallActionButton(
                         label = "Directions",
                         icon = Icons.Outlined.Navigation,
-                        tint = RaahiCyan,
+                        tint = RaahiPrimaryTeal,
                         onClick = { onDirections(item.lat, item.lng) },
                     )
                 }
@@ -843,7 +843,7 @@ private fun RecenterFloatingButton(
 private fun LoadingMechanicsScreen() {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            CircularProgressIndicator(color = RaahiOrange, strokeWidth = 3.dp, modifier = Modifier.size(36.dp))
+            CircularProgressIndicator(color = RaahiPrimaryTeal, strokeWidth = 3.dp, modifier = Modifier.size(36.dp))
             Spacer(Modifier.height(14.dp))
             Text(
                 "Locating nearby mechanics…",

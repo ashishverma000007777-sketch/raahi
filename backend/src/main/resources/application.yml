@@ -57,6 +57,14 @@ raahi:
   cancellation:
     threshold: ${RAAHI_CANCEL_THRESHOLD:4}       # abusive pre-arrival cancellations inside the window
     window-days: ${RAAHI_CANCEL_WINDOW_DAYS:30}
+  cancellation-protection:
+    enabled: ${RAAHI_CANCEL_PROTECTION_ENABLED:true}
+    base-rate-per-km: ${RAAHI_CANCEL_RATE_PER_KM:12.0}          # Travel compensation rate per km
+    base-callout-fee: ${RAAHI_CANCEL_CALLOUT_FEE:50.0}          # Base dispatch allowance
+    return-distance-factor: ${RAAHI_CANCEL_RETURN_FACTOR:0.5}   # Factor for return trip coverage
+    min-dispatch-distance-km: ${RAAHI_CANCEL_MIN_KM:0.5}        # Minimum distance to qualify for travel loss
+    max-compensation-cap: ${RAAHI_CANCEL_MAX_CAP:500.0}         # Maximum compensation ceiling per job
+    max-daily-claims-per-helper: ${RAAHI_CANCEL_DAILY_MAX:3}    # Flag/audit warning threshold for claims per 24 hours per helper
   job:
     arrival-radius-m: ${RAAHI_ARRIVAL_RADIUS_M:200}
   subscription:
