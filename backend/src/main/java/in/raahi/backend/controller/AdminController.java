@@ -8,6 +8,7 @@ import in.raahi.backend.entity.MechanicProfile;
 import in.raahi.backend.entity.User;
 import in.raahi.backend.exception.ApiException;
 import in.raahi.backend.repository.HelperApplicationRepository;
+import in.raahi.backend.repository.JobCancellationCompensationRepository;
 import in.raahi.backend.repository.JobRepository;
 import in.raahi.backend.repository.MechanicProfileRepository;
 import in.raahi.backend.repository.UserRepository;
@@ -17,6 +18,7 @@ import in.raahi.backend.service.AuditService;
 import in.raahi.backend.service.CommissionService;
 import in.raahi.backend.service.JobHistoryService;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -56,12 +58,13 @@ public class AdminController {
     private final JobRepository jobRepository;
     private final JobHistoryService history;
     private final CommissionService commission;
-    private final in.raahi.backend.repository.JobCancellationCompensationRepository compensationRepository;
+    private final JobCancellationCompensationRepository compensationRepository;
 
+    @Autowired
     public AdminController(AdminGuard guard, AuditService audit, JdbcTemplate jdbc, UserRepository userRepository,
                            HelperApplicationRepository applicationRepository, MechanicProfileRepository profileRepository,
                            JobRepository jobRepository, JobHistoryService history, CommissionService commission,
-                           in.raahi.backend.repository.JobCancellationCompensationRepository compensationRepository) {
+                           JobCancellationCompensationRepository compensationRepository) {
         this.guard = guard;
         this.audit = audit;
         this.jdbc = jdbc;
