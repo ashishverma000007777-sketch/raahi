@@ -76,6 +76,18 @@ public class JobDtos {
         public Double helperLat;
         public Double helperLng;
         public Integer nearbyHelperCount;
+
+        // ---- en-route and cancellation protection details ----
+        public String enRouteAt;
+        public String cancellationReasonCode;
+        public String cancellationStage;
+        public Double travelLossEstimate;
+        public Double travelLossApproved;
+        public String travelLossStatus; // AUTO_APPROVED, ELIGIBLE_PENDING_REVIEW, ADMIN_APPROVED, REJECTED, NOT_ELIGIBLE
+        public String payoutStatus; // UNPAID, PENDING_PAYOUT, PAID, FAILED
+        public Double travelDistanceKm;
+        public String travelEvidenceType; // GPS_VERIFIED, ESTIMATED_DISPATCH, UNVERIFIED
+        public String travelLossNotes;
     }
 
     public static class LocationUpdateRequest {
@@ -118,6 +130,67 @@ public class JobDtos {
     public static class CancelRequest {
         @Size(max = 200, message = "reason exceeds 200 characters")
         public String reason;
+
+        @Pattern(regexp = "^(CUSTOMER_CANCELLED|HELPER_CANCELLED|CUSTOMER_UNREACHABLE|INCORRECT_LOCATION|VEHICLE_EMERGENCY|UNSAFE_CONDITIONS|OTHER)?$",
+                message = "Invalid reasonCode")
+        public String reasonCode;
+
+        @DecimalMin(value = "-90.0") @DecimalMax(value = "90.0")
+        public Double lat;
+
+        @DecimalMin(value = "-180.0") @DecimalMax(value = "180.0")
+        public Double lng;
+    }
+
+    public static class CompensationDto {
+        public String id;
+        public String jobId;
+        public String helperId;
+        public String helperName;
+        public String helperPhone;
+        public String requesterId;
+        public String requesterName;
+        public String requesterPhone;
+        public String cancellationStage;
+        public String reasonCode;
+        public String reasonText;
+        public String enRouteAt;
+        public String cancelledAt;
+        public Double oneWayDistanceKm;
+        public Double actualTravelKm;
+        public Double returnDistanceKm;
+        public String evidenceType;
+        public Double estimatedLossAmount;
+        public Double approvedAmount;
+        public String status;
+        public String eligibilityNotes;
+        public String policyVersion;
+        public Double baseCalloutFee;
+        public Double baseRatePerKm;
+        public Double returnFactor;
+        public String payoutStatus;
+        public String payoutReference;
+        public String payoutAt;
+        public String payoutNotes;
+        public String reviewedBy;
+        public String reviewedAt;
+        public String reviewNotes;
+        public String createdAt;
+    }
+
+    public static class ApproveCompensationRequest {
+        @DecimalMin(value = "0.0", message = "approvedAmount cannot be negative")
+        @DecimalMax(value = "50000.0", message = "approvedAmount exceeds maximum allowable")
+        public Double approvedAmount;
+
+        @Size(max = 500, message = "note exceeds 500 characters")
+        public String note;
+    }
+
+    public static class RejectCompensationRequest {
+        @NotBlank(message = "note is required")
+        @Size(max = 500, message = "note exceeds 500 characters")
+        public String note;
     }
 
     public static class ReportRequest {

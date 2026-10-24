@@ -25,7 +25,7 @@ enum class DashTab(val label: String) {
     REQUESTS("Requests"), ACTIVE("Active"), HISTORY("History"), EARNINGS("Earnings"), PROFILE("Profile"),
 }
 
-private val ACTIVE_STATES = setOf("MATCHED", "ARRIVED", "IN_PROGRESS", "WORK_DONE")
+private val ACTIVE_STATES = setOf("MATCHED", "EN_ROUTE", "ARRIVED", "IN_PROGRESS", "WORK_DONE")
 
 data class HelperDashUiState(
     val loading: Boolean = true,

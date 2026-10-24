@@ -36,10 +36,11 @@ import `in`.raahi.app.ui.components.*
 import `in`.raahi.app.ui.screens.jobs.JobStatusUiState.*
 import `in`.raahi.app.ui.theme.*
 
-private val STEPS = listOf("PENDING", "MATCHED", "ARRIVED", "IN_PROGRESS", "WORK_DONE", "COMPLETED")
+private val STEPS = listOf("PENDING", "MATCHED", "EN_ROUTE", "ARRIVED", "IN_PROGRESS", "WORK_DONE", "COMPLETED")
 private val STEP_LABELS = mapOf(
-    "PENDING" to "Requested", "MATCHED" to "Helper on the way", "ARRIVED" to "Helper arrived",
-    "IN_PROGRESS" to "Work in progress", "WORK_DONE" to "Work completed", "COMPLETED" to "Job complete",
+    "PENDING" to "Requested", "MATCHED" to "Helper assigned", "EN_ROUTE" to "Helper on the way",
+    "ARRIVED" to "Helper arrived", "IN_PROGRESS" to "Work in progress", "WORK_DONE" to "Work completed",
+    "COMPLETED" to "Job complete",
 )
 
 @Composable
@@ -95,7 +96,7 @@ private fun JobStatusBody(s: Loaded, vm: JobStatusViewModel, onDone: () -> Unit)
         }
 
         // LIVE_HELPER_TRACKING_MAP (Top of tracking screen, Zomato/Blinkit style)
-        if ((isRequester || isHelper) && job.status in setOf("PENDING", "MATCHED", "ARRIVED", "IN_PROGRESS")) {
+        if ((isRequester || isHelper) && job.status in setOf("PENDING", "MATCHED", "EN_ROUTE", "ARRIVED", "IN_PROGRESS")) {
             LiveJobTrackingMap(
                 customerLat = job.lat,
                 customerLng = job.lng,
@@ -145,13 +146,11 @@ private fun JobStatusBody(s: Loaded, vm: JobStatusViewModel, onDone: () -> Unit)
     }
 
     when (dialog) {
-        JobDialog.CANCEL -> TextPromptDialog(
-            title = "Cancel this request?",
-            body = if (isHelper) "Cancelling after accepting counts against your account. Repeated cancellations lead to blocks."
-            else if (job.status == "MATCHED") "A helper is already on the way. Repeated cancellations lead to account blocks."
-            else "Your request will be closed.",
-            hint = "Reason (optional)", confirm = "Cancel request", dismiss = "Keep it", required = false,
-            onConfirm = { vm.cancel(it); dialog = null }, onDismiss = { dialog = null },
+        JobDialog.CANCEL -> CancellationReasonDialog(
+            isHelper = isHelper,
+            isEnRoute = job.status == "EN_ROUTE",
+            onConfirm = { text, code -> vm.cancel(text, code); dialog = null },
+            onDismiss = { dialog = null },
         )
         JobDialog.REPORT -> TextPromptDialog(
             title = "Report an issue", body = "Tell us what went wrong. Our support team will review it.",
@@ -180,6 +179,17 @@ private fun RequesterActions(job: JobDto, acting: Boolean, vm: JobStatusViewMode
             RaahiOutlineButton("Cancel request", onClick = { onDialog(JobDialog.CANCEL) }, tint = RaahiRed)
         }
         "MATCHED" -> {
+            InfoCard("Helper assigned! Preparing to travel.", RaahiAmber)
+            Spacer(Modifier.height(10.dp))
+            CodeCard("Show this arrival code to your helper", job.helperOtp)
+            if (job.cancelAllowed == true) {
+                Spacer(Modifier.height(12.dp))
+                RaahiOutlineButton("Cancel request", onClick = { onDialog(JobDialog.CANCEL) }, tint = RaahiRed)
+            }
+        }
+        "EN_ROUTE" -> {
+            InfoCard("Helper is on the way to your location!", RaahiCyan)
+            Spacer(Modifier.height(10.dp))
             CodeCard("Show this arrival code to your helper", job.helperOtp)
             if (job.cancelAllowed == true) {
                 Spacer(Modifier.height(12.dp))
@@ -199,9 +209,7 @@ private fun RequesterActions(job: JobDto, acting: Boolean, vm: JobStatusViewMode
             }
         }
         "CANCELLED", "EXPIRED" -> {
-            InfoCard(if (job.status == "EXPIRED") "This request expired." else "Request cancelled.", RaahiRed)
-            Spacer(Modifier.height(12.dp))
-            RaahiPrimaryButton("Back to Home", onClick = onDone)
+            CancellationResultCard(job = job, isHelper = false, onDone = onDone)
         }
     }
 }
@@ -211,6 +219,23 @@ private fun HelperActions(job: JobDto, acting: Boolean, vm: JobStatusViewModel, 
     val context = LocalContext.current
     when (job.status) {
         "MATCHED" -> {
+            InfoCard("Job accepted. When you depart, tap 'Start travelling' so the customer can track your route and travel protection is activated.", RaahiAmber)
+            Spacer(Modifier.height(12.dp))
+            RaahiPrimaryButton("Start travelling / On my way", onClick = vm::startEnRoute, loading = acting)
+            Spacer(Modifier.height(10.dp))
+            RaahiOutlineButton("Navigate to customer", onClick = {
+                runCatching {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("geo:${job.lat},${job.lng}?q=${job.lat},${job.lng}")))
+                }
+            })
+            Spacer(Modifier.height(12.dp))
+            ArrivalCard(acting, onArrive = vm::arrive)
+            Spacer(Modifier.height(12.dp))
+            RaahiOutlineButton("Cancel job", onClick = { onDialog(JobDialog.CANCEL) }, tint = RaahiRed)
+        }
+        "EN_ROUTE" -> {
+            InfoCard("You are en route to the customer. Travel-loss protection is active.", RaahiGreen)
+            Spacer(Modifier.height(12.dp))
             RaahiOutlineButton("Navigate to customer", onClick = {
                 runCatching {
                     context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("geo:${job.lat},${job.lng}?q=${job.lat},${job.lng}")))
@@ -237,9 +262,7 @@ private fun HelperActions(job: JobDto, acting: Boolean, vm: JobStatusViewModel, 
             RaahiPrimaryButton("Back to dashboard", onClick = onDone)
         }
         "CANCELLED", "EXPIRED" -> {
-            InfoCard("This job is closed.", RaahiRed)
-            Spacer(Modifier.height(12.dp))
-            RaahiPrimaryButton("Back", onClick = onDone)
+            CancellationResultCard(job = job, isHelper = true, onDone = onDone)
         }
     }
 }
@@ -269,7 +292,7 @@ private fun StepperCard(job: JobDto) {
                     )
                 }
             }
-            if (job.arrivalMethod != null && job.status != "PENDING" && job.status != "MATCHED") {
+            if (job.arrivalMethod != null && job.status != "PENDING" && job.status != "MATCHED" && job.status != "EN_ROUTE") {
                 Spacer(Modifier.height(4.dp))
                 Text("Arrival verified by ${job.arrivalMethod!!.replace("_", " + ")}", color = RaahiTextDim, fontSize = 11.sp)
             }
@@ -488,4 +511,236 @@ private fun WorkDoneDialog(suggested: Double, onConfirm: (Double?, String) -> Un
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Back", color = RaahiTextDim) } },
     )
+}
+
+@Composable
+private fun CancellationReasonDialog(
+    isHelper: Boolean,
+    isEnRoute: Boolean,
+    onConfirm: (reason: String, reasonCode: String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val reasons = if (isHelper) listOf(
+        "VEHICLE_EMERGENCY" to "Vehicle issue / Breakdown",
+        "UNSAFE_CONDITIONS" to "Unsafe conditions / Road hazard",
+        "CUSTOMER_UNREACHABLE" to "Customer unreachable / No response",
+        "INCORRECT_LOCATION" to "Incorrect or inaccessible location",
+        "HELPER_CANCELLED" to "Unable to assist at this time",
+        "OTHER" to "Other reason",
+    ) else listOf(
+        "CUSTOMER_CANCELLED" to "Change of plans / No longer needed",
+        "CUSTOMER_CANCELLED" to "Found alternate help",
+        "CUSTOMER_CANCELLED" to "Helper taking too long",
+        "INCORRECT_LOCATION" to "Entered incorrect location / address",
+        "VEHICLE_EMERGENCY" to "Emergency resolved",
+        "OTHER" to "Other reason",
+    )
+
+    var selectedIndex by remember { mutableIntStateOf(0) }
+    var explanation by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = RaahiBg2,
+        title = {
+            Text(
+                if (isHelper) "Cancel Roadside Job?" else "Cancel Help Request?",
+                color = RaahiText,
+                fontWeight = FontWeight.Bold,
+            )
+        },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                if (isEnRoute && !isHelper) {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .background(RaahiAmber.copy(alpha = 0.12f), RaahiShapeMedium)
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            "Helper is already en route. Raahi's En-Route Protection Policy applies to reimburse verified travel expenses.",
+                            color = RaahiAmber,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    }
+                    Spacer(Modifier.height(10.dp))
+                } else if (isHelper) {
+                    Text(
+                        "Vehicle emergencies and hazardous conditions are exempt from reliability penalties.",
+                        color = RaahiTextDim,
+                        fontSize = 12.sp,
+                    )
+                    Spacer(Modifier.height(10.dp))
+                }
+
+                Text("Select cancellation reason:", color = RaahiText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(8.dp))
+
+                reasons.forEachIndexed { i, (code, label) ->
+                    val selected = i == selectedIndex
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                            .background(
+                                if (selected) RaahiOrange.copy(alpha = 0.14f) else Color.Transparent,
+                                RaahiShapeSmall
+                            )
+                            .clickable { selectedIndex = i }
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            Modifier
+                                .size(14.dp)
+                                .background(if (selected) RaahiOrange else RaahiTextFaint, CircleShape)
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            label,
+                            color = if (selected) RaahiOrange else RaahiText,
+                            fontSize = 12.5.sp,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(10.dp))
+                RaahiTextField(
+                    value = explanation,
+                    onValueChange = { if (it.length <= 250) explanation = it },
+                    placeholder = "Additional explanation (optional)",
+                    singleLine = false,
+                    minLines = 2,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val (code, label) = reasons[selectedIndex]
+                val fullReason = if (explanation.isNotBlank()) "$label: ${explanation.trim()}" else label
+                onConfirm(fullReason, code)
+            }) {
+                Text("Confirm Cancellation", color = RaahiRed, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Keep Job", color = RaahiTextDim)
+            }
+        },
+    )
+}
+
+@Composable
+private fun CancellationResultCard(job: JobDto, isHelper: Boolean, onDone: () -> Unit) {
+    GlassCard(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = RaahiRed, modifier = Modifier.size(24.dp))
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    if (job.status == "EXPIRED") "Request Expired" else "Request Cancelled",
+                    color = RaahiText,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+
+            if (!job.cancellationReasonCode.isNullOrBlank() || !job.cancellationStage.isNullOrBlank()) {
+                Spacer(Modifier.height(12.dp))
+                val reasonTitle = when (job.cancellationReasonCode) {
+                    "VEHICLE_EMERGENCY" -> "Vehicle Issue / Emergency"
+                    "UNSAFE_CONDITIONS" -> "Unsafe / Hazardous Conditions"
+                    "CUSTOMER_UNREACHABLE" -> "Customer Unreachable"
+                    "INCORRECT_LOCATION" -> "Incorrect Location"
+                    "CUSTOMER_CANCELLED" -> "Cancelled by Customer"
+                    "HELPER_CANCELLED" -> "Cancelled by Helper"
+                    else -> job.cancellationReasonCode ?: "Cancelled"
+                }
+                DetailRow("Reason", reasonTitle)
+                if (!job.cancellationStage.isNullOrBlank()) {
+                    DetailRow("Stage", if (job.cancellationStage == "EN_ROUTE") "En-Route Travel" else "Pre-Dispatch")
+                }
+            }
+
+            // Travel Loss Protection details
+            if (job.travelLossStatus != null) {
+                Spacer(Modifier.height(14.dp))
+                val badgeColor = when (job.travelLossStatus) {
+                    "ADMIN_APPROVED" -> RaahiGreen
+                    "ELIGIBLE_PENDING_REVIEW" -> RaahiAmber
+                    "REJECTED" -> RaahiRed
+                    else -> RaahiTextDim
+                }
+                val badgeText = when (job.travelLossStatus) {
+                    "ADMIN_APPROVED" -> {
+                        if (job.payoutStatus == "PAID") "Reimbursement Paid: ₹${job.travelLossApproved?.toInt() ?: 0}"
+                        else "Approved by Admin (₹${job.travelLossApproved?.toInt() ?: 0} approved, settlement pending)"
+                    }
+                    "ELIGIBLE_PENDING_REVIEW" -> "Pending Admin Review (₹${job.travelLossEstimate?.toInt() ?: 0} est.)"
+                    "REJECTED" -> "Reimbursement Claim Rejected"
+                    "NOT_ELIGIBLE" -> "Travel Reimbursement Ineligible"
+                    else -> "Travel Protection Evaluated"
+                }
+
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(badgeColor.copy(alpha = 0.12f), RaahiShapeMedium)
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(Modifier.size(8.dp).background(badgeColor, CircleShape))
+                    Spacer(Modifier.width(8.dp))
+                    Text(badgeText, color = badgeColor, fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
+                }
+
+                if (job.travelDistanceKm != null && job.travelDistanceKm > 0) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "${job.travelDistanceKm} km verified travel distance",
+                        color = RaahiTextDim,
+                        fontSize = 11.5.sp,
+                    )
+                }
+
+                if (!job.travelLossNotes.isNullOrBlank()) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        when (job.travelLossStatus) {
+                            "REJECTED" -> "Decision: ${job.travelLossNotes}"
+                            "ADMIN_APPROVED" -> "Admin Note: ${job.travelLossNotes}"
+                            else -> job.travelLossNotes ?: ""
+                        },
+                        color = RaahiTextDim,
+                        fontSize = 11.5.sp,
+                        lineHeight = 16.sp,
+                    )
+                }
+
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    if (isHelper) "Under Raahi's Roadside Assistance Cancellation Policy, travel-loss claims are reviewed by support admins. Payout settlement is processed separately upon review approval."
+                    else "Under Raahi's Roadside Assistance Protection Policy, helper dispatch costs are covered by Raahi's protection fund. No late cancellation fee has been charged to your account.",
+                    color = RaahiTextDim,
+                    fontSize = 11.5.sp,
+                    lineHeight = 16.sp,
+                )
+            } else if (job.status == "CANCELLED") {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "This roadside assistance request was closed before travel was incurred.",
+                    color = RaahiTextDim,
+                    fontSize = 12.sp,
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
+            RaahiPrimaryButton(if (isHelper) "Back to Dashboard" else "Back to Home", onClick = onDone)
+        }
+    }
 }

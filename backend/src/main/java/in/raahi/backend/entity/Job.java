@@ -60,8 +60,11 @@ public class Job {
     @Column(name = "expires_at")
     private Instant expiresAt;
 
-    public enum Status { PENDING, MATCHED, ARRIVED, IN_PROGRESS, WORK_DONE, COMPLETED, CANCELLED, EXPIRED }
+    public enum Status { PENDING, MATCHED, EN_ROUTE, ARRIVED, IN_PROGRESS, WORK_DONE, COMPLETED, CANCELLED, EXPIRED }
 
+    @Column(name = "en_route_at") private Instant enRouteAt;
+    @Column(name = "en_route_lat") private Double enRouteLat;
+    @Column(name = "en_route_lng") private Double enRouteLng;
     @Column(name = "arrived_at") private Instant arrivedAt;
     @Column(name = "arrival_lat") private Double arrivalLat;
     @Column(name = "arrival_lng") private Double arrivalLng;
@@ -76,8 +79,11 @@ public class Job {
     @Column(name = "cancelled_by") private UUID cancelledBy;
     @Column(name = "cancelled_at") private Instant cancelledAt;
     @Column(name = "cancel_reason") private String cancelReason;
+    @Column(name = "cancellation_reason_code") private String cancellationReasonCode;
+    @Column(name = "cancellation_stage") private String cancellationStage;
 
     public UUID getId() { return id; }
+    public void setId(UUID id) { this.id = id; }
     public User getRequester() { return requester; }
     public void setRequester(User v) { this.requester = v; }
     public User getHelper() { return helper; }
@@ -132,4 +138,14 @@ public class Job {
     public void setCancelledAt(Instant v) { this.cancelledAt = v; }
     public String getCancelReason() { return cancelReason; }
     public void setCancelReason(String v) { this.cancelReason = v; }
+    public Instant getEnRouteAt() { return enRouteAt; }
+    public void setEnRouteAt(Instant v) { this.enRouteAt = v; }
+    public Double getEnRouteLat() { return enRouteLat; }
+    public void setEnRouteLat(Double v) { this.enRouteLat = v; }
+    public Double getEnRouteLng() { return enRouteLng; }
+    public void setEnRouteLng(Double v) { this.enRouteLng = v; }
+    public String getCancellationReasonCode() { return cancellationReasonCode; }
+    public void setCancellationReasonCode(String v) { this.cancellationReasonCode = v; }
+    public String getCancellationStage() { return cancellationStage; }
+    public void setCancellationStage(String v) { this.cancellationStage = v; }
 }

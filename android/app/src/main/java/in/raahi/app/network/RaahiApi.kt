@@ -60,6 +60,16 @@ data class JobDto(
     val helperLat: Double? = null,
     val helperLng: Double? = null,
     val nearbyHelperCount: Int? = null,
+    val enRouteAt: String? = null,
+    val cancellationReasonCode: String? = null,
+    val cancellationStage: String? = null,
+    val travelLossEstimate: Double? = null,
+    val travelLossApproved: Double? = null,
+    val travelLossStatus: String? = null,
+    val payoutStatus: String? = null,
+    val travelDistanceKm: Double? = null,
+    val travelEvidenceType: String? = null,
+    val travelLossNotes: String? = null,
 )
 
 data class JobLocationUpdateRequest(val lat: Double, val lng: Double)
@@ -67,7 +77,12 @@ data class JobLocationUpdateRequest(val lat: Double, val lng: Double)
 data class ArriveRequest(val lat: Double?, val lng: Double?, val otp: String?)
 data class WorkDoneRequest(val finalAmount: Double?, val paymentMode: String)
 data class RateRequest(val stars: Int, val comment: String?)
-data class CancelRequest(val reason: String?)
+data class CancelRequest(
+    val reason: String?,
+    val reasonCode: String? = null,
+    val lat: Double? = null,
+    val lng: Double? = null,
+)
 data class ReportRequest(val message: String, val kind: String = "ISSUE")
 data class AvailabilityRequest(val online: Boolean, val lat: Double?, val lng: Double?)
 
@@ -583,6 +598,9 @@ interface RaahiApi {
 
     @POST("jobs/{id}/accept")
     suspend fun acceptJob(@Path("id") id: String): ApiEnvelope<JobDto>
+
+    @POST("jobs/{id}/en-route")
+    suspend fun startEnRoute(@Path("id") id: String, @Body req: JobLocationUpdateRequest? = null): ApiEnvelope<JobDto>
 
     @POST("jobs/{id}/arrive")
     suspend fun arriveJob(@Path("id") id: String, @Body req: ArriveRequest): ApiEnvelope<JobDto>

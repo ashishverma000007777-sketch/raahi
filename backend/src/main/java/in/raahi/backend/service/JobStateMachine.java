@@ -20,8 +20,10 @@ public final class JobStateMachine {
 
     static {
         ALLOWED.put(Status.PENDING, EnumSet.of(Status.MATCHED, Status.CANCELLED, Status.EXPIRED));
-        // MATCHED -> PENDING = the helper backed out before arriving and the request is re-opened.
-        ALLOWED.put(Status.MATCHED, EnumSet.of(Status.ARRIVED, Status.CANCELLED, Status.PENDING));
+        // MATCHED -> EN_ROUTE = helper starts travelling; ARRIVED = direct arrival; PENDING = helper backed out.
+        ALLOWED.put(Status.MATCHED, EnumSet.of(Status.EN_ROUTE, Status.ARRIVED, Status.CANCELLED, Status.PENDING));
+        // EN_ROUTE -> ARRIVED = reached customer; CANCELLED = cancelled en route; PENDING = helper backed out / emergency.
+        ALLOWED.put(Status.EN_ROUTE, EnumSet.of(Status.ARRIVED, Status.CANCELLED, Status.PENDING));
         ALLOWED.put(Status.ARRIVED, EnumSet.of(Status.IN_PROGRESS));
         ALLOWED.put(Status.IN_PROGRESS, EnumSet.of(Status.WORK_DONE));
         ALLOWED.put(Status.WORK_DONE, EnumSet.of(Status.COMPLETED));
@@ -33,7 +35,7 @@ public final class JobStateMachine {
     private JobStateMachine() {}
 
     public static boolean canTransition(Status from, Status to) {
-        return from != null && to != null && ALLOWED.get(from).contains(to);
+        return from != null && to != null && ALLOWED.get(from) != null && ALLOWED.get(from).contains(to);
     }
 
     public static void require(Status from, Status to) {
@@ -45,6 +47,6 @@ public final class JobStateMachine {
 
     /** Normal (non-support) cancellation is only possible before the helper has arrived. */
     public static boolean cancellable(Status s) {
-        return s == Status.PENDING || s == Status.MATCHED;
+        return s == Status.PENDING || s == Status.MATCHED || s == Status.EN_ROUTE;
     }
 }

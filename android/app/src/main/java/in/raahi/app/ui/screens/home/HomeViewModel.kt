@@ -87,7 +87,7 @@ data class HomeMetrics(
     val fuelPrice: FuelPrice? = null,
 )
 
-private val ACTIVE_JOB_STATUSES = setOf("PENDING", "MATCHED", "ARRIVED", "IN_PROGRESS", "WORK_DONE")
+private val ACTIVE_JOB_STATUSES = setOf("PENDING", "MATCHED", "EN_ROUTE", "ARRIVED", "IN_PROGRESS", "WORK_DONE")
 
 // Geocoder admin-area names that differ from the backend's fuel_rates.state keys.
 // This is a name-matching table, not data: prices always come from /fuel-rates.

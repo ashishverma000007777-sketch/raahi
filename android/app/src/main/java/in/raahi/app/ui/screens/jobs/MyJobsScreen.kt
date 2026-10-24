@@ -264,7 +264,7 @@ private fun MyJobRow(job: JobDto, onClick: () -> Unit) {
     val problem = PROBLEM_TYPES.firstOrNull { it.id == job.problemType }
     val statusColor = when (job.status) {
         "PENDING" -> RaahiAmber
-        "MATCHED", "ARRIVED", "IN_PROGRESS" -> RaahiOrange
+        "MATCHED", "EN_ROUTE", "ARRIVED", "IN_PROGRESS" -> RaahiOrange
         "WORK_DONE" -> RaahiAmber
         "COMPLETED" -> RaahiGreen
         "CANCELLED", "EXPIRED" -> RaahiRed

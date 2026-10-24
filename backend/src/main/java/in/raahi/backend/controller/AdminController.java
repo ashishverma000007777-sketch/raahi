@@ -56,10 +56,12 @@ public class AdminController {
     private final JobRepository jobRepository;
     private final JobHistoryService history;
     private final CommissionService commission;
+    private final in.raahi.backend.repository.JobCancellationCompensationRepository compensationRepository;
 
     public AdminController(AdminGuard guard, AuditService audit, JdbcTemplate jdbc, UserRepository userRepository,
                            HelperApplicationRepository applicationRepository, MechanicProfileRepository profileRepository,
-                           JobRepository jobRepository, JobHistoryService history, CommissionService commission) {
+                           JobRepository jobRepository, JobHistoryService history, CommissionService commission,
+                           in.raahi.backend.repository.JobCancellationCompensationRepository compensationRepository) {
         this.guard = guard;
         this.audit = audit;
         this.jdbc = jdbc;
@@ -69,6 +71,13 @@ public class AdminController {
         this.jobRepository = jobRepository;
         this.history = history;
         this.commission = commission;
+        this.compensationRepository = compensationRepository;
+    }
+
+    public AdminController(AdminGuard guard, AuditService audit, JdbcTemplate jdbc, UserRepository userRepository,
+                           HelperApplicationRepository applicationRepository, MechanicProfileRepository profileRepository,
+                           JobRepository jobRepository, JobHistoryService history, CommissionService commission) {
+        this(guard, audit, jdbc, userRepository, applicationRepository, profileRepository, jobRepository, history, commission, null);
     }
 
     // ---------------------------------------------------------------- overview
@@ -80,7 +89,8 @@ public class AdminController {
         m.put("pendingKyc", count("SELECT COUNT(*) FROM helper_applications WHERE status = 'PENDING'"));
         m.put("approvedHelpers", count("SELECT COUNT(*) FROM helper_applications WHERE status = 'APPROVED'"));
         m.put("suspendedHelpers", count("SELECT COUNT(*) FROM helper_applications WHERE status = 'SUSPENDED'"));
-        m.put("activeJobs", count("SELECT COUNT(*) FROM jobs WHERE status IN ('MATCHED','ARRIVED','IN_PROGRESS','WORK_DONE')"));
+        m.put("activeJobs", count("SELECT COUNT(*) FROM jobs WHERE status IN ('MATCHED','EN_ROUTE','ARRIVED','IN_PROGRESS','WORK_DONE')"));
+        m.put("pendingCompensations", count("SELECT COUNT(*) FROM job_cancellation_compensations WHERE status = 'ELIGIBLE_PENDING_REVIEW'"));
         m.put("openReports", count("SELECT COUNT(*) FROM job_reports WHERE status = 'OPEN'"));
         m.put("abusiveCancellations30d", count("SELECT COUNT(*) FROM cancellation_events WHERE abusive = TRUE AND excused = FALSE AND created_at > NOW() - INTERVAL '30 days'"));
         m.put("helpersOwingCommission", count("SELECT COUNT(*) FROM (SELECT helper_id FROM commission_ledger GROUP BY helper_id HAVING SUM(amount) < 0) t"));
@@ -264,6 +274,141 @@ public class AdminController {
                 admin.getId(), req.note, id);
         if (n == 0) throw ApiException.conflict("NOT_EXCUSABLE", "Cancellation not found or already excused");
         audit.log(admin.getId(), "ADMIN", "CANCELLATION_EXCUSED", "CANCELLATION", id.toString(), req.note);
+        return ApiResponse.ok(Map.of("success", true));
+    }
+
+    // ---------------------------------------------------------------- cancellation compensation claims
+    @GetMapping("/cancellation-compensations")
+    @Transactional(readOnly = true)
+    public ApiResponse<List<Map<String, Object>>> cancellationCompensations(
+            @AuthenticationPrincipal AuthenticatedUser p,
+            @RequestParam(required = false) String status) {
+        guard.require(p);
+        String sql = "SELECT c.id, c.job_id, c.helper_id, h.name AS helper_name, h.phone AS helper_phone, " +
+                "c.requester_id, r.name AS requester_name, r.phone AS requester_phone, " +
+                "c.cancellation_stage, c.reason_code, c.reason_text, c.en_route_at, c.cancelled_at, " +
+                "c.one_way_distance_km, c.actual_travel_km, c.return_distance_km, c.evidence_type, " +
+                "c.estimated_loss_amount, c.approved_amount, c.status, c.eligibility_notes, " +
+                "c.policy_version, c.base_callout_fee, c.base_rate_per_km, c.return_factor, " +
+                "c.payout_status, c.payout_reference, c.payout_at, c.payout_notes, " +
+                "c.review_notes, c.created_at " +
+                "FROM job_cancellation_compensations c " +
+                "JOIN users h ON h.id = c.helper_id " +
+                "JOIN users r ON r.id = c.requester_id " +
+                (status != null && !status.isBlank() ? "WHERE c.status = ? " : "") +
+                "ORDER BY c.created_at DESC LIMIT 100";
+
+        List<Map<String, Object>> rows = (status != null && !status.isBlank())
+                ? jdbc.queryForList(sql, status.trim().toUpperCase())
+                : jdbc.queryForList(sql);
+        return ApiResponse.ok(rows);
+    }
+
+    @GetMapping("/cancellation-compensations/{id}")
+    @Transactional(readOnly = true)
+    public ApiResponse<Map<String, Object>> cancellationCompensationDetail(
+            @AuthenticationPrincipal AuthenticatedUser p,
+            @PathVariable UUID id) {
+        guard.require(p);
+        List<Map<String, Object>> results = jdbc.queryForList(
+                "SELECT c.*, h.name AS helper_name, h.phone AS helper_phone, " +
+                "r.name AS requester_name, r.phone AS requester_phone " +
+                "FROM job_cancellation_compensations c " +
+                "JOIN users h ON h.id = c.helper_id " +
+                "JOIN users r ON r.id = c.requester_id " +
+                "WHERE c.id = ?", id);
+        if (results.isEmpty()) {
+            throw ApiException.notFound("COMPENSATION_NOT_FOUND", "Compensation claim not found");
+        }
+        return ApiResponse.ok(results.get(0));
+    }
+
+    @PostMapping("/cancellation-compensations/{id}/approve")
+    @Transactional
+    public ApiResponse<Object> approveCompensation(
+            @AuthenticationPrincipal AuthenticatedUser p,
+            @PathVariable UUID id,
+            @RequestBody(required = false) in.raahi.backend.dto.JobDtos.ApproveCompensationRequest req) {
+        User admin = guard.require(p);
+        if (compensationRepository == null) throw new ApiException(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR, "NOT_CONFIGURED", "Repository not configured");
+
+        in.raahi.backend.entity.JobCancellationCompensation comp = compensationRepository.findByIdWithDetails(id)
+                .orElseThrow(() -> ApiException.notFound("COMPENSATION_NOT_FOUND", "Compensation claim not found"));
+
+        if (comp.getStatus() == in.raahi.backend.entity.JobCancellationCompensation.CompensationStatus.ADMIN_APPROVED) {
+            // Idempotent retry: already approved
+            return ApiResponse.ok(Map.of("success", true, "approvedAmount", comp.getApprovedAmount(), "alreadyApproved", true));
+        }
+        if (comp.getStatus() == in.raahi.backend.entity.JobCancellationCompensation.CompensationStatus.REJECTED) {
+            throw ApiException.conflict("ALREADY_REJECTED", "Cannot approve a claim that has already been rejected");
+        }
+        if (comp.getStatus() != in.raahi.backend.entity.JobCancellationCompensation.CompensationStatus.ELIGIBLE_PENDING_REVIEW) {
+            throw ApiException.conflict("NOT_PENDING", "Claim is already " + comp.getStatus());
+        }
+
+        double amount = req != null && req.approvedAmount != null ? req.approvedAmount : comp.getEstimatedLossAmount();
+        if (amount < 0.0 || amount > 50000.0) {
+            throw ApiException.badRequest("INVALID_AMOUNT", "Approved amount must be between 0 and 50,000");
+        }
+        String note = req != null && req.note != null && !req.note.isBlank() ? req.note.trim() : "Approved by admin";
+
+        int updated = compensationRepository.transitionPendingStatus(id,
+                in.raahi.backend.entity.JobCancellationCompensation.CompensationStatus.ADMIN_APPROVED,
+                amount, admin, Instant.now(), note, Instant.now());
+
+        if (updated == 0) {
+            var current = compensationRepository.findById(id).orElseThrow();
+            if (current.getStatus() == in.raahi.backend.entity.JobCancellationCompensation.CompensationStatus.ADMIN_APPROVED) {
+                return ApiResponse.ok(Map.of("success", true, "approvedAmount", current.getApprovedAmount(), "alreadyApproved", true));
+            }
+            throw ApiException.conflict("CONCURRENT_DECISION", "Claim status changed concurrently to " + current.getStatus());
+        }
+
+        audit.log(admin.getId(), "ADMIN", "COMPENSATION_ADMIN_APPROVED", "CANCELLATION_COMPENSATION", id.toString(),
+                "Approved ₹" + amount + " for helper " + comp.getHelper().getId() + " - Note: " + note);
+
+        return ApiResponse.ok(Map.of("success", true, "approvedAmount", amount));
+    }
+
+    @PostMapping("/cancellation-compensations/{id}/reject")
+    @Transactional
+    public ApiResponse<Object> rejectCompensation(
+            @AuthenticationPrincipal AuthenticatedUser p,
+            @PathVariable UUID id,
+            @Valid @RequestBody in.raahi.backend.dto.JobDtos.RejectCompensationRequest req) {
+        User admin = guard.require(p);
+        if (compensationRepository == null) throw new ApiException(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR, "NOT_CONFIGURED", "Repository not configured");
+
+        in.raahi.backend.entity.JobCancellationCompensation comp = compensationRepository.findByIdWithDetails(id)
+                .orElseThrow(() -> ApiException.notFound("COMPENSATION_NOT_FOUND", "Compensation claim not found"));
+
+        if (comp.getStatus() == in.raahi.backend.entity.JobCancellationCompensation.CompensationStatus.REJECTED) {
+            // Idempotent retry: already rejected
+            return ApiResponse.ok(Map.of("success", true, "alreadyRejected", true));
+        }
+        if (comp.getStatus() == in.raahi.backend.entity.JobCancellationCompensation.CompensationStatus.ADMIN_APPROVED) {
+            throw ApiException.conflict("ALREADY_APPROVED", "Cannot reject a claim that has already been approved");
+        }
+        if (comp.getStatus() != in.raahi.backend.entity.JobCancellationCompensation.CompensationStatus.ELIGIBLE_PENDING_REVIEW) {
+            throw ApiException.conflict("NOT_PENDING", "Claim is already " + comp.getStatus());
+        }
+
+        String note = req.note.trim();
+        int updated = compensationRepository.transitionPendingStatus(id,
+                in.raahi.backend.entity.JobCancellationCompensation.CompensationStatus.REJECTED,
+                0.0, admin, Instant.now(), note, Instant.now());
+
+        if (updated == 0) {
+            var current = compensationRepository.findById(id).orElseThrow();
+            if (current.getStatus() == in.raahi.backend.entity.JobCancellationCompensation.CompensationStatus.REJECTED) {
+                return ApiResponse.ok(Map.of("success", true, "alreadyRejected", true));
+            }
+            throw ApiException.conflict("CONCURRENT_DECISION", "Claim status changed concurrently to " + current.getStatus());
+        }
+
+        audit.log(admin.getId(), "ADMIN", "COMPENSATION_ADMIN_REJECTED", "CANCELLATION_COMPENSATION", id.toString(),
+                "Rejected claim for helper " + comp.getHelper().getId() + " - Reason: " + note);
+
         return ApiResponse.ok(Map.of("success", true));
     }
 
